@@ -9439,9 +9439,17 @@ class Graph:
         ValueError
             If `m=` is less than `2` or `n=` is negative.
 
+        See Also
+        --------
+        add_tadpole_graph : Add a cycle with a path hanging from it.
+        add_barbell_graph : Add two cliques joined by a path.
+        add_full_graph : Add a complete graph.
+
         Examples
         --------
-        A four-node clique with a three-node stick has `7` nodes and `6 + 3 = 9` edges:
+        A lollipop graph is a complete graph of `m` nodes with a path of `n` nodes, the stick,
+        hanging from it. A clique of four with a stick of three has `7` nodes and `6 + 3 = 9`
+        edges:
 
         ```{python}
         import edgecase as ec
@@ -9451,12 +9459,44 @@ class Graph:
         graph.count_nodes(), graph.count_edges()
         ```
 
-        The stick hangs from node `"4"`, the clique's last node, so the longest shortest path
-        runs from the clique to the tip `"7"`:
+        The stick hangs from node `"4"`, the clique's last node, and ends at node `"7"`, so the
+        longest shortest path runs from the clique to that tip:
 
         ```{python}
         graph.diameter(), graph.get_degree("4"), graph.get_degree("7")
         ```
+
+        ### A short stick and a long one
+
+        Lollipops are the classic worst case for random walks: a walk that starts in the clique
+        keeps circling inside it and takes a long time to reach the tip. A clique of five with a
+        stick of one on the left, and with a stick of three on the right, which moves the tip from
+        two steps from the far side of the clique to four:
+
+        ```{python}
+        short = ec.Graph().add_lollipop_graph(m=5, n=1)
+        long = ec.Graph().add_lollipop_graph(m=5, n=3)
+
+        short.diameter(), long.diameter()
+        ```
+
+        ::: {layout-ncol="2"}
+
+        ```{python}
+        short.layout_kamada_kawai().plot(
+            layout="pos", label_by="label", node_size=10,
+            width=320, height=320, legend=False,
+        )
+        ```
+
+        ```{python}
+        long.layout_kamada_kawai().plot(
+            layout="pos", label_by="label", node_size=10,
+            width=320, height=320, legend=False,
+        )
+        ```
+
+        :::
         """
         if m < 2:
             raise ValueError("Lollipop clique must have at least 2 nodes")
