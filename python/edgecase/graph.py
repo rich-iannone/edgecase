@@ -11116,27 +11116,65 @@ class Graph:
         ValueError
             If `n=` is less than `3`, or `k=` is not between `1` and `n / 2`.
 
+        See Also
+        --------
+        add_prism_graph : Add a prism graph.
+        add_lcf_graph : Add a cubic graph from LCF notation.
+        add_named_graph : Add a well-known graph by name.
+
         Examples
         --------
-        GP(5, 2) is the Petersen graph:
+        The generalized Petersen graph `GP(n, k)` has an outer cycle of `n` nodes, `"1"` to `"n"`,
+        and `n` inner nodes, each joined by a spoke to an outer node and to the inner nodes `k`
+        steps away on either side. `GP(5, 2)` is the Petersen graph:
 
         ```{python}
         import edgecase as ec
 
-        gp = ec.Graph().add_generalized_petersen_graph(5, 2)
+        graph = ec.Graph().add_generalized_petersen_graph(5, 2)
+        petersen = ec.Graph().add_named_graph("petersen")
 
-        gp.count_nodes(), gp.count_edges(), gp.is_isomorphic(
-            ec.Graph().add_named_graph("petersen")
+        graph.count_nodes(), graph.count_edges(), graph.is_isomorphic(petersen)
+        ```
+
+        With `n=10`, `k` sets the length of the shortest cycle. `GP(10, 1)` is a prism, with
+        squares; `GP(10, 2)` is the dodecahedron, with pentagons; and `GP(10, 3)`, the Desargues
+        graph, has no cycle shorter than six:
+
+        ```{python}
+        {
+            k: ec.Graph().add_generalized_petersen_graph(10, k).girth()
+            for k in (1, 2, 3)
+        }
+        ```
+
+        ### Steps of two and three
+
+        The dodecahedron on the left and the Desargues graph on the right, each with the inner
+        nodes inside the outer cycle. A step of two traces two pentagons inside, and a step of
+        three a single ten-pointed star:
+
+        ```{python}
+        dodecahedron = ec.Graph().add_generalized_petersen_graph(10, 2)
+        desargues = ec.Graph().add_generalized_petersen_graph(10, 3)
+        rings = [list(range(11, 21)), list(range(1, 11))]
+        ```
+
+        ::: {layout-ncol="2"}
+
+        ```{python}
+        dodecahedron.layout_shell(nlist=rings, rotate=0).plot(
+            layout="pos", label_by="label", width=320, height=320, legend=False
         )
         ```
 
-        Varying `k` with `n = 10` gives graphs of different girth: the prism GP(10, 1) has
-        squares, the dodecahedron GP(10, 2) has pentagons, and the Desargues graph GP(10, 3) is
-        bipartite with girth 6:
-
         ```{python}
-        {k: ec.Graph().add_generalized_petersen_graph(10, k).girth() for k in (1, 2, 3)}
+        desargues.layout_shell(nlist=rings, rotate=0).plot(
+            layout="pos", label_by="label", width=320, height=320, legend=False
+        )
         ```
+
+        :::
         """
         if n < 3:
             raise ValueError(f"n must be at least 3, got {n}")
