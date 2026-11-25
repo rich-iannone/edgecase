@@ -50269,18 +50269,45 @@ class Graph:
         $d((g, h), (g', h')) = \max(d_G(g, g'), d_H(h, h'))$. When both factors are simple the
         product is simple, matching NetworkX's `strong_product`.
 
+        See Also
+        --------
+        cartesian_product : Join pairs that move in one graph at a time.
+        tensor_product : Join pairs that move in both graphs at once.
+        lexicographic_product : Replace each node with a copy of another graph.
+
         Examples
         --------
-        A 3 x 3 king's graph: the center square reaches all 8 others in one move:
+        The strong product has the edges of both the Cartesian and the tensor product. Two paths
+        of three give the moves of a king on a 3 x 3 board. The center square reaches all 8 others
+        in one move and a corner reaches 3:
 
         ```{python}
         import edgecase as ec
 
-        p3 = ec.Graph().add_nodes(["a", "b", "c"]).add_edges([("a", "b"), ("b", "c")])
-        p3_ranks = ec.Graph().add_nodes(["1", "2", "3"]).add_edges([("1", "2"), ("2", "3")])
+        files = ec.Graph().add_nodes(["a", "b", "c"])
+        files.add_edges([("a", "b"), ("b", "c")])
+        ranks = ec.Graph().add_nodes(["1", "2", "3"])
+        ranks.add_edges([("1", "2"), ("2", "3")])
 
-        kings = p3.strong_product(p3_ranks)
-        kings.count_edges(), kings.get_degree("(b, 2)")
+        kings = files.strong_product(ranks)
+        kings.get_degree("(b, 2)"), kings.get_degree("(a, 1)")
+        ```
+
+        Placing each square by its label lays out the board, with the center's moves highlighted:
+
+        ```{python}
+        squares = kings.get_node_df()
+        board = {
+            n: ("abc".index(label[1]), int(label[-2]))
+            for n, label in zip(squares["id"], squares["label"])
+        }
+        center = kings.get_id_from_label("(b, 2)")
+        moves = kings.get_neighbors(center)
+
+        kings.set_node_attrs("pos", board).plot(
+            layout="pos", label_by="label", highlight=[center] + moves,
+            highlight_edges=[(center, n) for n in moves],
+        )
         ```
         """
         return self._product(other, "strong", "strong_product")
