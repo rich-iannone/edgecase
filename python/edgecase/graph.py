@@ -11144,6 +11144,9 @@ class Graph:
         ```
 
         :::
+
+        [Graph generators](../user-guide/generators.qmd#deterministic-structures) lists the
+        deterministic generators by family.
         """
         if r < 1:
             raise ValueError("Branching factor r must be at least 1")
