@@ -22099,23 +22099,28 @@ class Graph:
         divided by the number of automorphisms of the pattern. With `induced=True` the
         occurrences are those of NetworkX's `ISMAGS(G, pattern).find_isomorphisms()`.
 
+        See Also
+        --------
+        is_subgraph_isomorphic : Check whether the pattern occurs at all.
+        automorphism_cosets : The symmetries that `symmetry=True` skips.
+        largest_common_subgraph : The largest part of a pattern that does occur.
+
         Examples
         --------
-        Find every feed-forward loop (A -> B -> C plus the shortcut A -> C) in a small directed
-        network:
+        Every feed-forward loop (`A` → `B` → `C` plus the shortcut `A` → `C`) in a small directed
+        network, as mappings from the pattern's nodes:
 
         ```{python}
         import edgecase as ec
 
-        g = ec.Graph(directed=True).add_nodes(["x", "y", "z", "w"])
-        g.add_edges([("x", "y"), ("y", "z"), ("x", "z"), ("z", "w"), ("y", "w")])
-
-        ffl = ec.Graph(directed=True).add_nodes(["A", "B", "C"])
-        ffl.add_edges([("A", "B"), ("B", "C"), ("A", "C")])
+        graph = ec.Graph.from_edges(
+            [("x", "y"), ("y", "z"), ("x", "z"), ("z", "w"), ("y", "w")], directed=True
+        )
+        loop = ec.Graph.from_edges([("A", "B"), ("B", "C"), ("A", "C")], directed=True)
 
         [
-            {ffl.get_label_from_id(p): g.get_label_from_id(t) for p, t in m.items()}
-            for m in g.subgraph_isomorphisms(ffl)
+            {loop.get_label_from_id(p): graph.get_label_from_id(t) for p, t in m.items()}
+            for m in graph.subgraph_isomorphisms(loop)
         ]
         ```
 
@@ -22126,13 +22131,73 @@ class Graph:
         len(square.subgraph_isomorphisms(square))
         ```
 
-        With `symmetry=True`, each triangle of a complete graph on four nodes is found once
-        rather than 6 times:
+        A complete graph on four nodes holds 4 triangles, and each is found 6 times, once per
+        way of matching its corners. With `symmetry=True`, each is found once:
 
         ```{python}
         k4 = ec.Graph().add_full_graph(4)
         triangle = ec.Graph().add_cycle_graph(3)
-        len(k4.subgraph_isomorphisms(triangle)), len(k4.subgraph_isomorphisms(triangle, symmetry=True))
+
+        (
+            len(k4.subgraph_isomorphisms(triangle)),
+            len(k4.subgraph_isomorphisms(triangle, symmetry=True)),
+        )
+        ```
+
+        ### Functional groups in caffeine
+
+        A pattern can be a piece of a molecule. A carbonyl group is a carbon with a double bond
+        to an oxygen. With `node_attr="element"` and `edge_attr="bond"`, the matches must agree
+        on elements and bonds, and caffeine has two:
+
+        ```{python}
+        caffeine = ec.molecules()["caffeine"]
+
+        carbonyl = ec.Graph.from_edges([("C", "O")])
+        carbonyl.set_node_attrs("element", {"C": "C", "O": "O"})
+        carbonyl.set_edge_attrs("bond", {1: "double"})
+
+        matches = caffeine.subgraph_isomorphisms(carbonyl, node_attr="element", edge_attr="bond")
+        [{carbonyl.get_label_from_id(p): caffeine.get_label_from_id(t) for p, t in m.items()}
+         for m in matches]
+        ```
+
+        ```{python}
+        caffeine.plot(
+            color_by="element",
+            highlight=[tuple(m.values()) for m in matches],
+            label_by="label",
+            edge_label_by="bond",
+            seed=1,
+        )
+        ```
+
+        Rings are cycles. With `symmetry=True`, a ring of five atoms and a ring of six are each
+        found once. A ring of nine, around the outside of both, is found only with
+        `induced=False`, since the bond C3–C4 that the two rings share cuts across it:
+
+        ```{python}
+        rings = {
+            size: caffeine.subgraph_isomorphisms(ec.Graph().add_cycle_graph(size), symmetry=True)
+            for size in [5, 6, 9]
+        }
+        outer = caffeine.subgraph_isomorphisms(
+            ec.Graph().add_cycle_graph(9), induced=False, symmetry=True
+        )
+
+        {size: len(found) for size, found in rings.items()}, len(outer)
+        ```
+
+        The five-atom ring is in full color, and the four atoms that only the six-atom ring
+        adds are ringed:
+
+        ```{python}
+        five = list(rings[5][0].values())
+        six = [node for node in rings[6][0].values() if node not in five]
+
+        caffeine.plot(
+            color_by="element", highlight={"accent": five, "soft": six}, label_by="label", seed=1
+        )
         ```
         """
         found = self._match_pattern(
