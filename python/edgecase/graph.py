@@ -11415,6 +11415,9 @@ class Graph:
         ```
 
         :::
+
+        [Graph generators](../user-guide/generators.qmd#deterministic-structures) lists the
+        deterministic generators by family.
         """
         if n < 3:
             raise ValueError(f"n must be at least 3, got {n}")
