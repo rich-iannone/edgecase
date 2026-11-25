@@ -50673,23 +50673,43 @@ class Graph:
         2-connected graph is Hamiltonian (Fleischner, 1974), and the cube of every connected
         graph is (Karaganis, 1968; Sekanina, 1960). Matches NetworkX's `power`.
 
+        See Also
+        --------
+        ego_graph : Extract the neighborhood of a node.
+        shortest_path_length : Compute the length of a shortest path.
+
         Examples
         --------
-        The square of a path of five nodes adds the "skip one" links:
+        The square of a graph joins every two nodes at most two edges apart. On a path of five, it
+        adds the "skip one" links, and raising the path to its diameter of four gives a complete
+        graph:
 
         ```{python}
         import edgecase as ec
 
-        path = ec.Graph().add_nodes(["A", "B", "C", "D", "E"])
-        path.add_edges([("A", "B"), ("B", "C"), ("C", "D"), ("D", "E")])
+        path = ec.Graph().add_path_graph(5)
+        square = path.power(2)
 
-        path.power(2).get_edges_str_repr(use_labels=True)
+        square.count_edges(), path.power(4).count_edges()
         ```
 
-        Raising to the diameter gives a complete graph:
+        ```{python}
+        square.layout_circular(order=[1, 2, 3, 4, 5]).plot(
+            layout="pos", label_by="label"
+        )
+        ```
+
+        ### Friends of friends
+
+        `ec.friends(snapshot=2)` is a network of 51 friendships among the members of a chess club
+        and a climbing club. Its square joins everyone to their friends and their friends' friends,
+        110 pairs in all. Ada has 4 friends and 7 people within two steps:
 
         ```{python}
-        path.power(4).count_edges()
+        friends = ec.friends(snapshot=2)
+        reach = friends.power(2)
+
+        reach.count_edges(), friends.get_degree("Ada"), reach.get_degree("Ada")
         ```
         """
         self._check_non_negative(k=k)
