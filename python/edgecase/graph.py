@@ -64936,6 +64936,9 @@ class Graph:
         Weights add to the energy, so they should measure the strength of a tie. A weight that
         measures a cost, such as the travel times in `metro()`, has the opposite meaning; pass
         `weighted=False` for such graphs.
+
+        [Centrality](../user-guide/centrality.qmd#more-measures) sets it beside the other centrality
+        measures, with what each one measures.
         """
         from edgecase._core import laplacian_centrality
 
