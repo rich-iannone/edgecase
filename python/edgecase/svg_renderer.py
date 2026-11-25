@@ -478,99 +478,6 @@ def _fruchterman_reingold_python(
     return {i: (pos_x[i], pos_y[i]) for i in range(n)}
 
 
-def _point_to_segment_dist(
-    px: float,
-    py: float,
-    ax: float,
-    ay: float,
-    bx: float,
-    by: float,
-) -> Tuple[float, float, float]:
-    """Distance from point (px,py) to segment (ax,ay)-(bx,by).
-
-    Returns (distance, t_param, side) where t_param is the projection parameter [0,1] along the
-    segment and side is +1/-1 indicating which side of the segment the point lies on.
-    """
-    dx, dy = bx - ax, by - ay
-    seg_len2 = dx * dx + dy * dy
-    if seg_len2 < 1e-12:
-        d = math.sqrt((px - ax) ** 2 + (py - ay) ** 2)
-        return (d, 0.0, 1.0)
-    t = ((px - ax) * dx + (py - ay) * dy) / seg_len2
-    t = max(0.0, min(1.0, t))
-    proj_x = ax + t * dx
-    proj_y = ay + t * dy
-    d = math.sqrt((px - proj_x) ** 2 + (py - proj_y) ** 2)
-    cross = dx * (py - ay) - dy * (px - ax)
-    side = 1.0 if cross >= 0 else -1.0
-    return (d, t, side)
-
-
-def _route_edge(
-    src_id: str,
-    dst_id: str,
-    positions: Dict[str, Tuple[float, float]],
-    radii: Dict[str, float],
-    all_ids: List[str],
-    margin: float = 4.0,
-) -> Optional[List[Tuple[float, float]]]:
-    """Compute waypoints that route an edge around intermediate nodes.
-
-    Returns None if the straight line is clear (no routing needed), or a list of waypoints
-    [src, wp1, wp2, ..., dst] that avoids all intermediate node circles.
-    """
-    x1, y1 = positions[src_id]
-    x2, y2 = positions[dst_id]
-    r_src = radii.get(src_id, 5.0)
-    r_dst = radii.get(dst_id, 5.0)
-
-    obstacles = []
-    for nid in all_ids:
-        if nid == src_id or nid == dst_id:
-            continue
-        cx, cy = positions[nid]
-        r = radii.get(nid, 5.0)
-        dist, t, side = _point_to_segment_dist(cx, cy, x1, y1, x2, y2)
-        clearance = r + margin
-        if dist < clearance and 0.0 < t < 1.0:
-            obstacles.append((t, nid, cx, cy, r, dist, side))
-
-    if not obstacles:
-        return None
-
-    obstacles.sort(key=lambda o: o[0])
-
-    seg_dx = x2 - x1
-    seg_dy = y2 - y1
-    seg_len = math.sqrt(seg_dx * seg_dx + seg_dy * seg_dy)
-    if seg_len < 1e-6:
-        return None
-    perp_x = -seg_dy / seg_len
-    perp_y = seg_dx / seg_len
-
-    waypoints = [(x1, y1)]
-    for _t, _nid, cx, cy, r, dist, side in obstacles:
-        detour_dist = r + margin + 2.0
-        if dist < 1e-6:
-            wx = cx + perp_x * detour_dist * side
-            wy = cy + perp_y * detour_dist * side
-        else:
-            dx_off = cx - (x1 + _t * seg_dx)
-            dy_off = cy - (y1 + _t * seg_dy)
-            off_len = math.sqrt(dx_off * dx_off + dy_off * dy_off)
-            if off_len < 1e-6:
-                wx = cx + perp_x * detour_dist * side
-                wy = cy + perp_y * detour_dist * side
-            else:
-                push_x = -dx_off / off_len
-                push_y = -dy_off / off_len
-                wx = cx + push_x * detour_dist
-                wy = cy + push_y * detour_dist
-        waypoints.append((wx, wy))
-    waypoints.append((x2, y2))
-    return waypoints
-
-
 def _waypoints_to_svg_path(
     waypoints: List[Tuple[float, float]],
     r_src: float,
@@ -2399,15 +2306,23 @@ def render_plot(
         f'<rect x="{vb[0]:.1f}" y="{vb[1]:.1f}" width="{vb[2]:.1f}" height="{vb[3]:.1f}" fill="{th.bg}"/>'
     )
 
-    # Precompute routed edge paths (avoid nodes for non-curved edges)
-    edge_routes: Dict[Tuple[str, str], Optional[List[Tuple[float, float]]]] = {}
+    # Precompute routed edge paths (avoid nodes for non-curved edges), once for each pair of
+    # ends however many edges join them
+    edge_routes: Dict[Tuple[str, str], List[Tuple[float, float]]] = {}
     if edge_routing != "straight" and not curved_edges and len(str_ids) >= 3:
+        from edgecase._core import route_edges
+
         route_margin = float(edge_routing) if isinstance(edge_routing, (int, float)) else 3.0
-        for src, tgt in edges:
-            if src in positions and tgt in positions:
-                route = _route_edge(src, tgt, positions, radii, str_ids, margin=route_margin)
-                if route is not None:
-                    edge_routes[(src, tgt)] = route
+        index = {nid: i for i, nid in enumerate(str_ids)}
+        pairs = list(dict.fromkeys(e for e in edges if e[0] in index and e[1] in index))
+        routes = route_edges(
+            [positions[nid][0] for nid in str_ids],
+            [positions[nid][1] for nid in str_ids],
+            [radii.get(nid, 5.0) for nid in str_ids],
+            [(index[src], index[tgt]) for src, tgt in pairs],
+            margin=route_margin,
+        )
+        edge_routes = {pair: route for pair, route in zip(pairs, routes) if route is not None}
 
     # Compute fan-out bows for parallel / reciprocal edges
     edge_bows, edge_loop_sizes = _compute_edge_fans(edges)
