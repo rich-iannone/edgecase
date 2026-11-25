@@ -131,6 +131,26 @@ class TestRandomGenerators:
         with pytest.raises(ValueError, match="Cannot create"):
             G.add_gnm_graph(10, 100, seed=23)  # max is 45
 
+    @pytest.mark.parametrize("directed", [False, True])
+    def test_add_gnm_graph_large_is_sampled(self, directed):
+        # Past about a million possible edges the pairs are sampled rather than listed, which
+        # needed 3 GB at 20,000 nodes; the graph is still simple, exact and seeded
+        def make(seed):
+            return ec.Graph(directed=directed).add_gnm_graph(n=20_000, m=40_000, seed=seed)
+
+        G = make(1)
+        assert (G.count_nodes(), G.count_edges()) == (20_000, 40_000)
+        assert G.is_simple()
+        assert G.get_edges_as_tuples() == make(1).get_edges_as_tuples()
+        assert G.get_edges_as_tuples() != make(2).get_edges_as_tuples()
+
+    def test_add_gnm_graph_large_and_dense(self):
+        # Nearly every pair: the sampler picks the few pairs to leave out instead
+        n = 1_450  # 1,050,525 possible edges, just past the listing threshold
+        G = ec.Graph().add_gnm_graph(n=n, m=n * (n - 1) // 2 - 10, seed=1)
+        assert G.count_edges() == n * (n - 1) // 2 - 10
+        assert G.is_simple()
+
     def test_add_pa_graph_basic(self):
         """Generate Barabási-Albert graph."""
         G = ec.Graph()
