@@ -49977,57 +49977,46 @@ class Graph:
         calls are chained, which is a handy way to assemble a multi-component graph out of
         independent pieces.
 
+        See Also
+        --------
+        union : Combine two graphs, matching nodes by ID.
+        full_join : Combine two graphs and join every pair across them.
+        disjoint_union_all : Combine any number of graphs, keeping their nodes apart.
+
         Examples
         --------
-        Unlike `union()`, node IDs are never merged here -- even though both graphs use
-        IDs `1`, `2`, `3`, the second graph's nodes are renumbered so the two triangles
-        stay completely separate, giving six nodes:
+        Node IDs are never merged: the other graph's nodes get new IDs, so two triangles stay
+        separate. A label that's already taken gets a suffix, so the second graph's "A" becomes
+        "A_2":
 
         ```{python}
         import edgecase as ec
 
-        # Two separate triangles
-        t1 = ec.Graph(directed=False)
-        for i in range(1, 4):
-            t1.add_node()
-        t1.add_edges([(1, 2), (2, 3), (3, 1)])
+        g1 = ec.Graph().add_nodes(["A", "B", "C"])
+        g1.add_edges([("A", "B"), ("B", "C"), ("C", "A")])
 
-        t2 = ec.Graph(directed=False)
-        for i in range(1, 4):
-            t2.add_node()
-        t2.add_edges([(1, 2), (2, 3), (3, 1)])
-
-        combined = t1.disjoint_union(t2)
-        combined.count_nodes()
+        both = g1.disjoint_union(g1)
+        labels = both.get_node_df()["label"].to_list()
+        both.count_weakly_connected_components(), labels
         ```
 
-        Both triangles keep all three of their edges, so the union has six edges:
+        ### Two towns
+
+        `ec.friends()` is a network of friendships among the 24 members of a chess club and a
+        climbing club. Suppose a second town has clubs with the same members' names and the same
+        friendships. Their disjoint union keeps the towns apart, 48 people and 86 friendships, and
+        the second town's people get a suffix:
 
         ```{python}
-        combined.count_edges()
+        towns = ec.friends().disjoint_union(ec.friends())
+        towns.count_nodes(), towns.count_edges(), towns.get_label_from_id(25)
         ```
-
-        When both graphs use the same label, the incoming node is relabelled with a suffix so
-        labels stay unique. Here the second graph's `"A"` becomes `"A_2"` and gets ID `3`:
 
         ```{python}
-        g1 = ec.Graph().add_node(label="A").add_node(label="B").add_edge("A", "B")
-        g2 = ec.Graph().add_node(label="A").add_node(label="C").add_edge("A", "C")
-
-        g1.disjoint_union(g2).get_node_df().select(["id", "label"])
+        towns.plot(color_by="club", show_labels=False, seed=2)
         ```
 
-        Chaining several calls together is a quick way to build a graph out of multiple
-        independent components:
-
-        ```{python}
-        component1 = ec.Graph().add_star_graph(5)
-        component2 = ec.Graph().add_cycle_graph(6)
-        component3 = ec.Graph().add_path_graph(4)
-
-        multi = component1.disjoint_union(component2).disjoint_union(component3)
-        multi.count_weakly_connected_components()
-        ```
+        `union()` would instead match the two graphs node for node and give back a single town.
         """
         from edgecase._core import graph_disjoint_union
 
