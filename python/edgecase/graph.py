@@ -94206,6 +94206,9 @@ class Graph:
             layout="pos", highlight=triangle, label_by="label", height=420
         )
         ```
+
+        [Matrices and spectra](../user-guide/spectral.qmd#directed-graphs) compares the two
+        symmetric matrices for directed graphs.
         """
         if not self.is_directed():
             raise ValueError("magnetic_spectrum() requires a directed graph")
