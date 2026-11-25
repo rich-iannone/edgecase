@@ -14424,31 +14424,73 @@ class Graph:
             If `n=` is negative, `kernel=` returns a negative or non-finite weight, or every
             existing node has zero weight when a target must be chosen.
 
+        See Also
+        --------
+        add_gnr_graph : Grow a tree by redirecting links instead of using a kernel.
+        add_gnc_graph : Grow a denser graph in which new nodes copy links.
+        add_pa_graph : Grow an undirected graph by preferential attachment.
+
         Examples
         --------
-        Every node but the first has exactly one out-edge:
+        Each new node links to one existing node, so every node but the first has exactly one
+        out-edge, and `100` nodes have `99` edges:
 
         ```{python}
         import edgecase as ec
 
         graph = ec.Graph(directed=True).add_gn_graph(n=100, seed=7)
+        out_degrees = {graph.get_out_degree(v) for v in graph.get_node_ids()}
 
-        graph.count_edges(), {graph.get_out_degree(v) for v in graph.get_node_ids()}
+        graph.count_edges(), out_degrees
         ```
 
-        A superlinear kernel concentrates the links on one hub:
+        The kernel maps an existing node's degree to its weight as a target. The default is
+        linear; a sublinear kernel spreads the links out, and a superlinear one concentrates them
+        on one hub. The largest degree for each:
 
         ```{python}
-        [
-            max(
-                ec.Graph(directed=True)
-                .add_gn_graph(n=100, kernel=kernel, seed=7)
-                .degrees(return_dict=True)
-                .values()
-            )
-            for kernel in (lambda d: d ** 0.5, None, lambda d: d ** 2)
-        ]
+        def largest_degree(kernel):
+            g = ec.Graph(directed=True).add_gn_graph(n=100, kernel=kernel, seed=7)
+            return max(g.degrees(return_dict=True).values())
+
+        [largest_degree(k) for k in (lambda d: d**0.5, None, lambda d: d**2)]
         ```
+
+        ### A linear kernel or a superlinear one
+
+        Thirty nodes with the default linear kernel on the left and the kernel `d**2` on the
+        right. Both are trees with every edge pointing toward older nodes, but with the squared
+        kernel almost every node links straight to one hub:
+
+        ```{python}
+        linear = ec.Graph(directed=True).add_gn_graph(n=30, seed=7)
+        squared = ec.Graph(directed=True).add_gn_graph(
+            n=30, kernel=lambda d: d**2, seed=7
+        )
+
+        def largest_in_degree(g):
+            return max(g.get_in_degree(v) for v in g.get_node_ids())
+
+        largest_in_degree(linear), largest_in_degree(squared)
+        ```
+
+        ::: {layout-ncol="2"}
+
+        ```{python}
+        linear.plot(
+            show_labels=False, node_size=6,
+            width=320, height=320, legend=False, seed=1,
+        )
+        ```
+
+        ```{python}
+        squared.plot(
+            show_labels=False, node_size=6,
+            width=320, height=320, legend=False, seed=1,
+        )
+        ```
+
+        :::
         """
         self._check_non_negative(n=n)
 
