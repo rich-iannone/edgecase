@@ -74963,6 +74963,33 @@ class Graph:
         )
         ```
 
+        The chain on the left and the collider on the right, with `B`, the node conditioned on,
+        in a color of its own:
+
+        ::: {layout-ncol="2"}
+
+        ```{python}
+        spots = {"A": (0, 1), "B": (1, 0), "C": (2, 1)}
+        for g in (chain, collider):
+            ids = g.get_id_from_label
+            g.set_node_attrs("pos", {ids(v): p for v, p in spots.items()})
+            g.set_node_attrs("given", {ids(v): v == "B" for v in spots})
+
+        chain.plot(
+            layout="pos", color_by="given", label_by="label",
+            width=320, height=240, legend=False,
+        )
+        ```
+
+        ```{python}
+        collider.plot(
+            layout="pos", color_by="given", label_by="label",
+            width=320, height=240, legend=False,
+        )
+        ```
+
+        :::
+
         ### Reading independence from a diagram
 
         `causal()` is a causal diagram of the risks for heart disease, with an arrow from each
@@ -75000,6 +75027,9 @@ class Graph:
             label_by="label", height=360,
         )
         ```
+
+        [Directed acyclic graphs](../user-guide/dags.qmd#causal-diagrams-and-d-separation) shows the
+        rules of d-separation at work in a diagram of rain, a sprinkler and wet grass.
         """
         x, y, z = self._dsep_sets(x, y, z)
         if x & y or x & z or y & z:
