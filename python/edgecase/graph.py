@@ -75576,6 +75576,9 @@ class Graph:
             height=420,
         )
         ```
+
+        [Directed acyclic graphs](../user-guide/dags.qmd#antichains) finds the most crews that could
+        ever work on a house at once.
         """
         self._require_dag("antichains")
         ids, succ, _ = self._arc_sets()
