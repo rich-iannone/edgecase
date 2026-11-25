@@ -14865,6 +14865,12 @@ class Graph:
             If `n=` is less than `3`, any of `alpha=`, `beta=`, and `gamma=` is not positive,
             they don't sum to `1`, or `delta_in=` or `delta_out=` is negative.
 
+        See Also
+        --------
+        add_random_k_out_graph : Give every node the same out-degree with preferential targets.
+        add_gn_graph : Grow a directed tree by degree-biased attachment.
+        add_pa_graph : Grow an undirected graph by preferential attachment.
+
         Examples
         --------
         With the default parameters, most steps add an edge between existing nodes, so there
@@ -14881,7 +14887,9 @@ class Graph:
         A few nodes collect most of the in-edges:
 
         ```{python}
-        sorted((graph.get_in_degree(v) for v in graph.get_node_ids()), reverse=True)[:5]
+        in_degrees = [graph.get_in_degree(v) for v in graph.get_node_ids()]
+
+        sorted(in_degrees, reverse=True)[:5]
         ```
 
         Self-loops and parallel edges are part of the model:
@@ -14889,6 +14897,44 @@ class Graph:
         ```{python}
         graph.count_all_loops(), graph.count_multi_edges()
         ```
+
+        ### A small in-degree bias or a large one
+
+        Targets are chosen in proportion to their in-degree plus `delta_in=`. With the default
+        `0.2` on the left, nodes with many in-edges keep attracting more, and two hubs stand out.
+        With `delta_in=10.0` on the right, the bias swamps the in-degrees, the choice is closer to
+        uniform, and the largest in-degrees are less than half as large:
+
+        ```{python}
+        default = ec.Graph(directed=True).add_scale_free_graph(n=60, seed=2)
+        flat = ec.Graph(directed=True).add_scale_free_graph(
+            n=60, delta_in=10.0, seed=2
+        )
+
+        def top_in_degrees(g):
+            in_degrees = [g.get_in_degree(v) for v in g.get_node_ids()]
+            return sorted(in_degrees, reverse=True)[:4]
+
+        top_in_degrees(default), top_in_degrees(flat)
+        ```
+
+        ::: {layout-ncol="2"}
+
+        ```{python}
+        default.plot(
+            show_labels=False, node_size=6,
+            width=320, height=320, legend=False, seed=1,
+        )
+        ```
+
+        ```{python}
+        flat.plot(
+            show_labels=False, node_size=6,
+            width=320, height=320, legend=False, seed=1,
+        )
+        ```
+
+        :::
         """
         self._check_non_negative(n=n)
 
