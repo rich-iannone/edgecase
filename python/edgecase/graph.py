@@ -21619,6 +21619,11 @@ class Graph:
         TypeError
             If `node_id=` isn't an `int`.
 
+        See Also
+        --------
+        get_id_from_label : Go the other way, from a label to an ID.
+        get_edges_str_repr : Show every edge by label in one string.
+
         Examples
         --------
         This is the inverse of `get_id_from_label()`, translating an internal ID back to its
