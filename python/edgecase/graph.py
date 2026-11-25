@@ -24285,6 +24285,9 @@ class Graph:
             label_by="label", height=900,
         )
         ```
+
+        [Clustering and motifs](../user-guide/clustering-and-motifs.qmd#other-coefficients) compares
+        the variants of clustering and the questions each suits.
         """
         overlap = {
             "dot": lambda a, b: len(a & b) / len(a | b),
