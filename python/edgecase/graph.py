@@ -22331,6 +22331,12 @@ class Graph:
             Like `has_node()`, this never raises for an unknown node: an ID or label that isn't
             in the graph (or a value that isn't an `int` or `str`) gives `False`.
 
+        See Also
+        --------
+        has_edge_id : Check for an edge by its ID.
+        find_edge_ids : Find the IDs of every edge between two nodes.
+        has_node : Check for a node.
+
         Examples
         --------
         In a directed graph, only the edge's actual direction is found:
@@ -22345,7 +22351,10 @@ class Graph:
             .add_edge(source="A", target="B")
         )
 
-        graph.has_edge(source="A", target="B"), graph.has_edge(source="B", target="A")
+        (
+            graph.has_edge(source="A", target="B"),
+            graph.has_edge(source="B", target="A"),
+        )
         ```
 
         In an undirected graph, the same edge is found regardless of which node is passed as
@@ -22359,7 +22368,10 @@ class Graph:
             .add_edge(source="A", target="B")
         )
 
-        graph.has_edge(source="A", target="B"), graph.has_edge(source="B", target="A")
+        (
+            graph.has_edge(source="A", target="B"),
+            graph.has_edge(source="B", target="A"),
+        )
         ```
 
         Checking before adding is an easy way to keep a graph free of parallel edges. The pair
