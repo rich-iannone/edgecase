@@ -2315,6 +2315,9 @@ class Graph:
         ```{python}
         payments.plot(highlight_edges="refund", label_by="label", seed=3)
         ```
+
+        [Building graphs](../user-guide/building-graphs.qmd#edges-between-node-ids) explains when to
+        prefer the ID-only methods over `add_edge()`.
         """
         if not isinstance(source, int):
             raise TypeError(
