@@ -49747,53 +49747,59 @@ class Graph:
         is the go-to operation for surveying all changes between two network snapshots
         without having to reason about direction.
 
+        See Also
+        --------
+        difference : Keep the edges that the other graph lacks.
+        intersection : Keep the edges common to two graphs.
+        union : Combine two graphs, matching nodes by ID.
+
         Examples
         --------
-        Edges `1-2` and `2-3` are shared by both graphs and drop out, leaving only the
-        triangle's closing edge `3-1`, which exists in just one of them:
+        The edges in one graph or the other but not both are kept. A triangle and a path on the
+        same three nodes differ only in the triangle's closing edge:
 
         ```{python}
         import edgecase as ec
 
-        # Triangle
-        g1 = ec.Graph(directed=False)
-        for i in range(1, 4):
-            g1.add_node()
-        g1.add_edges([(1, 2), (2, 3), (3, 1)])
+        triangle = ec.Graph().add_cycle_graph(3)
+        path = ec.Graph().add_path_graph(3)
 
-        # Path
-        g2 = ec.Graph(directed=False)
-        for i in range(1, 4):
-            g2.add_node()
-        g2.add_edges([(1, 2), (2, 3)])
-
-        sym_diff = g1.symmetric_difference(g2)
-        sym_diff.count_edges()
+        triangle.symmetric_difference(path).get_edges_str_repr()
         ```
 
-        Unlike `difference()`, this is symmetric, which makes it well-suited for
-        spotting everything that changed between two network snapshots, regardless of
-        which direction the change went. Between these two yearly snapshots of a friendship
-        network, one friendship ended ("Cat"-"Dan") and one formed ("Ann"-"Cat"):
+        ### Everything that changed
+
+        `ec.friends()` is a network of friendships in 2024, and `snapshot=2` gives the same people
+        a year later, with 8 new friendships. Three of the 2025 friendships ended in 2026. The
+        snapshots share their node IDs, so the symmetric difference of 2024 and 2026 holds every
+        change across the two years, 11 in all, with no record of which way each one went:
 
         ```{python}
-        def snapshot(friendships):
-            g = ec.Graph(directed=False)
-            g.add_nodes(["Ann", "Bob", "Cat", "Dan", "Eve"])
-            g.add_edges(friendships)
-            return g
+        y2024 = ec.friends()
+        y2026 = (
+            ec.friends(snapshot=2)
+            .delete_edge("Dev", "Femi")
+            .delete_edge("Gwen", "Lou")
+            .delete_edge("Rosa", "Sven")
+        )
 
-        year1 = snapshot([("Ann", "Bob"), ("Bob", "Cat"), ("Cat", "Dan"), ("Dan", "Eve")])
-        year2 = snapshot([("Ann", "Bob"), ("Bob", "Cat"), ("Ann", "Cat"), ("Dan", "Eve")])
-
-        changes = year1.symmetric_difference(year2)
-        changes.get_edges_str_repr(use_labels=True)
+        changes = y2024.symmetric_difference(y2026)
+        changes.count_nodes(), changes.count_edges()
         ```
 
-        Calling it from the other graph gives the same set of edges:
+        `difference()` sorts them into the 8 new ties and the 3 lost ones. Calling the symmetric
+        difference from the other graph gives the same 11:
 
         ```{python}
-        sorted(year2.symmetric_difference(year1).get_edges_str_repr(use_labels=True))
+        (
+            y2026.difference(y2024).count_edges(),
+            y2024.difference(y2026).count_edges(),
+            y2026.symmetric_difference(y2024).count_edges(),
+        )
+        ```
+
+        ```{python}
+        changes.plot(color_by="club", label_by="label", seed=1)
         ```
         """
         from edgecase._core import graph_symmetric_difference
