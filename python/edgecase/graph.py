@@ -11014,6 +11014,9 @@ class Graph:
         ```
 
         :::
+
+        [Graph generators](../user-guide/generators.qmd#deterministic-structures) lists the
+        deterministic generators by family.
         """
         if order < 0:
             raise ValueError("Binomial tree order must be non-negative")
