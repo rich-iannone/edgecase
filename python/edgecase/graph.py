@@ -8343,6 +8343,9 @@ class Graph:
         ```
 
         :::
+
+        [Graph generators](../user-guide/generators.qmd#deterministic-structures) builds a balanced
+        tree from its branching factor and height.
         """
         if k < 1:
             raise ValueError("Branching factor k must be at least 1")
