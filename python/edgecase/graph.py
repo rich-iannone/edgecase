@@ -3403,47 +3403,60 @@ class Graph:
         Graph
             Self for method chaining.
 
+        See Also
+        --------
+        select_edges : Select edges with a predicate.
+        delete_edge : Remove one edge.
+        delete_nodes_ws : Delete the selected nodes.
+
         Examples
         --------
         This operates on the current edge selection. Deleting the two middle edges of a
-        five-node path leaves every node in place, since removing edges never removes nodes. Only
-        the first and last edges of the path remain:
+        five-node path leaves every node in place, since removing edges never removes nodes, and
+        node "3" is left on its own:
 
         ```{python}
         import edgecase as ec
 
         graph = ec.Graph().add_path_graph(5)  # path: 1-2-3-4-5
 
-        edge_ids = graph.get_edge_ids()[1:3]
-        graph.select_edges_by_id(edge_ids)
+        middle = graph.find_edge_ids("2", "3") + graph.find_edge_ids("3", "4")
+        graph.select_edges_by_id(middle)
         graph.delete_edges_ws()
 
-        graph.count_nodes(), graph.count_edges()
+        graph.count_nodes(), graph.count_edges(), graph.get_degree("3")
         ```
 
-        The path is now split into three pieces, with node "3" left isolated:
+        ### Only the large payments
+
+        `payments()` holds a month of payments, most of them small. Selecting the payments under
+        1,000 with a predicate on their weight and deleting them leaves the large ones. Laying out
+        the whole network first, with `layout_kamada_kawai()`, keeps every account where it was
+        in it:
 
         ```{python}
-        graph.count_weakly_connected_components(), graph.get_degree("3")
+        payments = ec.payments()
+        payments.layout_kamada_kawai(weighted=False)
+
+
+        def is_small(edge):
+            return edge.weight < 1000
+
+
+        payments.select_edges(is_small)
+        payments.delete_edges_ws()
+
+        payments.count_edges()
         ```
 
-        Selecting edges by predicate makes it easy to prune a graph based on edge attributes,
-        such as removing low-weight connections:
+        Every account is still there, now with only its large payments. Besides the wages and
+        the rent, they are the two circles of payments, Eve's payment to Finn and the chain from
+        Cruz to Lena, while the Grocer and the Cafe, paid only small amounts, are left on their
+        own:
 
         ```{python}
-        graph = (
-            ec.Graph()
-            .add_nodes(["A", "B", "C", "D"])
-            .add_edges([("A", "B", 1.0), ("B", "C", 5.0), ("C", "D", 2.0)])
-        )
-
-        graph.select_edges(lambda e: e.weight is not None and e.weight < 2.0)
-        graph.delete_edges_ws()
-
-        # only the two edges with weight >= 2.0 remain
-        graph.get_edge_df()
+        payments.plot(layout="pos", edge_width_by="weight", label_by="label")
         ```
-
         """
         selected = self.get_selected_edge_ids()
 
