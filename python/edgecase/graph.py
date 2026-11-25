@@ -52917,10 +52917,16 @@ class Graph:
         people = friends.get_node_df()["label"].to_list()
         kept = {}
         for person in people:
-            overlap = friends.ego_graph(person).edge_overlap(later.ego_graph(person))
+            overlap = friends.ego_graph(person).edge_overlap(
+                later.ego_graph(person)
+            )
             kept[person] = round(overlap["jaccard"], 2)
 
-        pl.DataFrame({"person": list(kept), "jaccard": list(kept.values())}).sort("jaccard").head(4)
+        (
+            pl.DataFrame({"person": list(kept), "jaccard": list(kept.values())})
+            .sort("jaccard")
+            .head(4)
+        )
         ```
 
         Rosa's new friend Nico already knew two of her friends, Mara and Pablo, so those ties
@@ -52934,6 +52940,9 @@ class Graph:
 
         later.plot(color_by="kept", label_by="label", seed=1)
         ```
+
+        [Similarity and link prediction](../user-guide/similarity.qmd#measuring-differences)
+        compares the karate club with a copy that has lost two friendships and gained one.
         """
         from edgecase._core import edge_overlap as _edge_overlap
 
