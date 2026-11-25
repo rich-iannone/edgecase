@@ -43395,6 +43395,9 @@ class Graph:
             height=300,
         )
         ```
+
+        [Clustering and motifs](../user-guide/clustering-and-motifs.qmd#other-coefficients) compares
+        the variants of clustering and the questions each suits.
         """
         scores = rust.square_clustering(self._graph)
         return self._node_metric_result("square_clustering", scores, attr_name, return_dict, {})
