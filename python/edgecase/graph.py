@@ -15920,17 +15920,28 @@ class Graph:
         ValueError
             If `num_cliques=` or `clique_size=` is less than `1`.
 
+        See Also
+        --------
+        add_connected_caveman_graph : Join the caves in a ring by rewiring one edge in each.
+        add_relaxed_caveman_graph : Rewire cave edges at random with a given probability.
+        add_ring_of_cliques : Join complete graphs in a ring with one added edge each.
+        modularity : Score a partition such as the planted caves.
+
         Examples
         --------
-        Three caves of four nodes give `12` nodes, `3 * 6 = 18` edges, and three separate
-        components:
+        A caveman graph is a set of separate complete graphs, the caves. Three caves of four
+        nodes give `12` nodes, `3 * 6 = 18` edges and three separate components:
 
         ```{python}
         import edgecase as ec
 
         graph = ec.Graph().add_caveman_graph(num_cliques=3, clique_size=4)
 
-        graph.count_nodes(), graph.count_edges(), graph.count_weakly_connected_components()
+        (
+            graph.count_nodes(),
+            graph.count_edges(),
+            graph.count_weakly_connected_components(),
+        )
         ```
 
         The `community` attribute holds the cave of each node. Since no edge leaves a cave, this
@@ -15940,6 +15951,38 @@ class Graph:
         ```{python}
         graph.modularity("community")
         ```
+
+        ### Separate caves or a ring of them
+
+        The caves on the left, each node colored by its cave. `add_connected_caveman_graph()`, on
+        the right, moves one edge end in each cave to the next cave, which joins the caves in a
+        ring with the same number of edges:
+
+        ```{python}
+        connected = ec.Graph().add_connected_caveman_graph(
+            num_cliques=3, clique_size=4
+        )
+
+        connected.count_edges(), connected.is_connected()
+        ```
+
+        ::: {layout-ncol="2"}
+
+        ```{python}
+        graph.plot(
+            color_by="community", label_by="label",
+            width=320, height=320, legend=False, seed=1,
+        )
+        ```
+
+        ```{python}
+        connected.plot(
+            color_by="community", label_by="label",
+            width=320, height=320, legend=False, seed=1,
+        )
+        ```
+
+        :::
         """
         if num_cliques < 1 or clique_size < 1:
             raise ValueError("num_cliques and clique_size must both be at least 1")
