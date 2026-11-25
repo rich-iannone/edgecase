@@ -15192,6 +15192,12 @@ class Graph:
             If `n=` is negative, `beta=` is not in `(0, 1]`, `alpha=` or `L=` is not positive,
             or `domain=` has a minimum above its maximum.
 
+        See Also
+        --------
+        add_random_geometric_graph : Join every pair of points within a fixed radius.
+        add_soft_random_geometric_graph : Join points within a radius with a distance-based chance.
+        add_geographical_threshold_graph : Join points by weight and distance.
+
         Examples
         --------
         Sixty nodes in the unit square:
@@ -15214,10 +15220,53 @@ class Graph:
 
         ```{python}
         [
-            ec.Graph().add_waxman_graph(n=60, beta=0.5, alpha=alpha, seed=13).count_edges()
+            ec.Graph()
+            .add_waxman_graph(n=60, beta=0.5, alpha=alpha, seed=13)
+            .count_edges()
             for alpha in (0.05, 0.1, 0.2, 0.4)
         ]
         ```
+
+        ### Short links or long ones
+
+        Two graphs on the same forty positions, drawn where the nodes sit, with about the same
+        number of edges. On the left, `alpha=0.1` makes the chance of a link fall off quickly
+        with distance, and `beta=1.0` keeps it high for close pairs, so the edges are short and
+        the graph breaks into three pieces. On the right, `alpha=1.0` penalizes distance far less,
+        and a low `beta=0.1` spreads the same number of edges across the whole square:
+
+        ```{python}
+        import math
+
+        short = ec.Graph().add_waxman_graph(n=40, beta=1.0, alpha=0.1, seed=1)
+        long = ec.Graph().add_waxman_graph(n=40, beta=0.1, alpha=1.0, seed=1)
+
+        def mean_length(g):
+            pos = g.get_node_attrs("pos")
+            edges = g.get_edges_as_tuples()
+            lengths = [math.dist(pos[s], pos[t]) for _, s, t in edges]
+            return round(sum(lengths) / len(lengths), 2)
+
+        [(g.count_edges(), mean_length(g)) for g in (short, long)]
+        ```
+
+        ::: {layout-ncol="2"}
+
+        ```{python}
+        short.plot(
+            layout="pos", show_labels=False, node_size=7,
+            width=320, height=320, legend=False,
+        )
+        ```
+
+        ```{python}
+        long.plot(
+            layout="pos", show_labels=False, node_size=7,
+            width=320, height=320, legend=False,
+        )
+        ```
+
+        :::
         """
         self._check_non_negative(n=n)
 
