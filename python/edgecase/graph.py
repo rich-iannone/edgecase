@@ -65565,6 +65565,19 @@ class Graph:
         }
         ```
 
+        The 3-core picked out, and the rest of the 2-core drawn pale:
+
+        ```{python}
+        two, three = graph.k_core(2), graph.k_core(3)
+
+        graph.plot(
+            highlight_edges={
+                "accent": three.get_edge_ids(), "soft": two.get_edge_ids()
+            },
+            label_by="label", height=280, seed=1,
+        )
+        ```
+
         A path has no cycle, so peeling its ends eventually removes everything:
 
         ```{python}
@@ -65588,6 +65601,9 @@ class Graph:
         ```{python}
         barricade.plot(label_by="label", seed=1)
         ```
+
+        [Structural properties](../user-guide/structure.qmd#cores-and-dense-regions) compares the
+        karate club's 4-core with its 4-truss and densest subgraph.
         """
         self._check_non_negative(k=k)
         from edgecase._core import k_core
