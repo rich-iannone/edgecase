@@ -3640,6 +3640,9 @@ class Graph:
         ```
 
         :::
+
+        [Building graphs](../user-guide/building-graphs.qmd#cleaning-up) compares the three ways of
+        making a graph simple.
         """
         before = self._snapshot_state() if self._recording_depth == 0 else None
         self._graph.remove_selfloops()
