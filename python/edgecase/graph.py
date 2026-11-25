@@ -5654,6 +5654,12 @@ class Graph:
             `nlist=` doesn't exist, the named attribute is missing on some node, or `scale=` or
             `center=` is invalid.
 
+        See Also
+        --------
+        layout_circular : Place all nodes on one circle.
+        coreness : Compute each node's core number.
+        plot : Draw the graph using stored positions.
+
         Examples
         --------
         A star with its hub in the middle and the leaves around it:
@@ -5664,17 +5670,30 @@ class Graph:
         graph = ec.Graph().add_star_graph(5)
 
         pos = graph.layout_shell(nlist=[[1], [2, 3, 4, 5]], return_dict=True)
-        {nid: (round(x, 3), round(y, 3)) for nid, (x, y) in pos.items()}
+        {n: (round(x, 3), round(y, 3)) for n, (x, y) in pos.items()}
         ```
 
-        Grouping by an attribute: the k-core number puts the densest core in the middle:
+        ### The core of a club
+
+        Zachary's karate club split in two after a dispute between its instructor (member 0) and its
+        administrator (member 33). A member's core number is the largest `k` for which the member
+        belongs to a group in which everyone has at least `k` ties to others in the group. Ten
+        members are in the 4-core, and only member 11, whose one tie is to the instructor, is
+        outside the 2-core:
 
         ```{python}
-        (
-            ec.karate_club()
-            .coreness(attr_name="core")
-            .layout_shell(nlist="core")
-            .plot(layout="pos", color_by="core", show_labels=False)
+        karate = ec.karate_club().coreness(attr_name="core")
+
+        karate.get_node_df().group_by("core").len().sort("core")
+        ```
+
+        `nlist="core"` puts the members with each core number on their own ring, in order of the
+        number: member 11 alone in the middle, then the 2-core and the 3-core, and on the outer ring
+        the 4-core, which holds both leaders:
+
+        ```{python}
+        karate.layout_shell(nlist="core").plot(
+            layout="pos", color_by="core", label_by="label"
         )
         ```
         """
