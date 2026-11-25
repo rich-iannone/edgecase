@@ -20485,6 +20485,9 @@ class Graph:
 
         last.count_nodes(), last.count_edges()
         ```
+
+        [Graph generators](../user-guide/generators.qmd#every-small-graph) compares the methods that
+        enumerate small graphs.
         """
         from edgecase._generators import NUM_ATLAS_GRAPHS, atlas_entries
 
