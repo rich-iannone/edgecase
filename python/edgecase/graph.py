@@ -51226,22 +51226,38 @@ class Graph:
         present in all graphs, even without surviving edges; EdgeCase follows `intersection()`,
         which keeps only endpoints of shared edges.
 
+        See Also
+        --------
+        intersection : Keep the edges common to two graphs.
+        union_all : Combine any number of graphs.
+
         Examples
         --------
-        Contacts seen on all three days:
+        `ec.friends()` is a network of friendships among the same 24 people in 2024, and
+        `snapshot=2` gives the network a year later. In 2026 three of the 2025 friendships ended.
+        The snapshots share their node IDs, so their intersection holds the friendships of all three
+        years:
 
         ```{python}
         import edgecase as ec
 
-        def snapshot(pairs):
-            g = ec.Graph()
-            for _ in range(4):
-                g.add_node()
-            return g.add_edges(pairs)
+        years = [
+            ec.friends(),
+            ec.friends(snapshot=2),
+            ec.friends(snapshot=2)
+            .delete_edge("Dev", "Femi")
+            .delete_edge("Gwen", "Lou")
+            .delete_edge("Rosa", "Sven"),
+        ]
 
-        days = [snapshot([(1, 2), (2, 3)]), snapshot([(1, 2), (3, 4)]), snapshot([(1, 2), (2, 3)])]
-        core = ec.Graph.intersection_all(days)
-        core.count_edges(), core.count_nodes()
+        [year.count_edges() for year in years]
+        ```
+
+        All 43 friendships of 2024 were still there in 2025, but three of them ended in 2026, so 40
+        are in all three years:
+
+        ```{python}
+        ec.Graph.intersection_all(years).count_edges()
         ```
         """
         return Graph._fold(graphs, "intersection")
