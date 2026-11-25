@@ -5680,6 +5680,9 @@ class Graph:
         :::
 
         The layout needs no seed: the same order always gives the same drawing.
+
+        [Layouts](../user-guide/layouts.qmd#circles-and-shells) compares orders around the circle
+        for the karate club, and explains why the order matters.
         """
         scale, center = self._layout_frame(scale, center, allow_none=False)
         ids = sorted(self.get_node_ids(limit=None))
