@@ -29755,6 +29755,19 @@ class Graph:
         sorted(graph.get_label_from_id(n) for n in graph.get_selected_node_ids())
         ```
 
+        The two leaves sit at the ends of the chain:
+
+        ```{python}
+        spots = {"B": (0, 0), "A": (1, 1), "C": (2, 0), "D": (3, 1)}
+        graph.set_node_attrs(
+            "pos", {graph.get_id_from_label(v): p for v, p in spots.items()}
+        )
+
+        graph.plot(
+            layout="pos", highlight="selection", label_by="label", height=240
+        )
+        ```
+
         ### The Ring line
 
         `metro()` is a made-up city's metro network, and each station's `lines` attribute lists
@@ -29776,6 +29789,9 @@ class Graph:
         ```{python}
         metro.plot(layout="pos", highlight="selection", label_by="label")
         ```
+
+        [Selections](../user-guide/selections.qmd#by-attribute) explains why the test must return an
+        actual `bool`.
         """
         self._select("nodes", set_op, lambda: self._graph.select_nodes(predicate))
 
