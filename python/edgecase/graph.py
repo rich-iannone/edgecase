@@ -2563,6 +2563,12 @@ class Graph:
             If an endpoint is `None`, an edge gives its weight twice, or `nodes=` lists a label
             more than once.
 
+        See Also
+        --------
+        add_edges : Add an edge list to an existing graph.
+        add_nodes : Add nodes, with attributes, before the edges.
+        add_edge : Add one edge, with its attributes.
+
         Examples
         --------
         A list of pairs is all it takes:
@@ -2570,7 +2576,9 @@ class Graph:
         ```{python}
         import edgecase as ec
 
-        graph = ec.Graph.from_edges([("A", "B"), ("B", "C"), ("C", "A"), ("C", "D")])
+        graph = ec.Graph.from_edges(
+            [("A", "B"), ("B", "C"), ("C", "A"), ("C", "D")]
+        )
         graph
         ```
 
@@ -2579,26 +2587,95 @@ class Graph:
 
         ```{python}
         roads = ec.Graph.from_edges(
-            [("Oslo", "Bergen", 463), ("Oslo", "Trondheim", 494), ("Bergen", "Trondheim", 633)]
+            [
+                ("Oslo", "Bergen", 463),
+                ("Oslo", "Trondheim", 494),
+                ("Bergen", "Trondheim", 633),
+            ]
         )
-        roads.get_edges_str_repr(use_labels=True), roads.get_edge_df()["weight"].to_list()
+        weights = roads.get_edge_df()["weight"].to_list()
+        roads.get_edges_str_repr(use_labels=True), weights
         ```
 
         Integers become labels, and `nodes=` adds a node that no edge mentions:
 
         ```{python}
-        g = ec.Graph.from_edges([(0, 1), (1, 2)], directed=True, nodes=[0, 1, 2, 3])
-        g.get_node_df().select(["id", "label"]), g.get_edges_str_repr(use_labels=True)
+        g = ec.Graph.from_edges(
+            [(0, 1), (1, 2)], directed=True, nodes=[0, 1, 2, 3]
+        )
+        nodes = g.get_node_df().select(["id", "label"])
+        nodes, g.get_edges_str_repr(use_labels=True)
         ```
 
         Attribute dicts become edge attributes, and `nodes=` can give nodes theirs:
 
         ```{python}
         g = ec.Graph.from_edges(
-            [("ann", "bob", {"rel": "friend", "since": 2019}), ("bob", "cat", {"rel": "boss"})],
+            [
+                ("ann", "bob", {"rel": "friend", "since": 2019}),
+                ("bob", "cat", {"rel": "boss"}),
+            ],
             nodes={"ann": {"age": 31}, "cat": {"age": 45}},
         )
-        g.get_node_df().select(["label", "age"]), g.get_edge_df().select(["rel", "since"])
+        nodes = g.get_node_df().select(["label", "age"])
+        nodes, g.get_edge_df().select(["rel", "since"])
+        ```
+
+        ### From a bank export
+
+        A bank's export of payments is a table with one row per payment. The rows of its first
+        three columns are `(payer, payee, amount)` tuples, which is all `from_edges()` needs for a
+        directed graph weighted by the amount paid:
+
+        ```{python}
+        import polars as pl
+
+        export = pl.DataFrame(
+            {
+                "payer": [
+                    "Acme", "Acme", "Dee", "Eve", "Dee",
+                    "Ana", "Ana", "Ben", "Cruz", "Cruz",
+                ],
+                "payee": [
+                    "Dee", "Eve", "Eve", "Dee", "Grocer",
+                    "Dee", "Ben", "Cruz", "Ana", "Ivy",
+                ],
+                "amount": [2600, 2700, 80, 25, 64, 120, 9500, 9400, 9300, 3000],
+                "date": [
+                    "2026-03-01", "2026-03-01", "2026-03-02", "2026-03-03",
+                    "2026-03-03", "2026-03-04", "2026-03-10", "2026-03-11",
+                    "2026-03-12", "2026-03-13",
+                ],
+            }
+        )
+
+        payments = ec.Graph.from_edges(
+            export.select("payer", "payee", "amount").iter_rows(), directed=True
+        )
+
+        payments.plot(edge_width_by="weight", label_by="label", seed=4)
+        ```
+
+        The thickest edges are the three largest payments, from Ana to Ben, Ben to Cruz and
+        Cruz back to Ana. To keep the dates as well, each row becomes a
+        `(payer, payee, amount, attrs)` tuple, and `nodes=` gives the two businesses their
+        `kind`. Labeling the edges by date shows that the money went around the circle on three
+        consecutive days:
+
+        ```{python}
+        payments = ec.Graph.from_edges(
+            [
+                (payer, payee, amount, {"date": date})
+                for payer, payee, amount, date in export.iter_rows()
+            ],
+            directed=True,
+            nodes={"Acme": {"kind": "business"}, "Grocer": {"kind": "business"}},
+        )
+
+        payments.plot(
+            color_by="kind", edge_label_by="date", edge_width_by="weight",
+            label_by="label", seed=4,
+        )
         ```
         """
         items = []
