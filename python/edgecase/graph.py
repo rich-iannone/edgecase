@@ -37128,6 +37128,25 @@ class Graph:
         dict(sorted((label(n), round(s, 3)) for n, s in scores.items()))
         ```
 
+        Each node colored by its similarity to `A`. Only `B` comes near `A` itself, and `C` and
+        `D`, `A`'s own neighbors, score nothing, like `E`:
+
+        ```{python}
+        spots = {
+            "A": (0, 0), "B": (2, 0), "C": (0.5, 1.5), "D": (1.5, 1.5),
+            "E": (3, 1.5),
+        }
+        graph.set_node_attrs(
+            "pos", {graph.get_id_from_label(v): p for v, p in spots.items()}
+        )
+        like_a = {n: round(s, 3) for n, s in scores.items()}
+
+        graph.set_node_attrs("like_a", like_a).plot(
+            layout="pos", color_by="like_a", color_scale="sequential",
+            label_by="label", height=240,
+        )
+        ```
+
         ### Like Mara
 
         `friends()` links 24 members of two clubs in a made-up town, a chess club and a climbing
@@ -37157,6 +37176,9 @@ class Graph:
         ```{python}
         round(friends.simrank_similarity("Mara", "Pablo"), 3)
         ```
+
+        [Similarity and link prediction](../user-guide/similarity.qmd#similarity-from-paths) finds
+        the karate club's members most like the administrator beyond their shared friends.
         """
         ids, rows = rust.simrank(
             self._graph,
