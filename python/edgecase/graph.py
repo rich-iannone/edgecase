@@ -21851,6 +21851,8 @@ class Graph:
         len(big.get_edge_ids()), len(big.get_edge_ids(limit=None))
         ```
 
+        [The graph model](../user-guide/graph-model.qmd#edges) explains how edges are numbered, and
+        what each edge holds besides its endpoints.
         """
         ids = self._graph.edge_ids()
         return ids if limit is None else ids[:limit]
