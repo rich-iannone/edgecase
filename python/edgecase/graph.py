@@ -93444,6 +93444,9 @@ class Graph:
         ```{python}
         payments.plot(label_by="label", seed=3)
         ```
+
+        [Matrices and spectra](../user-guide/spectral.qmd#directed-graphs) compares the two
+        symmetric matrices for directed graphs.
         """
         matrix, ids, used = rust.directed_laplacian_matrix(
             self._graph, walk_type, alpha, self._use_weights(weighted)
