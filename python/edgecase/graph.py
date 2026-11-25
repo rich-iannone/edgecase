@@ -49603,58 +49603,88 @@ class Graph:
         changed, which is why change-detection workflows typically call both. Both operands
         must have the same directedness. Node and edge attributes come from the calling graph.
 
+        See Also
+        --------
+        intersection : Keep the edges common to two graphs.
+        symmetric_difference : Keep the edges in exactly one of two graphs.
+        union : Combine two graphs, matching nodes by ID.
+
         Examples
         --------
-        Only edge `3-4` is unique to the first graph, so that's the only one that
-        survives:
+        The edges of this graph that the other graph lacks are kept, along with their endpoints.
+        The order matters: the triangle's closing edge isn't in the square, and the square's last
+        two edges aren't in the triangle:
 
         ```{python}
         import edgecase as ec
 
-        # Original network
-        g1 = ec.Graph(directed=False)
-        for i in range(1, 5):
-            g1.add_node()
-        g1.add_edges([(1, 2), (2, 3), (3, 4)])
+        triangle = ec.Graph().add_cycle_graph(3)
+        square = ec.Graph().add_cycle_graph(4)
 
-        # Subset network
-        g2 = ec.Graph(directed=False)
-        for i in range(1, 4):
-            g2.add_node()
-        g2.add_edges([(1, 2), (2, 3)])
-
-        diff = g1.difference(g2)
-        diff.count_edges()
+        (
+            triangle.difference(square).get_edges_str_repr(),
+            square.difference(triangle).get_edges_str_repr(),
+        )
         ```
 
-        Only the endpoints of that edge remain as nodes; nodes `1` and `2` are dropped:
+        ### New and lost friendships
+
+        `ec.friends()` is a network of friendships in 2024, and `snapshot=2` gives the same people
+        a year later. The snapshots share their node IDs, so the friendships of 2025 that 2024
+        lacks are the new ones, 8 of them:
 
         ```{python}
-        diff.get_node_ids()
+        y2024 = ec.friends()
+        y2025 = ec.friends(snapshot=2)
+
+        new = y2025.difference(y2024)
+        new.get_edges_str_repr(use_labels=True)
         ```
 
-        This asymmetry is what makes `difference()` useful for detecting change over time.
-        With two yearly snapshots of a friendship network (built with the same people in the
-        same order, so IDs match), `year1.difference(year2)` surfaces the friendship that ended:
+        In 2026, three of the 2025 friendships ended. Taking the difference the other way round,
+        2025 minus 2026, finds them:
 
         ```{python}
-        def snapshot(friendships):
-            g = ec.Graph(directed=False)
-            g.add_nodes(["Ann", "Bob", "Cat", "Dan", "Eve"])
-            g.add_edges(friendships)
-            return g
+        y2026 = (
+            ec.friends(snapshot=2)
+            .delete_edge("Dev", "Femi")
+            .delete_edge("Gwen", "Lou")
+            .delete_edge("Rosa", "Sven")
+        )
 
-        year1 = snapshot([("Ann", "Bob"), ("Bob", "Cat"), ("Cat", "Dan"), ("Dan", "Eve")])
-        year2 = snapshot([("Ann", "Bob"), ("Bob", "Cat"), ("Ann", "Cat"), ("Dan", "Eve")])
-
-        year1.difference(year2).get_edges_str_repr(use_labels=True)
+        lost = y2025.difference(y2026)
+        lost.get_edges_str_repr(use_labels=True)
         ```
 
-        Swapping the order surfaces the friendship that was formed instead:
+        The 2025 network, with the new friendships highlighted on the left and the lost ones on the
+        right. Seven of the new ties join friends of friends. The eighth, Femi and Vik, joins
+        people who were six steps apart:
 
         ```{python}
-        year2.difference(year1).get_edges_str_repr(use_labels=True)
+        y2025.layout_kamada_kawai()
+
+
+        def ties(diff):
+            return [(s, t) for _, s, t in diff.get_edges_as_tuples()]
         ```
+
+        ::: {layout-ncol="2"}
+
+        ```{python}
+        y2025.plot(
+            layout="pos", highlight_edges=ties(new), label_by="label",
+            width=360, height=360, legend=False,
+        )
+        ```
+
+        ```{python}
+        y2025.plot(
+            layout="pos", highlight_edges=ties(lost), label_by="label",
+            width=360, height=360, legend=False,
+        )
+        ```
+
+        :::
         """
         from edgecase._core import graph_difference
 
