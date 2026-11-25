@@ -71692,14 +71692,37 @@ class Graph:
         [[metro.get_label_from_id(n) for n in layer] for layer in layers]
         ```
 
+        ### From the ends or from the center
+
+        Each station colored by its layer. The only ends of lines are Docks,
+        Shipyard and the Airport, so counted from them on the left, Hillcrest is six stops from
+        the nearest end. Counted from Central on the right, no station is more than four stops
+        away; the last layer holds the Airport, Garden and Hillcrest:
+
+        ::: {layout-ncol="2"}
+
         ```{python}
-        stops = {n: i for i, layer in enumerate(layers) for n in layer}
-        metro.set_node_attrs("stops_from_end", stops)
-        metro.plot(
-            layout="pos", color_by="stops_from_end", color_scale="sequential",
-            label_by="label",
+        def by_layer(layers):
+            stops = {n: i for i, layer in enumerate(layers) for n in layer}
+            return metro.set_node_attrs("stops", stops)
+
+        by_layer(layers).plot(
+            layout="pos", color_by="stops", color_scale="sequential",
+            show_labels=False, width=320, height=320, legend=False,
         )
         ```
+
+        ```{python}
+        by_layer(metro.bfs_layers("Central")).plot(
+            layout="pos", color_by="stops", color_scale="sequential",
+            show_labels=False, width=320, height=320, legend=False,
+        )
+        ```
+
+        :::
+
+        [Traversals](../user-guide/traversals.qmd#distances-from-a-source) groups the courses that
+        Calculus I leads to by how many steps away they are.
         """
         self._check_traversal_args(None, mode)
         items = sources if isinstance(sources, (list, tuple, set)) else [sources]
