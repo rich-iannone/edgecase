@@ -47868,23 +47868,111 @@ class Graph:
             `r_squared_cutoff`, and `recommended_power` (the lowest power achieving the cutoff, or
             `None`).
 
+        See Also
+        --------
+        topological_overlap : Gene similarity from shared neighbors, the next WGCNA step.
+        cmty_louvain : Find the modules of the network at the chosen power.
+        gwas_pipeline : Score and rank the modules of a gene network.
+
         Examples
         --------
+        Eight genes in two modules, with a co-expression weight on each edge. At power `1`, the
+        fit of the connectivities has a rising slope, which no power law has, so its signed R² is
+        negative. Higher powers shrink the weak weights far more than the strong ones (at power
+        `4`, a weight of `0.8` becomes `0.41` and one of `0.2` becomes `0.0016`), and power `4` is
+        the first to reach the cutoff of `0.8`:
+
         ```{python}
         import edgecase as ec
+        import polars as pl
 
-        g = ec.Graph(weighted=True)
-        g.add_nodes(range(20))
-        import random
-        random.seed(23)
-        for i in range(20):
-            for j in range(i + 1, 20):
-                if random.random() < 0.3:
-                    g.add_edge(source=str(i), target=str(j), weight=random.random())
+        graph = ec.Graph.from_edges(
+            [("G1", "G2", 0.4), ("G1", "G3", 0.2), ("G2", "G3", 0.8), ("G2", "G4", 0.5),
+             ("G3", "G4", 0.8), ("G4", "G5", 0.5), ("G5", "G6", 0.2), ("G5", "G7", 0.3),
+             ("G6", "G7", 0.3), ("G6", "G8", 0.2), ("G7", "G8", 0.2)]
+        )
 
-        result = g.soft_threshold_power(return_dict=True)
-        result["recommended_power"]
+        fit = graph.soft_threshold_power(powers=[1, 2, 3, 4, 5, 6], return_dict=True)
+        pl.DataFrame(
+            {key: fit[key] for key in ["powers", "signed_r_squared", "slope", "mean_connectivity"]}
+        ).with_columns(pl.all().round(2))
         ```
+
+        ```{python}
+        fit["recommended_power"]
+        ```
+
+        ### Choosing the power for a co-expression network
+
+        In a co-expression network, every pair of genes is linked, weighted by how closely their
+        expression levels move together over the samples. Here the expression of 60 genes over
+        40 samples is simulated: three modules of 20, 15 and 10 genes each follow a shared
+        factor, and 15 unrelated genes follow none:
+
+        ```{python}
+        import numpy as np
+
+        rng = np.random.default_rng(1)
+        factors = rng.normal(size=(3, 40))
+        module = [0] * 20 + [1] * 15 + [2] * 10 + [-1] * 15
+        expression = np.array(
+            [
+                (factors[m] * rng.uniform(0.6, 1.5) if m >= 0 else 0) + rng.normal(size=40)
+                for m in module
+            ]
+        )
+
+        correlation = np.abs(np.corrcoef(expression))
+        correlation = (correlation + correlation.T) / 2  # exactly symmetric, despite rounding
+        np.fill_diagonal(correlation, 0)
+        coexpression = ec.from_numpy_array(correlation)
+
+        fit = coexpression.soft_threshold_power(return_dict=True)
+        pl.DataFrame(
+            {key: fit[key] for key in ["powers", "signed_r_squared", "mean_connectivity"]}
+        ).with_columns(pl.all().round(2)).head(8)
+        ```
+
+        The fit passes `0.8` first at power `4`, where the mean connectivity has fallen from
+        about 11 to 0.7:
+
+        ```{python}
+        beta = fit["recommended_power"]
+        beta
+        ```
+
+        The power is what lets the modules stand out. The many weak correlations between
+        unrelated genes add up: at power `1`, an unrelated gene has on average 63% of the
+        connectivity of a gene in a module, and at power `4` only 10%:
+
+        ```{python}
+        unrelated = np.array(module) == -1
+
+        def connectivity_ratio(weights):
+            connectivity = weights.sum(axis=1)
+            ratio = connectivity[unrelated].mean() / connectivity[~unrelated].mean()
+            return round(float(ratio), 2)
+
+        connectivity_ratio(correlation), connectivity_ratio(correlation**beta)
+        ```
+
+        Drawn with the weights above `0.01` at power `4`, the three modules form tight clusters,
+        with about 12 links per gene, while the unrelated genes, in gray, have five links at
+        most:
+
+        ```{python}
+        weights = correlation**beta
+        genes = [f"G{i}" for i in range(1, 61)]
+        network = ec.from_numpy_array(np.where(weights > 0.01, weights, 0), node_labels=genes)
+        network.set_node_attrs(
+            "module", {gene: f"M{m + 1}" for gene, m in zip(genes, module) if m >= 0}
+        )
+
+        network.plot(color_by="module", show_labels=False, seed=1)
+        ```
+
+        [Network biology](../user-guide/network-biology.qmd#choosing-the-power) finds the modules
+        of a larger co-expression network at the chosen power.
         """
         from edgecase._core import soft_threshold_power as _soft_threshold_power
 
