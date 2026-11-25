@@ -6234,32 +6234,65 @@ class Graph:
             If some node has no layer or is in more than one, a node in `subset_key=` doesn't
             exist, `align=` is unknown, or `scale=` or `center=` is invalid.
 
+        See Also
+        --------
+        layout_bipartite : Place the two sides of a bipartite graph in two lines.
+        layout_bfs : Place nodes in layers by distance from a start node.
+        topological_generations : Group a DAG's nodes into layers of prerequisites.
+
         Examples
         --------
-        Layers from a node attribute:
+        Layers come from a node attribute, one column per value:
 
         ```{python}
         import edgecase as ec
 
-        graph = (
-            ec.Graph(directed=True)
-            .add_nodes(
-                [
-                    ("in1", {"layer": 0}),
-                    ("in2", {"layer": 0}),
-                    ("h1", {"layer": 1}),
-                    ("h2", {"layer": 1}),
-                    ("h3", {"layer": 1}),
-                    ("out", {"layer": 2}),
-                ]
-            )
-            .add_edges(
-                [(i, h) for i in ("in1", "in2") for h in ("h1", "h2", "h3")]
-                + [(h, "out") for h in ("h1", "h2", "h3")]
-            )
+        graph = ec.Graph.from_edges(
+            [(i, h) for i in ("in1", "in2") for h in ("h1", "h2", "h3")]
+            + [(h, "out") for h in ("h1", "h2", "h3")],
+            directed=True,
         )
+        layer = {"in1": 0, "in2": 0, "h1": 1, "h2": 1, "h3": 1, "out": 2}
+        graph.set_node_attrs("layer", layer)
 
-        graph.layout_multipartite(subset_key="layer").plot(layout="pos")
+        graph.layout_multipartite(subset_key="layer").plot(
+            layout="pos", label_by="label"
+        )
+        ```
+
+        ### Courses by level and by term
+
+        In a course catalog, each edge runs from a course to one that requires it. The `level`
+        attribute is the course's number rounded down to the hundred. `topological_generations()`
+        groups the courses into terms instead: the first term has the courses with no
+        prerequisites, and each later term has the courses whose prerequisites are all done. Six
+        terms are enough for the whole catalog:
+
+        ```{python}
+        courses = ec.courses()
+        terms = courses.topological_generations()
+        term = {n: i + 1 for i, gen in enumerate(terms) for n in gen}
+        courses.set_node_attrs("term", term)
+
+        courses.layout_multipartite(
+            subset_key="level", align="horizontal", attr_name="by_level"
+        )
+        courses.layout_multipartite(subset_key="term", attr_name="by_term")
+
+        len(terms)
+        ```
+
+        With `align="horizontal"` the levels are rows, the 100s at the bottom. Three edges run
+        within a row, such as CS101 to CS102:
+
+        ```{python}
+        courses.plot(layout="by_level", label_by="label", height=400)
+        ```
+
+        By term, in columns from left to right, every edge points to a later column:
+
+        ```{python}
+        courses.plot(layout="by_term", label_by="label", height=400)
         ```
         """
         scale, center = self._layout_frame(scale, center, allow_none=False)
