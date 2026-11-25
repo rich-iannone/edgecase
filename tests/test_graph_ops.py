@@ -850,3 +850,62 @@ class TestJoinsAndNaryOperators:
         path = ec.Graph().add_path_graph(4)
         path.power(2)
         assert path.steps[-1].narration == "power(2): 2 edges added for pairs within distance 2."
+
+
+class TestProductDocstringScenarios:
+    """Values quoted in the graph product docstrings."""
+
+    @staticmethod
+    def _path(names):
+        g = ec.Graph().add_nodes(list(names))
+        return g.add_edges(list(zip(names, names[1:])))
+
+    def test_grid_and_cylinder(self):
+        p3 = ec.Graph().add_path_graph(3)
+        grid = ec.Graph().add_path_graph(4).cartesian_product(p3)
+        assert (grid.count_nodes(), grid.count_edges()) == (12, 17)
+        assert grid.get_label_from_id(2) == "(1, 2)"
+        cylinder = ec.Graph().add_cycle_graph(8).cartesian_product(p3)
+        assert (cylinder.count_nodes(), cylinder.count_edges()) == (24, 40)
+
+    def test_kings_graph(self):
+        kings = self._path("abc").strong_product(self._path("123"))
+        assert kings.count_edges() == 20
+        assert (kings.get_degree("(b, 2)"), kings.get_degree("(a, 1)")) == (8, 3)
+
+    def test_three_teams_in_a_row(self):
+        line = self._path(["sales", "ops", "dev"])
+        staff = line.lexicographic_product(ec.Graph().add_cycle_graph(3))
+        assert (staff.get_degree("(sales, 1)"), staff.get_degree("(ops, 1)")) == (5, 8)
+
+    def test_comb_and_suns(self):
+        tooth = ec.Graph().add_nodes(["top", "tip"]).add_edge("top", "tip")
+        comb = ec.Graph().add_path_graph(4).rooted_product(tooth, root="top")
+        assert (comb.count_nodes(), comb.count_edges(), comb.is_tree()) == (8, 7, True)
+        triangle = ec.Graph().add_cycle_graph(3)
+        sunlet = triangle.corona_product(ec.Graph().add_nodes(["x"]))
+        assert (sunlet.count_nodes(), sunlet.count_edges()) == (6, 6)
+        pair = ec.Graph().add_nodes(["x", "y"]).add_edge("x", "y")
+        sun = triangle.corona_product(pair)
+        assert (sun.count_nodes(), sun.count_edges()) == (9, 12)
+
+    def test_modular_product_clique(self):
+        paw = ec.Graph().add_nodes(["A", "B", "C", "D"])
+        paw.add_edges([("A", "B"), ("B", "C"), ("C", "A"), ("C", "D")])
+        product = paw.modular_product(ec.Graph().add_cycle_graph(4))
+        clique = product.maximum_clique()
+        assert sorted(product.get_label_from_id(n) for n in clique) == [
+            "(B, 3)",
+            "(C, 2)",
+            "(D, 1)",
+        ]
+
+    def test_power_of_a_path(self):
+        path = ec.Graph().add_path_graph(5)
+        assert (path.power(2).count_edges(), path.power(4).count_edges()) == (7, 10)
+
+    def test_triangle_lifts(self):
+        triangle = ec.Graph().add_cycle_graph(3)
+        assert triangle.random_k_lift(2, seed=0).count_weakly_connected_components() == 2
+        hexagon = triangle.random_k_lift(2, seed=1)
+        assert hexagon.is_isomorphic(ec.Graph().add_cycle_graph(6))
