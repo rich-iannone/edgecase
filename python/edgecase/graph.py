@@ -22655,6 +22655,12 @@ class Graph:
         int
             The total number of edges in the graph.
 
+        See Also
+        --------
+        count_nodes : Count the nodes instead.
+        density : Compare the edge count with the most a simple graph could have.
+        count_multi_edges : Count the parallel edges.
+
         Examples
         --------
         A three-node path has two edges:
