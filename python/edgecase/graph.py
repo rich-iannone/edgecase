@@ -58680,7 +58680,9 @@ class Graph:
 
         (
             club.get_node_df()
-            .select("label", "faction", "load_centrality", "betweenness_centrality")
+            .select(
+                "label", "faction", "load_centrality", "betweenness_centrality"
+            )
             .sort("load_centrality", descending=True)
             .head(5)
         )
@@ -58694,6 +58696,9 @@ class Graph:
         ```
 
         Use `edge_load_centrality()` for the load on each edge.
+
+        [Centrality](../user-guide/centrality.qmd#variants) compares the variants of betweenness and
+        what each counts as a route.
         """
         # Call Rust implementation
         result_ids = rust.load_centrality(
