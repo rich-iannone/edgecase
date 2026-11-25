@@ -83086,6 +83086,9 @@ class Graph:
         ```{python}
         metro.plot(layout="pos", color_by="zone", label_by="label")
         ```
+
+        [Communities](../user-guide/communities.qmd#scoring-single-communities) compares the
+        measures that score a single community.
         """
         s_ids, _, p = self._cut(S)
         value = len(p[7]) / p[3]
