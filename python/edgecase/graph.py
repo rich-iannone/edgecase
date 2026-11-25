@@ -50520,20 +50520,38 @@ class Graph:
         crown, so this graph's nodes form a dominating set of the corona. Matches NetworkX's
         `corona_product` (which, unlike EdgeCase, does not copy node attributes).
 
+        See Also
+        --------
+        rooted_product : Hang a copy of another graph from each node.
+        full_join : Combine two graphs and join every pair across them.
+
         Examples
         --------
-        The corona of a triangle with a single node adds a pendant leaf at each corner (the
-        "sunlet" graph):
+        The corona product joins every node of the first graph to its own copy of the second. With
+        a single node, each corner of a triangle gets a leaf, the "sunlet" graph:
 
         ```{python}
         import edgecase as ec
 
-        triangle = ec.Graph().add_nodes(["A", "B", "C"])
-        triangle.add_edges([("A", "B"), ("B", "C"), ("C", "A")])
+        triangle = ec.Graph().add_cycle_graph(3)
         leaf = ec.Graph().add_nodes(["x"])
 
         sunlet = triangle.corona_product(leaf)
-        sunlet.count_nodes(), sunlet.count_edges(), sunlet.get_edges_str_repr(use_labels=True)
+        sunlet.count_nodes(), sunlet.count_edges()
+        ```
+
+        ```{python}
+        sunlet.plot(label_by="label", seed=1)
+        ```
+
+        With an edge instead of a node, each corner is joined to both ends of its own edge, which
+        puts a triangle on every corner, 9 nodes and 12 edges:
+
+        ```{python}
+        pair = ec.Graph().add_nodes(["x", "y"]).add_edge("x", "y")
+        sun = triangle.corona_product(pair)
+
+        sun.count_nodes(), sun.count_edges()
         ```
         """
         return self._product(other, "corona", "corona_product")
