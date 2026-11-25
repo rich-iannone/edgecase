@@ -16706,9 +16706,16 @@ class Graph:
             If an entry of `sizes=` is negative, or `p_in=` or `p_out=` is not between `0` and
             `1`.
 
+        See Also
+        --------
+        add_planted_partition_graph : Plant groups that all have the same size.
+        add_gaussian_random_partition_graph : Draw the group sizes from a normal distribution.
+        generate_stochastic_block_model : Set a separate edge probability for each pair of blocks.
+
         Examples
         --------
-        Three groups of `10`, `20`, and `40` nodes:
+        Like `add_planted_partition_graph()`, but the groups can have different sizes. Three
+        groups of `10`, `20` and `40` nodes:
 
         ```{python}
         import edgecase as ec
@@ -16733,6 +16740,41 @@ class Graph:
             .sort("community")
         )
         ```
+
+        ### Unequal groups or equal ones
+
+        Groups of `6`, `12` and `24` nodes on the left and three groups of `14` on the right,
+        each node colored by its group, with the same probabilities. The largest group on the
+        left holds most of the edges, and its nodes the highest degrees:
+
+        ```{python}
+        unequal = ec.Graph().add_random_partition_graph(
+            sizes=[6, 12, 24], p_in=0.4, p_out=0.02, seed=3
+        )
+        equal = ec.Graph().add_random_partition_graph(
+            sizes=[14, 14, 14], p_in=0.4, p_out=0.02, seed=3
+        )
+
+        unequal.count_edges(), equal.count_edges()
+        ```
+
+        ::: {layout-ncol="2"}
+
+        ```{python}
+        unequal.plot(
+            color_by="community", show_labels=False,
+            width=320, height=320, legend=False, seed=1,
+        )
+        ```
+
+        ```{python}
+        equal.plot(
+            color_by="community", show_labels=False,
+            width=320, height=320, legend=False, seed=1,
+        )
+        ```
+
+        :::
         """
         sizes = list(sizes)
         if any(size < 0 for size in sizes):
