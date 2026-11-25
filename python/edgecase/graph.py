@@ -25107,6 +25107,9 @@ class Graph:
             layout="pos", highlight="E8", label_by="label", height=900
         )
         ```
+
+        [Matrices and spectra](../user-guide/spectral.qmd#the-laplacian-and-its-relatives) compares
+        the matrices of a graph and the methods each suits.
         """
         if row_nodes is None:
             rows = list(rust.bipartite_sets(self._graph)[0])
