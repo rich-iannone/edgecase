@@ -54791,15 +54791,22 @@ class Graph:
         import polars as pl
 
         graph = ec.Graph.from_edges(
-            [("G1", "G2", 0.4), ("G1", "G3", 0.2), ("G2", "G3", 0.8), ("G2", "G4", 0.5),
-             ("G3", "G4", 0.8), ("G4", "G5", 0.5), ("G5", "G6", 0.2), ("G5", "G7", 0.3),
-             ("G6", "G7", 0.3), ("G6", "G8", 0.2), ("G7", "G8", 0.2)]
+            [
+                ("G1", "G2", 0.4), ("G1", "G3", 0.2), ("G2", "G3", 0.8),
+                ("G2", "G4", 0.5), ("G3", "G4", 0.8), ("G4", "G5", 0.5),
+                ("G5", "G6", 0.2), ("G5", "G7", 0.3), ("G6", "G7", 0.3),
+                ("G6", "G8", 0.2), ("G7", "G8", 0.2),
+            ]
         )
 
-        fit = graph.soft_threshold_power(powers=[1, 2, 3, 4, 5, 6], return_dict=True)
-        pl.DataFrame(
-            {key: fit[key] for key in ["powers", "signed_r_squared", "slope", "mean_connectivity"]}
-        ).with_columns(pl.all().round(2))
+        fit = graph.soft_threshold_power(
+            powers=[1, 2, 3, 4, 5, 6], return_dict=True
+        )
+        columns = ["powers", "signed_r_squared", "slope", "mean_connectivity"]
+
+        pl.DataFrame({key: fit[key] for key in columns}).with_columns(
+            pl.all().round(2)
+        )
         ```
 
         ```{python}
@@ -54821,20 +54828,24 @@ class Graph:
         module = [0] * 20 + [1] * 15 + [2] * 10 + [-1] * 15
         expression = np.array(
             [
-                (factors[m] * rng.uniform(0.6, 1.5) if m >= 0 else 0) + rng.normal(size=40)
+                (factors[m] * rng.uniform(0.6, 1.5) if m >= 0 else 0)
+                + rng.normal(size=40)
                 for m in module
             ]
         )
 
         correlation = np.abs(np.corrcoef(expression))
-        correlation = (correlation + correlation.T) / 2  # exactly symmetric, despite rounding
+        # exactly symmetric, despite rounding
+        correlation = (correlation + correlation.T) / 2
         np.fill_diagonal(correlation, 0)
         coexpression = ec.from_numpy_array(correlation)
 
         fit = coexpression.soft_threshold_power(return_dict=True)
-        pl.DataFrame(
-            {key: fit[key] for key in ["powers", "signed_r_squared", "mean_connectivity"]}
-        ).with_columns(pl.all().round(2)).head(8)
+        columns = ["powers", "signed_r_squared", "mean_connectivity"]
+
+        pl.DataFrame({key: fit[key] for key in columns}).with_columns(
+            pl.all().round(2)
+        ).head(8)
         ```
 
         The fit passes `0.8` first at power `4`, where the mean connectivity has fallen from
@@ -54854,7 +54865,9 @@ class Graph:
 
         def connectivity_ratio(weights):
             connectivity = weights.sum(axis=1)
-            ratio = connectivity[unrelated].mean() / connectivity[~unrelated].mean()
+            ratio = (
+                connectivity[unrelated].mean() / connectivity[~unrelated].mean()
+            )
             return round(float(ratio), 2)
 
         connectivity_ratio(correlation), connectivity_ratio(correlation**beta)
@@ -54867,9 +54880,12 @@ class Graph:
         ```{python}
         weights = correlation**beta
         genes = [f"G{i}" for i in range(1, 61)]
-        network = ec.from_numpy_array(np.where(weights > 0.01, weights, 0), node_labels=genes)
+        network = ec.from_numpy_array(
+            np.where(weights > 0.01, weights, 0), node_labels=genes
+        )
         network.set_node_attrs(
-            "module", {gene: f"M{m + 1}" for gene, m in zip(genes, module) if m >= 0}
+            "module",
+            {gene: f"M{m + 1}" for gene, m in zip(genes, module) if m >= 0},
         )
 
         network.plot(color_by="module", show_labels=False, seed=1)
