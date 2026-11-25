@@ -16954,6 +16954,9 @@ class Graph:
         ```
 
         :::
+
+        [Graph generators](../user-guide/generators.qmd#community-benchmarks) checks Louvain against
+        the communities of a planted partition.
         """
         if num_groups < 1 or group_size < 1:
             raise ValueError("num_groups and group_size must both be at least 1")
