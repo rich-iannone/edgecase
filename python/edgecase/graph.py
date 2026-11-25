@@ -61123,7 +61123,9 @@ class Graph:
         (
             club.get_node_df()
             .with_columns(
-                pl.col("current_flow_closeness_centrality", "closeness_centrality")
+                pl.col(
+                    "current_flow_closeness_centrality", "closeness_centrality"
+                )
                 .rank("min", descending=True)
                 .name.suffix("_rank")
             )
@@ -61147,6 +61149,9 @@ class Graph:
 
         Edge weights act as conductances, so pass `weighted=False` when they measure a distance
         or a cost.
+
+        [Centrality](../user-guide/centrality.qmd#closeness-and-harmonic-centrality) compares the
+        measures based on distance.
         """
         scores = rust.current_flow_closeness_centrality(
             self._graph, weighted=self._use_weights(weighted)
