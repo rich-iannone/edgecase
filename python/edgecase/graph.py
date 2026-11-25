@@ -55764,6 +55764,9 @@ class Graph:
         ```{python}
         bridges.plot(color_by="club", label_by="label", seed=1)
         ```
+
+        [Transforming graphs](../user-guide/transforming.qmd#subgraphs) filters *Les Misérables* by
+        the strength of its ties.
         """
         from edgecase._core import edge_subgraph
 
