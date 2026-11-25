@@ -25745,20 +25745,55 @@ class Graph:
         ```{python}
         import edgecase as ec
 
-        g = ec.Graph().add_nodes(["A", "B", "C", "D"])
-        g.add_edges([("A", "B"), ("B", "C"), ("C", "D"), ("D", "A"), ("A", "C")])
+        g = ec.Graph.from_edges(
+            [("A", "B"), ("B", "C"), ("C", "D"), ("D", "A"), ("A", "C")]
+        )
 
         [[g.get_label_from_id(n) for n in face] for face in g.planar_faces()]
         ```
 
-        A cube has six faces, each a square, as Euler's formula requires for 8 nodes and 12
-        edges:
+        ### Loops in a floor plan
+
+        The rooms of a two-story office are joined where a door leads from one to the other.
+        Drawn flat, the plan has 5 faces, as Euler's formula requires for 20 rooms and 23 doors
+        (`20 - 23 + 5 = 2`). Each face is a walk around its edge. A dead end, like the kitchen, is
+        walked in and back out, so it appears twice:
 
         ```{python}
-        cube = ec.Graph().add_hypercube_graph(3)
-        faces = cube.planar_faces()
+        offices = ec.offices()
+        faces = [
+            [offices.get_label_from_id(n) for n in face]
+            for face in offices.planar_faces()
+        ]
 
-        len(faces), [len(f) for f in faces]
+        len(faces), [len(face) for face in faces]
+        ```
+
+        The two smallest faces are triangles: the lobby, reception and West Hall 1 downstairs, and
+        two offices joined to each other and to East Hall 2 upstairs:
+
+        ```{python}
+        [face for face in faces if len(face) == 3]
+        ```
+
+        Four of the faces are the loops of rooms you can walk around, and the fifth is everything
+        outside. The doors on the loops, the ones that aren't bridges, are highlighted:
+
+        ```{python}
+        bridges = set(offices.bridges())
+        loops = [
+            (offices.get_label_from_id(s), offices.get_label_from_id(t))
+            for edge, s, t in offices.get_edges_as_tuples()
+            if edge not in bridges
+        ]
+
+        offices.plot(
+            layout="pos",
+            highlight_edges=loops,
+            label_by="label",
+            width=700,
+            height=520,
+        )
         ```
         """
         ids, pairs, _ = self._planarity_input()
