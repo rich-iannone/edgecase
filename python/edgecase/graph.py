@@ -5052,6 +5052,9 @@ class Graph:
 
         ring.play(layout="circular", layout_mode="stable", speed=2.0)
         ```
+
+        [The step log](../user-guide/step-log.qmd#replaying-with-play) replays the log of a small
+        book club, and explains what each frame shows.
         """
         if self._pending_note is not None:
             self._record_step(
