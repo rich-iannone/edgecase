@@ -7616,43 +7616,58 @@ class Graph:
         ValueError
             If `n=` is less than `1`.
 
+        See Also
+        --------
+        add_cycle_graph : Add a cycle graph.
+        add_star_graph : Add a star graph.
+        diameter : Compute the longest shortest-path distance.
+
         Examples
         --------
-        A path graph connects `n` nodes end-to-end in a single line, so it always has one
-        fewer edge than it has nodes:
+        A path graph joins `n` nodes end to end in a line, so it has one edge fewer than it has
+        nodes. The two ends have degree `1`, every inner node has degree `2`, and the ends are as
+        far apart as any two of the nodes can be:
 
         ```{python}
         import edgecase as ec
 
         graph = ec.Graph().add_path_graph(n=5)
 
-        graph.count_nodes(), graph.count_edges()
-        ```
+        degrees = graph.get_node_df()["degree"].to_list()
 
-        The two end nodes have degree `1` and every inner node has degree `2`, and the distance
-        between the ends is the longest possible for five nodes:
-
-        ```{python}
-        graph.get_node_df()["degree"].to_list(), graph.diameter()
+        graph.count_edges(), degrees, graph.diameter()
         ```
 
         In a directed graph each edge points to the next node. `type=` and `rel=` tag the nodes
         and edges, which suits a linear process such as a train line:
 
         ```{python}
-        line = ec.Graph(directed=True).add_path_graph(n=4, type="station", rel="track")
+        line = ec.Graph(directed=True)
+        line.add_path_graph(n=4, type="stop", rel="next")
 
-        line.get_edge_df()
+        line.get_edges_str_repr(use_labels=True)
         ```
 
-        Calling it again adds a second, disconnected path whose labels continue the numbering:
+        ### One path or two
+
+        Calling it again adds a second path, not joined to the first, whose labels continue the
+        numbering. A path of six on the left, and two paths of three on the right:
+
+        ::: {layout-ncol="2"}
 
         ```{python}
-        graph = ec.Graph().add_path_graph(n=3).add_path_graph(n=3)
-
-        graph.get_node_df()["label"].to_list(), graph.count_weakly_connected_components()
+        ec.Graph().add_path_graph(n=6).plot(
+            label_by="label", width=320, height=320, legend=False, seed=1
+        )
         ```
 
+        ```{python}
+        ec.Graph().add_path_graph(n=3).add_path_graph(n=3).plot(
+            label_by="label", width=320, height=320, legend=False, seed=1
+        )
+        ```
+
+        :::
         """
         if n < 1:
             raise ValueError("Path must have at least 1 node")
