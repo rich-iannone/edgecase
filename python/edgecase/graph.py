@@ -27336,8 +27336,12 @@ class Graph:
         ```{python}
         import edgecase as ec
 
-        square = ec.Graph.from_edges([("a", "b"), ("b", "c"), ("c", "d"), ("d", "a")])
-        paw = ec.Graph.from_edges([("x", "y"), ("y", "z"), ("z", "x"), ("z", "w")])
+        square = ec.Graph.from_edges(
+            [("a", "b"), ("b", "c"), ("c", "d"), ("d", "a")]
+        )
+        paw = ec.Graph.from_edges(
+            [("x", "y"), ("y", "z"), ("z", "x"), ("z", "w")]
+        )
 
         found = square.largest_common_subgraph(paw)
         len(found)
@@ -27347,7 +27351,10 @@ class Graph:
         onto the path `x`-`z`-`w` (the path from `y` is a symmetric copy, so it is skipped):
 
         ```{python}
-        {paw.get_label_from_id(k): square.get_label_from_id(v) for k, v in found[0].items()}
+        {
+            paw.get_label_from_id(k): square.get_label_from_id(v)
+            for k, v in found[0].items()
+        }
         ```
 
         ### What caffeine shares with benzene
@@ -27359,7 +27366,10 @@ class Graph:
         caffeine, benzene = molecules["caffeine"], molecules["benzene"]
 
         found = caffeine.largest_common_subgraph(benzene)
-        len(found), sorted(caffeine.get_label_from_id(n) for n in found[0].values())
+        (
+            len(found),
+            sorted(caffeine.get_label_from_id(n) for n in found[0].values()),
+        )
         ```
 
         Matching elements, the six carbons of benzene have to land on carbons. The most that
@@ -27375,13 +27385,19 @@ class Graph:
 
         ```{python}
         bonds = [
-            (u, v) for _, u, v in caffeine.get_edges_as_tuples() if u in carbons and v in carbons
+            (u, v)
+            for _, u, v in caffeine.get_edges_as_tuples()
+            if u in carbons and v in carbons
         ]
 
         caffeine.plot(
-            color_by="element", highlight=carbons, highlight_edges=bonds, label_by="label", seed=1
+            color_by="element", highlight=carbons, highlight_edges=bonds,
+            label_by="label", seed=1,
         )
         ```
+
+        [Similarity and link prediction](../user-guide/similarity.qmd#finding-patterns) compares the
+        methods that search for a pattern.
         """
         (nc_t, ec_t), (nc_p, ec_p) = self._match_colors(other, node_attr, edge_attr)
         found = rust.largest_common_subgraph(
