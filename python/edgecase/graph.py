@@ -92199,6 +92199,9 @@ class Graph:
         ```{python}
         payments.plot(highlight_edges=mutual, label_by="label", seed=11)
         ```
+
+        [Structural properties](../user-guide/structure.qmd#reciprocity) measures reciprocity in
+        Wikipedia's administrator elections.
         """
         return self._graph.which_mutual()
 
