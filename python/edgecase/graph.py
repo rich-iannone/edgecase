@@ -33538,6 +33538,9 @@ class Graph:
         path = ["Acme", "Dee", "Ben", "Cruz", "Ivy", "Jo", "Kai", "Lena"]
         payments.plot(highlight=path, label_by="label", seed=3)
         ```
+
+        [Traversals](../user-guide/traversals.qmd#traversing-until-a-condition-holds) walks course
+        prerequisites until each path reaches an upper-level course.
         """
         selected = self.get_selected_node_ids()
         if not selected:
