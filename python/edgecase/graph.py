@@ -79317,6 +79317,9 @@ class Graph:
         trip = metro.shortest_path(*far, weighted=False, return_list=True)
         metro.plot(layout="pos", highlight=trip, label_by="label")
         ```
+
+        [Structural properties](../user-guide/structure.qmd#distances) compares the measures that
+        sum up a graph's distances.
         """
         return self._graph.get_periphery()
 
