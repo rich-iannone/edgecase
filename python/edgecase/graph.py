@@ -87913,6 +87913,15 @@ class Graph:
         density, [graph.get_label_from_id(n) for n in nodes]
         ```
 
+        ```{python}
+        from itertools import combinations
+
+        graph.plot(
+            highlight=list(combinations(nodes, 2)), label_by="label",
+            height=240, seed=1,
+        )
+        ```
+
         ### An echo chamber
 
         In `polbooks()`, two books about US politics are linked when Amazon customers often bought
@@ -87945,6 +87954,9 @@ class Graph:
             layout="pos", color_by="leaning", highlight=core
         )
         ```
+
+        [Structural properties](../user-guide/structure.qmd#cores-and-dense-regions) finds the
+        densest part of the karate club without a threshold to choose.
         """
         density, nodes = rust.densest_subgraph(self._graph, method, iterations)
         if self._recording_depth == 0:
