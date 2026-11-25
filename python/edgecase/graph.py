@@ -69705,6 +69705,9 @@ class Graph:
         steps = [(p, n) for n, ps in preds.items() for p in ps]
         metro.plot(layout="pos", highlight=steps, label_by="label")
         ```
+
+        [Paths and distances](../user-guide/paths.qmd#from-one-node-to-many) compares the methods
+        that measure from one node to every other.
         """
         s = self._resolve_node_id(source, auto_create=False)
         use = self._use_weights(weighted)
