@@ -8494,6 +8494,9 @@ class Graph:
         ```
 
         :::
+
+        [Graph generators](../user-guide/generators.qmd#the-common-pattern) explains the arguments
+        the deterministic generators share, and how a grid's nodes are labelled.
         """
         if rows < 1 or cols < 1:
             raise ValueError("Grid must have at least 1 row and 1 column")
