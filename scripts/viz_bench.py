@@ -40,7 +40,7 @@ DEFAULT_CASES = (
     [("plot", name) for name in SMALL + MEDIUM]
     + [("plot_fast", name) for name in MEDIUM + ["wiki_vote", "condmat", "rand:100000:200000"]]
     + [("edge_df", name) for name in ["wiki_vote", "physics", "rand:100000:200000"]]
-    + [("load", "gnm:5000:10000")]
+    + [("load", name) for name in ["gnm:5000:10000", "gnm:100000:200000"]]
 )
 
 
