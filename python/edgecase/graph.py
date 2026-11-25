@@ -53768,61 +53768,54 @@ class Graph:
 
         Examples
         --------
-        Taking the three middle nodes of a five-node path keeps the two edges that run between
-        them; the edges to the end nodes are dropped:
+        The subgraph on a set of nodes keeps every edge between them and drops the rest. The
+        nodes keep their IDs, labels and attributes. `C` has ID `3` in both graphs, and the
+        edges to `B` are gone:
 
         ```{python}
         import edgecase as ec
 
-        # Create a path: 1 -- 2 -- 3 -- 4 -- 5
-        graph = ec.Graph().add_path_graph(5)
-
-        # Get node IDs in path order (get_node_ids() does not guarantee an order)
-        node_ids = sorted(graph.get_node_ids())
-
-        # Extract subgraph of the middle nodes 2, 3, 4
-        middle_nodes = node_ids[1:4]
-        sub = graph.subgraph(middle_nodes)
-
-        # Returns 3
-        sub.count_nodes()
-        ```
-
-        ```{python}
-        # Returns 2
-        sub.count_edges()
-        ```
-
-        Any three nodes of a complete graph form a triangle, so extracting three nodes from K5
-        gives a K3 with three edges:
-
-        ```{python}
-        graph = ec.Graph().add_full_graph(5)  # K5
-
-        # Extract K3 subgraph
-        node_ids = list(graph.get_node_ids())[:3]
-        k3 = graph.subgraph(node_ids)
-
-        # Returns 3
-        k3.count_edges()
-        ```
-
-        IDs, labels, attributes, and weights travel with the nodes and edges: `C` has ID `3` in
-        both graphs. The `A--B` and `B--C` edges are gone because `B` was left out:
-
-        ```{python}
-        g = ec.Graph(weighted=True)
-        g.add_nodes(["A", "B", "C", "D"], kind="gene")
-        g.add_edges([("A", "B", 1.0), ("B", "C", 2.0), ("C", "D", 3.0), ("A", "C", 4.0)])
+        g = ec.Graph(weighted=True).add_nodes(["A", "B", "C", "D"])
+        g.add_edges([("A", "B", 1.0), ("B", "C", 2.0), ("C", "D", 3.0)])
+        g.add_edge("A", "C", weight=4.0)
 
         ids = [g.get_id_from_label(label) for label in ["A", "C", "D"]]
         sub = g.subgraph(ids)
-        sub.get_edges_str_repr(use_labels=True)
+
+        sub.get_edges_str_repr(use_labels=True), sub.get_id_from_label("C")
+        ```
+
+        ### The chess club
+
+        `ec.friends()` is a network of friendships among the 24 members of a chess club and a
+        climbing club. The subgraph on the 12 chess players keeps the 20 friendships among them and
+        drops their ties to climbers. Here the subgraph is highlighted in the whole network:
+
+        ```{python}
+        friends = ec.friends()
+        nodes = friends.get_node_df()
+        chess_ids = nodes.filter(club="Chess")["id"].to_list()
+
+        chess = friends.subgraph(chess_ids)
+        chess.count_nodes(), chess.count_edges()
         ```
 
         ```{python}
-        sub.get_node_df()
+        friends.plot(
+            label_by="label", highlight=chess_ids, seed=3,
+            highlight_edges=[(s, t) for _, s, t in chess.get_edges_as_tuples()],
+        )
         ```
+
+        On its own, the chess club is a group of six on the left and one of five on the right,
+        joined by Femi and Gwen at the top and by Hugo at the bottom:
+
+        ```{python}
+        chess.plot(label_by="label", seed=1)
+        ```
+
+        `subgraph()` takes node IDs. To keep the edges, rather than the nodes, use
+        `edge_subgraph()`.
         """
         from edgecase._core import subgraph
 
