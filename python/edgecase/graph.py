@@ -86920,6 +86920,19 @@ class Graph:
         [label(n) for n in cover], len(g.bipartite_maximum_matching())
         ```
 
+        The cover in a second color. Every edge has one end in it:
+
+        ```{python}
+        g.layout_bipartite(
+            nodes=["A", "B", "C"], align="horizontal", aspect_ratio=0.5
+        )
+        in_cover = {n: n in cover for n in g.get_node_ids()}
+
+        g.set_node_attrs("in_cover", in_cover).plot(
+            layout="pos", color_by="in_cover", label_by="label", height=240
+        )
+        ```
+
         ### Who needs to be in the room
 
         `teams()` links the 8 workers of a made-up software team to the 8 tasks of a release that
@@ -86941,6 +86954,10 @@ class Graph:
             layout="pos", highlight=cover, label_by="label", height=300
         )
         ```
+
+        [Coloring, matching, and
+        covering](../user-guide/coloring-matching.qmd#why-a-matching-cant-be-larger) uses a vertex
+        cover to show why a matching of students to projects can't be larger.
         """
         cover, matching = rust.bipartite_vertex_cover(self._graph, self._top_ids(top_nodes))
         if self._recording_depth == 0:
