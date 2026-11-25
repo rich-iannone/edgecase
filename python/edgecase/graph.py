@@ -55479,6 +55479,9 @@ class Graph:
 
         `subgraph()` takes node IDs. To keep the edges, rather than the nodes, use
         `edge_subgraph()`.
+
+        [Transforming graphs](../user-guide/transforming.qmd#subgraphs) extracts the strongest ties
+        of *Les Misérables*, and explains how a subgraph keeps its IDs.
         """
         from edgecase._core import subgraph
 
