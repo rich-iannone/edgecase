@@ -60883,6 +60883,9 @@ class Graph:
         ```
 
         Summing the scores over all nodes gives `estrada_index()`.
+
+        [Centrality](../user-guide/centrality.qmd#more-measures) sets it beside the other centrality
+        measures, with what each one measures.
         """
         scores = rust.subgraph_centrality(self._graph, bool(normalized))
         params = {"normalized": True} if normalized else {}
