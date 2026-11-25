@@ -73338,6 +73338,9 @@ class Graph:
         ```{python}
         metro.plot(layout="pos", highlight=routes["direct"], label_by="label")
         ```
+
+        [Paths and distances](../user-guide/paths.qmd#every-simple-path) compares the methods that
+        list every path between two nodes.
         """
         # Resolve to IDs (int = ID, str = label); a node that doesn't exist means "not a path"
         node_ids = []
