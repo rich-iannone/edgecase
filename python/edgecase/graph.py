@@ -94101,6 +94101,9 @@ class Graph:
             layout="pos", color_by="conference", show_labels=False
         )
         ```
+
+        [Matrices and spectra](../user-guide/spectral.qmd#how-many-communities) estimates the number
+        of communities in a planted partition, the karate club and the dolphins.
         """
         return rust.bethe_hessian_spectrum(self._graph, r, self._use_weights(weighted))
 
