@@ -32608,6 +32608,9 @@ class Graph:
             highlight=[("Dee", "Eve"), ("Max", "Nia")], label_by="label", seed=3
         )
         ```
+
+        [Cypher queries](../user-guide/cypher.qmd#counting-matches) explains how Cypher's matching
+        rules affect the counts of symmetric patterns.
         """
         parsed, matcher = self._matcher(query, params, label_key, distinct_nodes)
         n, first = Projection(parsed, matcher).count()
