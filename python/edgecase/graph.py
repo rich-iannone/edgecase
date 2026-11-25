@@ -93663,6 +93663,9 @@ class Graph:
         ```{python}
         karate.plot(color_by="faction", label_by="label", seed=1)
         ```
+
+        [Matrices and spectra](../user-guide/spectral.qmd#the-laplacian-and-its-relatives) compares
+        the matrices of a graph and the methods each suits.
         """
         matrix, ids = rust.modularity_matrix(self._graph, self._use_weights(weighted))
         self._record_matrix_step("modularity_matrix", "G.modularity_matrix()", len(ids), len(ids))
