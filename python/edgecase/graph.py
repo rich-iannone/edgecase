@@ -88343,6 +88343,11 @@ class Graph:
         since `which_loops()` handles those separately, so this is the right diagnostic to
         run before calling `remove_duplicate_edges()` or `simplify()`.
 
+        See Also
+        --------
+        count_multiple : Count the parallel edges for each node pair instead.
+        remove_duplicate_edges : Keep one edge of each parallel group.
+
         Examples
         --------
         Adding the same edge more than once creates duplicates; every occurrence of a duplicated
