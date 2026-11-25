@@ -34735,29 +34735,48 @@ class Graph:
         Graph
             Self for method chaining.
 
+        See Also
+        --------
+        plot : Draws the display attribute on each node unless `label_by=` is given.
+        relabel_nodes : Change the labels themselves.
+
         Examples
         --------
-        Setting the display attribute returns the graph itself, so it can sit in the middle of
-        a method chain. The node data is unchanged afterward:
+        The display attribute is what `plot()` shows on each node when `label_by=` isn't given. It
+        changes no node data, and it returns the graph, so it can sit in a chain:
 
         ```{python}
         import edgecase as ec
 
-        G = (
+        graph = (
             ec.Graph()
             .add_node(label="Alice", age=30)
             .add_node(label="Bob", age=25)
             .add_edge(source="Alice", target="Bob")
-            .set_node_attr_to_display(attr="age")
+            .set_node_attr_to_display("age")
         )
 
-        G.get_node_attrs("age")
+        graph.get_node_df()
         ```
 
-        Passing `None` clears the preference again:
+        Passing `None` clears it, so `plot()` goes back to showing node IDs.
+
+        ### Departments on the org chart
+
+        In a small company's reporting lines, each person has a name, a job title and a department.
+        Setting the display attribute once makes every plot show the departments, so it's plain that
+        Sales is the widest team and Engineering the deepest:
 
         ```{python}
-        G.set_node_attr_to_display(attr=None)
+        org = ec.org_chart().set_node_attr_to_display("dept")
+
+        org.plot(layout="pos", width=820, height=640)
+        ```
+
+        `label_by=` still wins for a single plot, here going back to the names:
+
+        ```{python}
+        org.plot(layout="pos", label_by="label", width=820, height=640)
         ```
         """
         self._display_attr = attr
