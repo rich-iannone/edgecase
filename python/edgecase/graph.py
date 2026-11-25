@@ -85180,6 +85180,9 @@ class Graph:
         ```{python}
         payments.plot(highlight=["Max", "Landlord"], label_by="label", seed=3)
         ```
+
+        [Connectivity and flows](../user-guide/connectivity.qmd#directed-graphs) compares weak and
+        strong connectivity in Wikipedia's administrator elections.
         """
         return self._graph.is_weakly_connected()
 
