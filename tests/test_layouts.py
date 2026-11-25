@@ -740,6 +740,79 @@ class TestComponentPacking:
         b = _force_directed_layout(ids, edges, 600.0, 400.0, seed=5)
         assert a == b
 
+    @staticmethod
+    def _shelve_by_trying_every_width(widths, heights, gap, width, height, sum):
+        # The search as it was written in Python: every row width that ends a row after some
+        # piece, each shelved in full (with `sum` adding as the Python running it does)
+        def shelve(row_width):
+            rows = [[]]
+            used = 0.0
+            for k, w in enumerate(widths):
+                if rows[-1] and used + gap + w > row_width:
+                    rows.append([])
+                    used = 0.0
+                used += (gap if rows[-1] else 0.0) + w
+                rows[-1].append(k)
+            return rows
+
+        best_rows, best_scale = None, -1.0
+        for row_width in sorted({sum(widths[: k + 1]) + gap * k for k in range(len(widths))}):
+            rows = shelve(row_width)
+            total_w = max(sum(widths[k] for k in row) + gap * (len(row) - 1) for row in rows)
+            total_h = sum(max(heights[k] for k in row) for row in rows) + gap * (len(rows) - 1)
+            scale = min(width / max(total_w, 1e-9), height / max(total_h, 1e-9))
+            if scale > best_scale * (1 + 1e-9):
+                best_rows, best_scale = rows, scale
+        return [len(row) for row in best_rows]
+
+    @pytest.mark.parametrize("compensated", [True, False])
+    def test_shelving_matches_trying_every_width(self, compensated):
+        # The search skips row widths that can't win, and has to keep the same one. Python's
+        # `sum()` compensates from 3.12 and the search has to add as it does
+        import functools
+        import operator
+        import sys
+
+        from edgecase._core import shelve_pieces
+
+        if compensated and sys.version_info < (3, 12):
+            pytest.skip("Python adds with compensation from 3.12")
+
+        def add_up(values):
+            return sum(values) if compensated else functools.reduce(operator.add, values, 0.0)
+
+        rng = random.Random(0)
+        for case in range(400):
+            n = rng.choice([1, 2, 3, 5, 10, 40, 150])
+            sizes = sorted((rng.randint(1, 60) for _ in range(n)), reverse=True)
+            widths, heights = [], []
+            for s in sizes:
+                if s == 1 or case % 7 == 0 and rng.random() < 0.5:
+                    w = h = 0.0  # a single node
+                else:
+                    side = 1.2 * math.sqrt(s)
+                    # Some pieces fill their square, as one turned to the frame does
+                    w, h = side, side * rng.choice([1.0, rng.uniform(0.2, 1.0)])
+                    if case % 2:
+                        w, h = h, w
+                widths.append(w)
+                heights.append(h)
+            frame = rng.choice([(600.0, 400.0), (400.0, 600.0), (800.0, 200.0), (500.0, 500.0)])
+            got = shelve_pieces(widths, heights, 1.2, *frame, compensated=compensated)
+            want = self._shelve_by_trying_every_width(widths, heights, 1.2, *frame, add_up)
+            assert got == want, case
+
+    def test_shelving_rejects_bad_sizes(self):
+        from edgecase._core import shelve_pieces
+
+        assert shelve_pieces([], [], 1.2, 600.0, 400.0, compensated=True) == []
+        with pytest.raises(ValueError, match="same length"):
+            shelve_pieces([1.0], [], 1.2, 600.0, 400.0, compensated=True)
+        with pytest.raises(ValueError, match="not negative"):
+            shelve_pieces([-1.0], [1.0], 1.2, 600.0, 400.0, compensated=True)
+        with pytest.raises(ValueError, match="finite"):
+            shelve_pieces([math.nan], [1.0], 1.2, 600.0, 400.0, compensated=True)
+
 
 def _crossings(g, pos):
     # Count pairs of edges with no shared end whose straight segments cross
