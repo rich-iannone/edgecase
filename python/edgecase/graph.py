@@ -79837,6 +79837,9 @@ class Graph:
             label_by="label",
         )
         ```
+
+        [Connectivity and flows](../user-guide/connectivity.qmd#measuring-connectivity) measures how
+        many members it would take to separate the karate club's two leaders.
         """
         source_id = self._resolve_node_id(source)
         target_id = self._resolve_node_id(target)
