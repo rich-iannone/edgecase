@@ -26118,19 +26118,18 @@ class Graph:
         on the left and `K_{3,3}` on the right. However their nodes are placed, the drawing has at
         least one crossing:
 
-        ```{python}
-        k5 = ec.Graph().add_full_graph(n=5)
-        k33 = ec.Graph().add_complete_bipartite_graph(3, 3)
-        k33.layout_bipartite(nodes=[1, 2, 3])
-        ```
-
         ::: {layout-ncol="2"}
 
         ```{python}
+        k5 = ec.Graph().add_full_graph(n=5)
+
         k5.plot(layout="circular", width=320, height=320, legend=False)
         ```
 
         ```{python}
+        k33 = ec.Graph().add_complete_bipartite_graph(3, 3)
+        k33.layout_bipartite(nodes=[1, 2, 3])
+
         k33.plot(layout="pos", width=320, height=320, legend=False)
         ```
 
@@ -26144,6 +26143,9 @@ class Graph:
 
         k5.is_planar(), k33.is_planar()
         ```
+
+        [Structural properties](../user-guide/structure.qmd#properties) tests whether the karate
+        club is connected, bipartite and planar, and lists the other `is_*` methods.
         """
         return self._graph.is_planar()
 
