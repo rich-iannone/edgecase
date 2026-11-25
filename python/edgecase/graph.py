@@ -81936,6 +81936,9 @@ class Graph:
             layout="pos", color_by="k9_group", label_by="label"
         )
         ```
+
+        [Connectivity and flows](../user-guide/connectivity.qmd#measuring-connectivity) finds the
+        structural cohesion of the Florentine marriage network.
         """
         from edgecase._core import k_components as rust_k_components
 
