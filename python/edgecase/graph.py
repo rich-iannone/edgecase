@@ -35766,6 +35766,9 @@ class Graph:
         ```{python}
         org.plot(layout="pos", label_by="label", width=820, height=640)
         ```
+
+        [Static plots](../user-guide/plotting.qmd#node-labels) explains how the preference applies
+        to every later plot until it is cleared.
         """
         self._display_attr = attr
 
