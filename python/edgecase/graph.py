@@ -85305,7 +85305,8 @@ class Graph:
         --------
         Around a square, two colors are enough: A and C get color 0, and B and D get color 1, so no
         edge joins two nodes of the same color. The result maps each node ID to its color, and
-        storing it as an attribute puts the colors next to the labels:
+        stored as a node attribute, it can color the plot. Each node here is labeled with its
+        color too:
 
         ```{python}
         import edgecase as ec
@@ -85313,10 +85314,18 @@ class Graph:
         graph = ec.Graph.from_edges(
             [("A", "B"), ("B", "C"), ("C", "D"), ("D", "A")]
         )
+        spots = {"A": (0, 1), "B": (1, 2), "C": (2, 1), "D": (1, 0)}
+        graph.set_node_attrs(
+            "pos", {graph.get_id_from_label(v): p for v, p in spots.items()}
+        )
 
         coloring = graph.greedy_color()
-        graph.set_node_attrs("color", coloring)
-        graph.get_node_df().select("label", "color")
+        label = graph.get_label_from_id
+        tag = {n: f"{label(n)} ({color})" for n, color in coloring.items()}
+
+        graph.set_node_attrs("color", coloring).set_node_attrs("tag", tag).plot(
+            layout="pos", color_by="color", label_by="tag", height=240
+        )
         ```
 
         ### Scheduling exams
@@ -85377,27 +85386,27 @@ class Graph:
         ```
 
         The fifth slot goes to Databases. By the time `"largest_first"` reaches it, its four
-        neighbors are in four different slots, 0 to 3:
+        neighbors are in four different slots, 0 to 3. With `interchange=True`, it would first
+        try to free a slot by swapping two slots along a chain of courses, and here that brings
+        the count down to four:
 
         ```{python}
         first = exams.greedy_color()
+        swapped = exams.greedy_color(interchange=True)
         label = exams.get_label_from_id
         databases = exams.get_id_from_label("Databases")
 
         neighbors = {label(n): first[n] for n in exams.get_neighbors(databases)}
-        neighbors, first[databases]
-        ```
-
-        With `interchange=True`, it would first try to free a slot by swapping two slots along a
-        chain of courses, and here that brings it down to four:
-
-        ```{python}
-        len(set(exams.greedy_color(interchange=True).values()))
+        neighbors, first[databases], len(set(swapped.values()))
         ```
 
         No strategy is best on every graph, so on a hard instance it's worth running several and
         keeping the coloring with the fewest colors. `is_valid_coloring()` checks a coloring from
         any source.
+
+        [Coloring, matching, and
+        covering](../user-guide/coloring-matching.qmd#scheduling-with-colors) builds an exam
+        timetable from a coloring, and compares the strategies on a random graph.
         """
         from edgecase._core import greedy_color as rust_greedy_color
 
