@@ -57901,6 +57901,9 @@ class Graph:
             layout="pos", color_by="heat", label_by="label"
         )
         ```
+
+        [Network biology](../user-guide/network-biology.qmd#heat-diffusion) ranks the same
+        candidates with less pull toward hubs, and explains how large `max_iter=` must be.
         """
         result_ids = rust.heat_diffusion(
             self._graph,
