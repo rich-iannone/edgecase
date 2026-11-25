@@ -70376,6 +70376,9 @@ class Graph:
         ]
         fx.plot(highlight=unused, label_by="label", curved_edges=True, seed=4)
         ```
+
+        [Paths and distances](../user-guide/paths.qmd#between-every-pair) compares the methods that
+        measure between every pair of nodes, with and without negative weights.
         """
         result = {s: dict(row) for s, row in rust.johnson(self._graph, self._use_weights(weighted))}
         if self._recording_depth == 0:
