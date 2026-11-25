@@ -47125,8 +47125,8 @@ class Graph:
 
     def network_proximity(
         self,
-        set_a: list[int],
-        set_b: list[int],
+        set_a: list[Union[int, str]],
+        set_b: list[Union[int, str]],
         method: str = "closest",
     ) -> dict:
         """
@@ -47160,11 +47160,12 @@ class Graph:
         Parameters
         ----------
         set_a
-            First set of node IDs, given as a list. Must be non-empty and every ID must exist in
-            the graph. In directed graphs, paths are measured from these nodes.
+            The first set of nodes, as a list of node IDs or string labels. Must be non-empty and
+            every node must be in the graph. In directed graphs, paths are measured from these
+            nodes.
         set_b
-            Second set of node IDs, given as a list. Must be non-empty and every ID must exist in
-            the graph. It may share nodes with `set_a=`.
+            The second set of nodes, as a list of node IDs or string labels. Must be non-empty and
+            every node must be in the graph. It may share nodes with `set_a=`.
         method
             Proximity measure to use (the default is `"closest"`):
 
@@ -47188,52 +47189,103 @@ class Graph:
         Raises
         ------
         ValueError
-            If either set is empty, if a node ID is not in the graph, or if `method=` is not one
-            of the four supported values.
+            If either set is empty, if a node is not in the graph, or if `method=` is not one of
+            the four supported values.
+
+        See Also
+        --------
+        shortest_path_length : The distance between two nodes.
+        random_walk_with_restart : Score nodes by their closeness to a set of seeds.
 
         Examples
         --------
         On a five-node path, the closest pair between `{A, B}` and `{D, E}` is `B` and `D`, two
-        steps apart, so the default `"closest"` proximity is `2.0`. All four pairs are reachable:
+        steps apart. The sets are further apart (`d_ab` of `3.0`) than the members of each are
+        from each other (`1.0`), so their separation is positive:
 
         ```{python}
         import edgecase as ec
 
-        g = (
-            ec.Graph()
-            .add_nodes(["A", "B", "C", "D", "E"])
-            .add_edges([("A", "B"), ("B", "C"), ("C", "D"), ("D", "E")])
+        path = ec.Graph.from_edges([("A", "B"), ("B", "C"), ("C", "D"), ("D", "E")])
+
+        (
+            path.network_proximity(["A", "B"], ["D", "E"]),
+            path.network_proximity(["A", "B"], ["D", "E"], method="separation"),
         )
-
-        a_id = g.get_id_from_label("A")
-        b_id = g.get_id_from_label("B")
-        d_id = g.get_id_from_label("D")
-        e_id = g.get_id_from_label("E")
-
-        g.network_proximity([a_id, b_id], [d_id, e_id], method="closest")
         ```
 
-        The other distance summaries tell a fuller story. The average distance over all four
-        pairs is `3.0`, and the kernel score is small because every pair is at least two steps
-        apart:
+        ### How close a drug is to a disease
+
+        `proteins()` is a small protein interaction network with five known disease genes and the
+        targets of two drugs. Drug A binds REP6 and CYC3, and Drug B binds SIG4 and ENZ2:
+
+        ```{python}
+        import polars as pl
+
+        proteins = ec.proteins()
+        disease = ["REP1", "REP2", "REP5", "CYC2", "TRN3"]
+        targets = {
+            drug: proteins.get_node_df().filter(pl.col("drug_target") == drug)["label"].to_list()
+            for drug in ["Drug A", "Drug B"]
+        }
+        targets
+        ```
+
+        Each of Drug A's targets binds a disease gene, while Drug B's are three steps from the
+        nearest one. By every measure Drug A is the closer, and its separation is negative: its
+        targets sit inside the neighborhood of the disease genes:
+
+        ```{python}
+        pl.DataFrame(
+            {
+                "method": ["closest", "shortest", "kernel"],
+                **{
+                    drug: [
+                        proteins.network_proximity(t, disease, method=m)["proximity"]
+                        for m in ["closest", "shortest", "kernel"]
+                    ]
+                    for drug, t in targets.items()
+                },
+            }
+        )
+        ```
 
         ```{python}
         {
-            m: round(g.network_proximity([a_id, b_id], [d_id, e_id], method=m)["proximity"], 3)
-            for m in ["closest", "shortest", "kernel"]
+            drug: round(
+                proteins.network_proximity(t, disease, method="separation")["separation"], 2
+            )
+            for drug, t in targets.items()
         }
         ```
 
-        Separation compares the distance between the sets with the spread inside each set. These
-        two sets are much further apart (`d_ab` of `3.0`) than their members are from each other
-        (`1.0`), giving a clearly positive separation:
+        The disease genes in the accent color, and each drug's targets ringed:
+
+        ::: {layout-ncol="2"}
 
         ```{python}
-        g.network_proximity([a_id, b_id], [d_id, e_id], method="separation")
+        proteins.plot(
+            layout="pos", highlight={"accent": disease, "soft": targets["Drug A"]},
+            label_by="label", width=360, height=360,
+        )
         ```
+
+        ```{python}
+        proteins.plot(
+            layout="pos", highlight={"accent": disease, "soft": targets["Drug B"]},
+            label_by="label", width=360, height=360,
+        )
+        ```
+
+        :::
+
+        [Network biology](../user-guide/network-biology.qmd#network-proximity-of-drugs) compares a
+        drug's proximity with that of random target sets.
         """
         from edgecase._core import network_proximity as _network_proximity
 
+        set_a = [self._node_id_or_raise(n) for n in set_a]
+        set_b = [self._node_id_or_raise(n) for n in set_b]
         return _network_proximity(self._graph, set_a, set_b, method)
 
     def network_robustness(
