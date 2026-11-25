@@ -52675,6 +52675,9 @@ class Graph:
         ```
 
         To drop the lost ties, use `intersection()` or `difference()` with the newer list.
+
+        [Transforming graphs](../user-guide/transforming.qmd#set-operations) compares the set
+        operations, and explains why the graphs must number their nodes alike.
         """
         return Graph._fold(graphs, "compose")
 
