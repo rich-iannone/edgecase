@@ -11862,47 +11862,72 @@ class Graph:
         ValueError
             If `k=` is odd or not less than `n=`, or if `p=` is outside `[0.0, 1.0]`.
 
+        See Also
+        --------
+        add_circulant_graph : Build a ring lattice, the graph before any rewiring.
+        add_gnp_graph : Build a random graph with short paths but little clustering.
+        transitivity : Measure the clustering that rewiring wears away.
+
         Examples
         --------
-        The graph starts as a ring where each node connects to its `k` nearest neighbors, then
-        each edge is randomly rewired with probability `p`. Rewiring never changes the edge
-        count, which stays at `n * k / 2 = 300`:
+        In the Watts–Strogatz model the graph starts as a ring in which each node is joined to its
+        `k` nearest neighbors, and then each edge is rewired with probability `p`. Rewiring never
+        changes the edge count, which stays at `n * k / 2 = 300`:
 
         ```{python}
         import edgecase as ec
 
-        graph = (
-            ec.Graph()
-            .add_smallworld_graph(n=100, k=6, p=0.1, seed=23)
-        )
+        graph = ec.Graph().add_smallworld_graph(n=100, k=6, p=0.1, seed=23)
 
         graph.count_nodes(), graph.count_edges()
         ```
 
-        Even a small rewiring probability is enough to shrink path lengths dramatically while
-        barely denting the ring's high clustering -- the hallmark of a small-world network.
-        Comparing the average clustering coefficient and diameter for `p=0.0`, `0.1`, and `1.0`
-        shows the diameter more than halving at `p=0.1` while clustering stays high, whereas
-        full rewiring destroys the clustering:
+        A small rewiring probability shrinks the distances while barely denting the ring's high
+        clustering, the hallmark of a small-world network. Comparing the average clustering
+        coefficient and the diameter for `p=0.0`, `0.1` and `1.0` shows the diameter more than
+        halving at `p=0.1` while the clustering stays high, whereas full rewiring destroys it:
 
         ```{python}
         results = []
         for p in (0.0, 0.1, 1.0):
             g = ec.Graph().add_smallworld_graph(n=100, k=6, p=p, seed=23)
-            results.append((p, round(g.average_clustering_coefficient(), 3), g.diameter()))
+            clustering = round(g.average_clustering_coefficient(), 3)
+            results.append((p, clustering, g.diameter()))
 
         results
         ```
 
-        With `p=0.0` there is no rewiring, so the result is the plain ring lattice. Here `k=2`
-        joins each node only to its immediate neighbors, giving a cycle:
+        ### A ring and a small world
+
+        With `p=0.0` on the left there is no rewiring, so the result is the ring lattice: here
+        each of `30` nodes is joined to the two nodes on either side, and the farthest nodes are
+        `8` steps apart. With `p=0.1` on the right, a few edges become shortcuts across the ring,
+        and the diameter falls to `5`:
 
         ```{python}
-        ring = ec.Graph().add_smallworld_graph(n=6, k=2, p=0.0)
+        ring = ec.Graph().add_smallworld_graph(n=30, k=4, p=0.0)
+        small = ec.Graph().add_smallworld_graph(n=30, k=4, p=0.1, seed=23)
 
-        ring.get_edges_str_repr()
+        ring.diameter(), small.diameter()
         ```
 
+        ::: {layout-ncol="2"}
+
+        ```{python}
+        ring.layout_circular(order="id").plot(
+            layout="pos", show_labels=False, node_size=5,
+            width=320, height=320, legend=False,
+        )
+        ```
+
+        ```{python}
+        small.layout_circular(order="id").plot(
+            layout="pos", show_labels=False, node_size=5,
+            width=320, height=320, legend=False,
+        )
+        ```
+
+        :::
         """
         self._check_non_negative(n=n, k=k)
         with self._compound("add_smallworld_graph", f"G.add_smallworld_graph(n={n}, k={k}, p={p})"):
