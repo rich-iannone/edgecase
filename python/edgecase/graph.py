@@ -80336,6 +80336,9 @@ class Graph:
         six = max(groups, key=len)
         metro.plot(layout="pos", highlight=six, label_by="label")
         ```
+
+        [Connectivity and flows](../user-guide/connectivity.qmd#measuring-connectivity) finds the
+        karate club's 4-edge-connected core.
         """
         comps = rust.k_edge_components(self._graph, k, False)
         if self._recording_depth == 0:
