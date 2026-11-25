@@ -76741,6 +76741,9 @@ class Graph:
             color_by="dept", label_by="label", height=420,
         )
         ```
+
+        [Directed acyclic graphs](../user-guide/dags.qmd#lowest-common-ancestors) finds the merge
+        base of two branches in a version history.
         """
         self._require_dag("all_lowest_common_ancestors")
         id_1 = self._resolve_node_id(node_1, auto_create=False)
