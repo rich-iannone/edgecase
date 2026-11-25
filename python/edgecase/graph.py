@@ -62914,8 +62914,10 @@ class Graph:
 
         ### How hierarchical?
 
-        `citations()` and `courses()` are both strongly hierarchical. A random directed graph
-        with about as many nodes and edges as `citations()` is not:
+        `citations()` and `courses()` are both strongly hierarchical. `food_web()` is less so: its
+        energy rises from four plants, and none of them reaches more than 7 of the other 15
+        species. A random directed graph with about as many nodes and edges as `citations()` is
+        not hierarchical at all:
 
         ```{python}
         import polars as pl
@@ -62924,10 +62926,11 @@ class Graph:
 
         pl.DataFrame(
             {
-                "network": ["citations", "courses", "random"],
+                "network": ["citations", "courses", "food web", "random"],
                 "global_reaching": [
                     ec.citations().global_reaching_centrality(),
                     ec.courses().global_reaching_centrality(),
+                    ec.food_web().global_reaching_centrality(),
                     random.global_reaching_centrality(),
                 ],
             }
@@ -62943,6 +62946,9 @@ class Graph:
 
         papers.plot(layout="pos", color_by="reach", label_by="label")
         ```
+
+        [Centrality](../user-guide/centrality.qmd#more-measures) sets it beside the other centrality
+        measures, with what each one measures.
         """
         local = rust.local_reaching_centrality(
             self._graph, weighted=self._use_weights(weighted), normalized=normalized
