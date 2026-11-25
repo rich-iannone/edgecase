@@ -18772,6 +18772,12 @@ class Graph:
         ValueError
             If an interval has its lower value second or an endpoint is NaN.
 
+        See Also
+        --------
+        is_chordal : Check the property every interval graph has.
+        greedy_color : Assign rooms so that no two overlapping intervals share one.
+        add_visibility_graph : Build a graph from a sequence of values.
+
         Examples
         --------
         Four meetings, in hours. The first two touch at 10:00, so they count as overlapping:
@@ -18796,6 +18802,49 @@ class Graph:
         ```{python}
         graph.is_chordal(), len(set(graph.greedy_color().values()))
         ```
+
+        ### A chain of overlaps or a long meeting
+
+        Five meetings, each drawn at its midpoint in time and at the height of the room a
+        greedy coloring gives it. On the left each meeting overlaps only the next, so the graph is a
+        path and two rooms are enough. On the right the third meeting runs from 9:30 to 13:00,
+        overlapping all the others, and a third room is needed:
+
+        ```{python}
+        def scheduled(meetings):
+            graph = ec.Graph().add_interval_graph(meetings)
+            rooms = graph.greedy_color()
+            spans = graph.get_node_attrs("interval")
+            pos = {v: (sum(spans[v]) / 2, rooms[v]) for v in rooms}
+            return graph.set_node_attrs("room", rooms).set_node_attrs("pos", pos)
+
+        chain = [
+            (9.0, 10.0), (9.5, 11.0), (10.5, 12.0), (11.5, 13.0), (12.5, 14.0)
+        ]
+        long = chain[:2] + [(9.5, 13.0)] + chain[3:]
+
+        chained, crowded = scheduled(chain), scheduled(long)
+
+        [len(set(g.get_node_attrs("room").values())) for g in (chained, crowded)]
+        ```
+
+        ::: {layout-ncol="2"}
+
+        ```{python}
+        chained.plot(
+            layout="pos", color_by="room",
+            width=320, height=320, legend=False,
+        )
+        ```
+
+        ```{python}
+        crowded.plot(
+            layout="pos", color_by="room",
+            width=320, height=320, legend=False,
+        )
+        ```
+
+        :::
         """
         from collections.abc import Sequence
 
