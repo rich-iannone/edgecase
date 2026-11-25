@@ -94915,6 +94915,15 @@ class Graph:
             layout="pos", highlight=["Central", "Riverside"], label_by="label"
         )
         ```
+
+        With Riverside closed, the three harbor stations are left on their own:
+
+        ```{python}
+        ec.metro().delete_node("Riverside").plot(layout="pos", label_by="label")
+        ```
+
+        [Structural properties](../user-guide/structure.qmd#distances) explains why global
+        efficiency copes with a disconnected graph better than the mean distance.
         """
         from edgecase._core import global_efficiency
 
