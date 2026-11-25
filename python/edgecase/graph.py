@@ -60074,6 +60074,9 @@ class Graph:
 
         On a directed graph, `source_mode=` picks the neighbors (successors, predecessors or
         both) and `target_mode=` picks the degree to average over them.
+
+        [Structural properties](../user-guide/structure.qmd#degrees) shows the friendship paradox in
+        the karate club.
         """
         from edgecase import _core as rust
 
