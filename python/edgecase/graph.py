@@ -28663,60 +28663,65 @@ class Graph:
             intersection, so it contains no duplicates and its order is not guaranteed; sort it
             if you need a stable order.
 
+        See Also
+        --------
+        get_neighbors : The neighbors of a single node.
+        jaccard_coefficient : Shared neighbors as a fraction of both nodes' neighbors.
+        adamic_adar_index : Shared neighbors weighted by how few friends each has.
+        dispersion : How unconnected two nodes' shared neighbors are.
+
         Examples
         --------
-        Both "A" and "B" connect to "C" and "D", so those two nodes make up the
-        intersection; "E", which only touches "A", is left out:
+        "A" and "B" are both joined to "C" and "D", so those are their common neighbors. "E" is
+        joined only to "A":
 
         ```{python}
         import edgecase as ec
 
-        graph = ec.Graph(directed=False)
-        graph.add_nodes(["A", "B", "C", "D", "E"])
-        graph.add_edges([("A", "C"), ("B", "C"), ("A", "D"), ("B", "D"), ("A", "E")])
+        graph = ec.Graph.from_edges(
+            [("A", "C"), ("B", "C"), ("A", "D"), ("B", "D"), ("A", "E")]
+        )
+        shared = graph.get_common_neighbors("A", "B")
 
-        common = graph.get_common_neighbors("A", "B")
-
-        sorted(graph.get_label_from_id(nid) for nid in common)
+        sorted(graph.get_label_from_id(n) for n in shared)
         ```
 
-        In a directed graph, edge direction is ignored: "M" is a successor of "X" but a
-        predecessor of "Y", and it still counts as a shared neighbor:
+        In a directed graph, direction is ignored. "M" is a successor of "X" and a predecessor of
+        "Y", and it's still a common neighbor:
 
         ```{python}
-        digraph = (
-            ec.Graph(directed=True)
-            .add_nodes(["X", "Y", "M"])
-            .add_edges([("X", "M"), ("M", "Y")])
-        )
+        chain = ec.Graph.from_edges([("X", "M"), ("M", "Y")], directed=True)
 
-        [digraph.get_label_from_id(nid) for nid in digraph.get_common_neighbors("X", "Y")]
+        [chain.get_label_from_id(n) for n in chain.get_common_neighbors("X", "Y")]
         ```
 
-        A node sharing a common neighbor with one of its own neighbors is the signature of
-        a triangle -- this scans every neighbor of "A" for exactly that pattern. The triangle
-        A-B-C is found twice, once from each of its other two corners:
+        ### A couple between two clubs
+
+        In a network of friendships among the members of a chess club and a climbing club, Hugo
+        plays chess and his partner Tara climbs. They share four friends, two from each club:
 
         ```{python}
-        graph = (
-            ec.Graph()
-            .add_nodes(["A", "B", "C", "D"])
-            .add_edges([("A", "B"), ("A", "C"), ("B", "C"), ("A", "D")])
-        )
+        friends = ec.friends()
+        shared = friends.get_common_neighbors("Hugo", "Tara")
+        club = friends.get_node_attrs("club")
 
-        a_id = graph.get_id_from_label(label="A")
-        triangles = []
-        for neighbor_id in graph.get_neighbors(node=a_id):
-            for third_id in graph.get_common_neighbors(a_id, neighbor_id):
-                triangles.append((
-                    "A",
-                    graph.get_label_from_id(node_id=neighbor_id),
-                    graph.get_label_from_id(node_id=third_id),
-                ))
-
-        triangles
+        {friends.get_label_from_id(n): club[n] for n in shared}
         ```
 
+        None of the four are friends with each other. Each of them knows the couple through a
+        different part of their life, which is what makes the tie between Hugo and Tara stand out:
+
+        ```{python}
+        any(friends.has_edge(u, v) for u in shared for v in shared if u != v)
+        ```
+
+        ```{python}
+        friends.layout_kamada_kawai()
+        friends.plot(
+            layout="pos", label_by="label",
+            highlight={"accent": ["Hugo", "Tara"], "soft": shared},
+        )
+        ```
         """
         neighbors1 = set(self.get_neighbors(node_1, mode="all"))
         neighbors2 = set(self.get_neighbors(node_2, mode="all"))
