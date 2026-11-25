@@ -20123,6 +20123,12 @@ class Graph:
         list[Graph]
             The 1253 atlas graphs, in order.
 
+        See Also
+        --------
+        add_atlas_graph : Add a single atlas graph by its number.
+        iter_nonisomorphic_trees : List every tree shape on a given number of nodes.
+        is_isomorphic : Check whether two graphs have the same shape.
+
         Examples
         --------
         There are 1253 graphs in all, and 34 on five nodes:
@@ -20141,6 +20147,17 @@ class Graph:
         sevens = [g for g in atlas if g.count_nodes() == 7]
 
         len(sevens), sum(g.is_planar() for g in sevens)
+        ```
+
+        A claim that holds for every graph in the atlas holds for every graph on up to seven
+        nodes. For example, a graph or its complement is always connected:
+
+        ```{python}
+        all(
+            g.is_connected() or g.complement().is_connected()
+            for g in atlas
+            if g.count_nodes() > 0
+        )
         ```
 
         Each graph is named by its atlas number:
