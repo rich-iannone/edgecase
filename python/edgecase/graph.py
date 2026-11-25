@@ -42984,7 +42984,7 @@ class Graph:
 
     def subgraph_enrichment(
         self,
-        subgraph_nodes: list[int],
+        subgraph_nodes: list[Union[int, str]],
         attribute: str,
         target_value: str | int | float | None = None,
         method: str = "hypergeometric",
@@ -43016,10 +43016,8 @@ class Graph:
         Parameters
         ----------
         subgraph_nodes
-            List of node IDs defining the subgraph to test. These must be integer node IDs (not
-            labels) and should be unique and present in the graph: the subgraph size `n` is simply
-            the length of this list, so duplicates or unknown IDs inflate `n` without contributing
-            hits.
+            The nodes of the subgraph to test, as node IDs or string labels. Each must be in the
+            graph, and a node listed twice counts once toward the subgraph size `n`.
         attribute
             Name of the categorical node attribute to test (e.g., `"pathway"`,
             `"go_term"`). Values are compared with `==`, so strings, integers, and other
@@ -43053,63 +43051,70 @@ class Graph:
         Raises
         ------
         ValueError
-            If `method=` is not `"hypergeometric"` or `"chi_squared"`.
+            If `method=` is not `"hypergeometric"` or `"chi_squared"`, or a node in
+            `subgraph_nodes=` isn't in the graph.
+
+        See Also
+        --------
+        module_annotation_enrichment : Test every community at once, with correction.
+        expand_seed_set : Grow a module from seeds.
 
         Examples
         --------
-        Six genes form two triangles. Four of the six are annotated with the "apoptosis"
-        pathway, and the first triangle consists entirely of apoptosis genes. That is 1.5 times
-        what chance would predict (`fold_enrichment`), but with so few genes the hypergeometric
-        p-value of `0.2` is not significant:
+        Six genes form two triangles, and four of the six are in the apoptosis pathway. The first
+        triangle is all apoptosis genes, 1.5 times what chance would give, but with so few genes
+        the p-value of `0.2` is not significant:
 
         ```{python}
         import edgecase as ec
 
-        graph = (
-            ec.Graph()
-            .add_nodes(["G1", "G2", "G3", "G4", "G5", "G6"])
-            .add_edges([("G1", "G2"), ("G2", "G3"), ("G3", "G1"),
-                        ("G4", "G5"), ("G5", "G6"), ("G6", "G4")])
+        graph = ec.Graph.from_edges(
+            [("G1", "G2"), ("G2", "G3"), ("G3", "G1"), ("G4", "G5"), ("G5", "G6"), ("G6", "G4")]
         )
-
-        pathways = {"G1": "apoptosis", "G2": "apoptosis", "G3": "apoptosis",
-                    "G4": "signaling", "G5": "signaling", "G6": "apoptosis"}
         graph.set_node_attrs(
-            "pathway", {graph.get_id_from_label(g): p for g, p in pathways.items()}
+            "pathway",
+            {1: "apoptosis", 2: "apoptosis", 3: "apoptosis",
+             4: "signaling", 5: "signaling", 6: "apoptosis"},
         )
 
-        subgraph = [graph.get_id_from_label(g) for g in ["G1", "G2", "G3"]]
-        result = graph.subgraph_enrichment(subgraph, "pathway", "apoptosis")
+        result = graph.subgraph_enrichment(["G1", "G2", "G3"], "pathway", "apoptosis")
         result["fold_enrichment"], result["p_value"]
         ```
 
-        Leaving `target_value=` as `None` tests every pathway at once. For the second triangle,
-        "signaling" is over-represented (fold `2.0`, both signaling genes are in it) while
-        "apoptosis" is under-represented (fold `0.5`):
+        ### What a disease module is about
+
+        `proteins()` is a small protein interaction network with five known disease genes, four of
+        them close together. `expand_seed_set()` grows those four into a module of eight proteins:
 
         ```{python}
-        subgraph = [graph.get_id_from_label(g) for g in ["G4", "G5", "G6"]]
-        results = graph.subgraph_enrichment(subgraph, "pathway")
+        proteins = ec.proteins()
+        module = proteins.expand_seed_set(["REP1", "REP2", "REP5", "CYC2"], min_score=0.5)
 
-        {
-            value: (r["k"], r["K"], r["fold_enrichment"], round(r["p_value"], 3))
-            for value, r in results.items()
-        }
+        proteins.plot(
+            layout="pos", color_by="pathway", highlight=module, label_by="label"
+        )
         ```
 
-        The chi-squared approximation gives a different (and, on tiny samples like this, less
-        reliable) p-value for the same comparison:
+        The module holds all six DNA repair proteins in the network. Drawing 8 of the 31 proteins
+        at random, the chance of that is about 4 in 100,000, so the module is about DNA repair.
+        The cell cycle has one protein in it, CYC2, fewer than chance would give:
 
         ```{python}
-        graph.subgraph_enrichment(subgraph, "pathway", "signaling", method="chi_squared")
+        import polars as pl
+
+        results = proteins.subgraph_enrichment(module, "pathway")
+        pl.DataFrame(list(results.values())).select("value", "k", "K", "fold_enrichment", "p_value")
         ```
+
+        [Network biology](../user-guide/network-biology.qmd#growing-a-module-from-seeds) tests a
+        module grown on a larger simulated network for its pathway.
         """
         from math import comb
 
-        all_node_ids = self.get_node_ids()
+        all_node_ids = self.get_node_ids(limit=None)
+        subgraph_nodes = list(dict.fromkeys(self._node_id_or_raise(n) for n in subgraph_nodes))
         n_total = len(all_node_ids)
         n_sub = len(subgraph_nodes)
-        subgraph_set = set(subgraph_nodes)
 
         # Collect attribute values for all nodes
         attr_map: dict[int, str | int | float] = self.get_node_attrs(attribute)
