@@ -1192,6 +1192,9 @@ class Graph:
 
         The route from Central to Airport ends on two of the bridges, so a closure on either one
         would cut the airport off.
+
+        [The step log](../user-guide/step-log.qmd#narrating-with-note) explains what happens to a
+        note that no operation uses.
         """
         if self._pending_note is not None:
             self._record_step(
