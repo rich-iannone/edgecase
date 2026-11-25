@@ -28465,32 +28465,59 @@ class Graph:
         ValueError
             If the graph is undirected, or if `node=` is an ID or label not found in the graph.
 
+        See Also
+        --------
+        get_predecessors : The nodes with edges pointing to a node.
+        descendants : Every node reachable from a node, not just the direct successors.
+        get_out_degree : The number of edges leaving a node.
+
         Examples
         --------
-        Likewise, `get_successors()` wraps `neighbors(mode="out")` -- here "A" points to
-        both "B" and "C", while the edge from "D" into "A" is ignored:
+        The successors of a node are the nodes its edges point to. "A" points to "B" and "C",
+        and the edge from "D" into "A" doesn't count:
 
         ```{python}
         import edgecase as ec
 
-        graph = ec.Graph(directed=True)
-        graph.add_nodes(["A", "B", "C", "D"])
-        graph.add_edges([("A", "B"), ("A", "C"), ("D", "A")])
+        graph = ec.Graph.from_edges(
+            [("A", "B"), ("A", "C"), ("D", "A")], directed=True
+        )
 
-        successors = graph.get_successors("A")
-
-        [graph.get_label_from_id(nid) for nid in successors]
+        [graph.get_label_from_id(n) for n in graph.get_successors("A")]
         ```
 
-        Successors and predecessors are mirror images: every successor of "A" has "A" among its
-        predecessors. Checking this for "B" confirms the edge direction:
+        ### What a course opens up
+
+        In a prerequisite graph, each edge runs from a course to a course that requires it, so the
+        successors of a course are the courses it opens up. Passing CS102 opens up 4:
 
         ```{python}
-        b_preds = graph.get_predecessors("B")
+        courses = ec.courses()
+        after = courses.get_successors("CS102")
 
-        [graph.get_label_from_id(nid) for nid in b_preds]
+        [courses.get_label_from_id(n) for n in after]
         ```
 
+        The courses with no successors are the end of each track: no other course requires them:
+
+        ```{python}
+        sorted(
+            courses.get_label_from_id(course)
+            for course in courses.get_node_ids()
+            if not courses.get_successors(course)
+        )
+        ```
+
+        The courses are laid out by level, from 100 at the bottom to 400 at the top. CS102 is in the
+        accent color, the courses it opens up in the soft one:
+
+        ```{python}
+        courses.layout_multipartite(subset_key="level", align="horizontal")
+        courses.plot(
+            layout="pos", label_by="label",
+            highlight={"accent": ["CS102"], "soft": after},
+        )
+        ```
         """
         if not self._graph.is_directed:
             raise ValueError("get_successors only available for directed graphs")
