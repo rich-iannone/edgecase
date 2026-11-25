@@ -77833,6 +77833,25 @@ class Graph:
         [graph.get_label_from_id(n) for n in graph.eulerian_circuit()]
         ```
 
+        Each edge labeled by the step at which the circuit crosses it. It goes around one
+        triangle, and on returning to `C`, around the other:
+
+        ```{python}
+        spots = {"A": (0, 2), "B": (2, 2), "C": (1, 1), "D": (0, 0), "E": (2, 0)}
+        graph.set_node_attrs(
+            "pos", {graph.get_id_from_label(v): p for v, p in spots.items()}
+        )
+        circuit = graph.eulerian_circuit()
+        step = {
+            graph.find_edge_ids(u, v)[0]: i + 1
+            for i, (u, v) in enumerate(zip(circuit, circuit[1:]))
+        }
+
+        graph.set_edge_attrs("step", step).plot(
+            layout="pos", edge_label_by="step", label_by="label", height=240
+        )
+        ```
+
         A graph with a node of odd degree has no circuit, and the result is `None`:
 
         ```{python}
@@ -77855,6 +77874,9 @@ class Graph:
         ```{python}
         konigsberg.plot(layout="pos", color_by="kind", label_by="label")
         ```
+
+        [Paths and distances](../user-guide/paths.qmd#eulerian-paths-and-circuits) walks over the
+        seven bridges of Königsberg once two of them are doubled.
         """
         from edgecase._core import eulerian_circuit
 
