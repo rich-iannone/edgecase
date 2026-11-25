@@ -43723,6 +43723,9 @@ class Graph:
             label_by="label", seed=8,
         )
         ```
+
+        [Structural properties](../user-guide/structure.qmd#mixing-patterns) explains assortativity
+        by degree, and the mixing matrix behind the coefficient.
         """
         counts: dict = {}
         for a, b, c in self._degree_pairs(source_mode, target_mode, weighted):
