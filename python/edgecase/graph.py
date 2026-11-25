@@ -48387,6 +48387,9 @@ class Graph:
 
         pl.DataFrame(rows)
         ```
+
+        [Similarity and link prediction](../user-guide/similarity.qmd#predicting-node-attributes)
+        assigns every member of the karate club to a faction from the two leaders alone.
         """
         return self._classify("harmonic", label_name, 0.99, max_iter, weighted)
 
