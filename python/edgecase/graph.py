@@ -12497,6 +12497,9 @@ class Graph:
         ```
 
         :::
+
+        [Graph generators](../user-guide/generators.qmd#spatial-and-growth-models) compares the
+        spatial and growth models, and explains which of them store coordinates.
         """
         self._check_non_negative(n=n, dim=dim)
         with self._compound(
