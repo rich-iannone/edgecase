@@ -44418,6 +44418,9 @@ class Graph:
             label_by="label",
         )
         ```
+
+        [Clustering and motifs](../user-guide/clustering-and-motifs.qmd#other-coefficients) compares
+        the variants of clustering and the questions each suits.
         """
         # Use edge_ids directly (they are already integers)
         edge_id_list = edge_ids if edge_ids is not None else []
