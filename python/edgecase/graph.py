@@ -90451,6 +90451,9 @@ class Graph:
         positive = ec.Graph.from_edges([("A", "B", 1.0)], directed=True)
         positive.minimum_branching().count_edges()
         ```
+
+        [Directed acyclic graphs](../user-guide/dags.qmd#trees) compares the other methods for trees
+        and branchings.
         """
         return self._branching(
             "min_branching", "minimum_branching", weight_attr, include, exclude
