@@ -60344,7 +60344,9 @@ class Graph:
 
         line = ec.Graph().add_path_graph(n=5)
 
-        line.closeness_centrality().get_node_df().select("label", "closeness_centrality")
+        line.closeness_centrality().get_node_df().select(
+            "label", "closeness_centrality"
+        )
         ```
 
         ### The best-placed station
@@ -60372,7 +60374,9 @@ class Graph:
         colored by closeness shows the score falling away from downtown:
 
         ```{python}
-        metro.plot(layout="pos", color_by="closeness_centrality", label_by="label")
+        metro.plot(
+            layout="pos", color_by="closeness_centrality", label_by="label"
+        )
         ```
 
         ### Close to everyone, or on the way
@@ -60405,6 +60409,9 @@ class Graph:
 
         If parts of the graph can't reach each other, `harmonic_centrality()` sums `1 / d` over
         the other nodes rather than averaging `d`, so unreachable nodes simply add nothing.
+
+        [Centrality](../user-guide/centrality.qmd#closeness-and-harmonic-centrality) explains how
+        closeness handles a disconnected graph, and what `wf_improved=` changes.
         """
         if mode not in ("out", "in", "all", "total"):
             raise ValueError(f"Invalid mode {mode!r}. Must be 'out', 'in', or 'all'")
