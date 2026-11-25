@@ -15368,6 +15368,12 @@ class Graph:
             If `n=` is negative, `radius=` is negative, `dim=` is less than `1`, or `p_norm=`
             is not positive.
 
+        See Also
+        --------
+        add_random_geometric_graph : Join every pair of points within the radius.
+        add_waxman_graph : Join any two points with a chance that decays with distance.
+        add_geographical_threshold_graph : Join points by weight and distance.
+
         Examples
         --------
         A hundred nodes, joined within radius `0.2` with probability `exp(-d)`:
@@ -15375,7 +15381,9 @@ class Graph:
         ```{python}
         import edgecase as ec
 
-        graph = ec.Graph().add_soft_random_geometric_graph(n=100, radius=0.2, seed=6)
+        graph = ec.Graph().add_soft_random_geometric_graph(
+            n=100, radius=0.2, seed=6
+        )
 
         graph.count_nodes(), graph.count_edges()
         ```
@@ -15386,11 +15394,52 @@ class Graph:
         ```{python}
         [
             ec.Graph()
-            .add_soft_random_geometric_graph(n=100, radius=0.2, p_dist=p_dist, seed=6)
+            .add_soft_random_geometric_graph(
+                n=100, radius=0.2, p_dist=p_dist, seed=6
+            )
             .count_edges()
             for p_dist in (lambda d: 1, None, lambda d: 1 - 5 * d)
         ]
         ```
+
+        ### Every pair in range or the close ones
+
+        Fifty nodes at the same positions, drawn where they sit, with radius `0.25`. On the left
+        every pair within the radius is joined. On the right the chance falls from `1` at
+        distance zero to `0` at the radius, so most of the longer links are dropped, and the
+        graph splits into six pieces:
+
+        ```{python}
+        hard = ec.Graph().add_soft_random_geometric_graph(
+            n=50, radius=0.25, p_dist=lambda d: 1, seed=1
+        )
+        soft = ec.Graph().add_soft_random_geometric_graph(
+            n=50, radius=0.25, p_dist=lambda d: 1 - 4 * d, seed=1
+        )
+
+        [
+            (g.count_edges(), g.count_weakly_connected_components())
+            for g in (hard, soft)
+        ]
+        ```
+
+        ::: {layout-ncol="2"}
+
+        ```{python}
+        hard.plot(
+            layout="pos", show_labels=False, node_size=7,
+            width=320, height=320, legend=False,
+        )
+        ```
+
+        ```{python}
+        soft.plot(
+            layout="pos", show_labels=False, node_size=7,
+            width=320, height=320, legend=False,
+        )
+        ```
+
+        :::
         """
         self._check_non_negative(n=n, dim=dim)
 
