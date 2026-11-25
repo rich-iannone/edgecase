@@ -29026,6 +29026,9 @@ class Graph:
             label_by="label",
         )
         ```
+
+        [Traversals](../user-guide/traversals.qmd#neighbors) compares the neighbor lookups on a
+        graph of course prerequisites.
         """
         # Resolve node to integer ID
         node_id = self._resolve_node_id(node)
