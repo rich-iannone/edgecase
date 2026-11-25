@@ -32741,51 +32741,78 @@ class Graph:
             If `values=` is a list whose length doesn't match the number of target nodes, or if a
             label given in `nodes=` (or as a dict key) does not exist in the graph.
 
+        See Also
+        --------
+        get_node_attrs : Read one attribute back, as a dictionary keyed by node ID.
+        set_node_attrs_ws : Set an attribute on the nodes in the current selection.
+        set_edge_attrs : The same for edges.
+
         Examples
         --------
-        Passing a single value applies it to every node listed in `nodes=`; node `C` is not
-        listed, so it doesn't get a `color` entry at all:
+        A single value goes to every node listed in `nodes=`, or to every node if `nodes=` is left
+        out. "C" isn't listed, so it gets no `flag`:
 
         ```{python}
         import edgecase as ec
 
-        graph = (
-            ec.Graph()
-            .add_nodes(["A", "B", "C"])
-        )
+        graph = ec.Graph().add_nodes(["A", "B", "C"])
+        graph.set_node_attrs("flag", True, nodes=["A", "B"])
 
-        a_id = graph.get_id_from_label("A")
-        b_id = graph.get_id_from_label("B")
-        graph.set_node_attrs("color", "blue", nodes=[a_id, b_id])
-
-        graph.get_node_attrs("color")
+        graph.get_node_df()
         ```
 
-        Omitting `nodes=` entirely applies the value to every node in the graph:
+        A dictionary gives each node its own value, keyed by label or ID. Nodes it leaves out keep
+        what they had:
 
         ```{python}
-        graph.set_node_attrs("status", "active")
-
-        graph.get_node_attrs("status")
-        ```
-
-        A list assigns a different value to each node, paired up by position with `nodes=`.
-        Labels work just as well as IDs here:
-
-        ```{python}
-        graph.set_node_attrs("score", [100, 85, 92], nodes=["A", "B", "C"])
-
-        graph.get_node_attrs("score")
-        ```
-
-        A dict is the most explicit form, mapping each node directly to its own value. Keys may
-        be labels or IDs, and nodes left out of the dict (here `B`) are untouched, so `B` keeps
-        its earlier score of `85`:
-
-        ```{python}
+        graph.set_node_attrs("score", 0)
         graph.set_node_attrs("score", {"A": 60, "C": 75})
 
-        graph.get_node_attrs("score")
+        graph.get_node_df()
+        ```
+
+        ### Ties across the split, member by member
+
+        Zachary's karate club split in two after a dispute between its instructor (member 0) and
+        its administrator (member 33), and the `faction` attribute records which side each member
+        joined. Polars can find the ties that cross the split by joining each end of each edge to
+        its faction:
+
+        ```{python}
+        import polars as pl
+
+        karate = ec.karate_club()
+        sides = karate.get_node_df().select("label", "faction")
+
+        source_sides = sides.rename({"label": "source", "faction": "from"})
+        target_sides = sides.rename({"label": "target", "faction": "to"})
+        crossing = (
+            karate.get_edge_df(labels=True)
+            .join(source_sides, on="source")
+            .join(target_sides, on="target")
+            .filter(pl.col("from") != pl.col("to"))
+        )
+        ends = pl.concat([crossing["source"], crossing["target"]])
+        per_member = ends.value_counts()
+        ```
+
+        To bring the counts back to the graph, `set_node_attrs()` first gives everyone 0, then a
+        dictionary overwrites the members who have crossing ties. Member 2 has 5 of the 10:
+
+        ```{python}
+        karate.set_node_attrs("crossing", 0)
+        karate.set_node_attrs("crossing", dict(per_member.iter_rows()))
+
+        crossers = karate.get_node_df().filter(pl.col("crossing") > 0)
+        crossers.sort("crossing", descending=True)
+        ```
+
+        Colored by faction and sized by crossing ties. Member 2 sits between the two leaders:
+
+        ```{python}
+        karate.plot(
+            color_by="faction", size_by="crossing", label_by="label", seed=4
+        )
         ```
         """
         if nodes is None:
