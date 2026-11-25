@@ -15736,6 +15736,12 @@ class Graph:
             If `n=` or `q=` is negative, `p=` or `dim=` is less than `1`, `r=` is negative, or
             `n ** dim` is more than `1,000,000`.
 
+        See Also
+        --------
+        add_grid_graph : Build the grid without long-range contacts.
+        add_smallworld_graph : Rewire a ring lattice into a small world.
+        diameter : Measure the longest shortest path.
+
         Examples
         --------
         A `10` by `10` directed grid with one long-range contact per node:
@@ -15743,7 +15749,9 @@ class Graph:
         ```{python}
         import edgecase as ec
 
-        graph = ec.Graph(directed=True).add_navigable_small_world_graph(n=10, seed=1)
+        graph = ec.Graph(directed=True).add_navigable_small_world_graph(
+            n=10, seed=1
+        )
 
         graph.count_nodes(), graph.count_edges()
         ```
@@ -15755,19 +15763,56 @@ class Graph:
         ```
 
         With `r=0` the long-range contacts are spread uniformly and shorten paths the most;
-        with a large `r` they stay near home, and the diameter approaches the bare grid's `18`:
+        with a large `r` they stay near home, and the diameter rises to the bare grid's `18`:
 
         ```{python}
         [
             (
                 r,
-                ec.Graph()
+                ec.Graph(directed=True)
                 .add_navigable_small_world_graph(n=10, r=r, seed=1)
                 .diameter(),
             )
             for r in (0.0, 2.0, 6.0)
         ]
         ```
+
+        ### Contacts anywhere or next door
+
+        Two `6` by `6` grids, drawn at their grid positions. With `r=0.0` on the left each
+        node's long-range contact is anywhere on the grid, and every node can reach every other
+        in `5` steps. With `r=6.0` on the right the contacts are almost always grid neighbors,
+        already joined, so the `120` edges are the grid's own, and the farthest pairs are `10`
+        steps apart:
+
+        ```{python}
+        def grid(r):
+            return ec.Graph(directed=True).add_navigable_small_world_graph(
+                n=6, r=r, seed=1
+            )
+
+        anywhere, nearby = grid(0.0), grid(6.0)
+
+        [(g.count_edges(), g.diameter()) for g in (anywhere, nearby)]
+        ```
+
+        ::: {layout-ncol="2"}
+
+        ```{python}
+        anywhere.plot(
+            layout="pos", show_labels=False, node_size=7,
+            width=320, height=320, legend=False,
+        )
+        ```
+
+        ```{python}
+        nearby.plot(
+            layout="pos", show_labels=False, node_size=7,
+            width=320, height=320, legend=False,
+        )
+        ```
+
+        :::
         """
         self._check_non_negative(n=n, q=q)
         if p < 1 or dim < 1:
