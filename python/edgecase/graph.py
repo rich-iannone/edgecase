@@ -73509,13 +73509,41 @@ class Graph:
         }
         ```
 
+        ### A short walk or a long one
+
+        Each member sized by visits. After 100 steps on the left, the walk has reached 29 of the
+        34 members, and member `1`, with 9 friends, has had nearly as many visits as the
+        instructor. After 10,000 on the right, the visits have settled in proportion to each
+        member's friends, with the instructor and the administrator (`33`) the largest:
+
+        ::: {layout-ncol="2"}
+
         ```{python}
-        karate = karate.set_node_attrs("visits", dict(visits))
+        walk = karate.random_walk(1, steps=100, seed=1, return_list=True)
+        short = Counter(walk)
+        karate.set_node_attrs(
+            "short", {n: short[n] for n in karate.get_node_ids()}
+        )
 
         karate.plot(
-            size_by="visits", color_by="faction", label_by="label", seed=1
+            size_by="short", color_by="faction", show_labels=False,
+            width=320, height=320, legend=False, seed=1,
         )
         ```
+
+        ```{python}
+        karate.set_node_attrs("visits", dict(visits))
+
+        karate.plot(
+            size_by="visits", color_by="faction", show_labels=False,
+            width=320, height=320, legend=False, seed=1,
+        )
+        ```
+
+        :::
+
+        [Paths and distances](../user-guide/paths.qmd#walks) takes a repeatable random walk across a
+        road network, where long roads are favored.
         """
         self._check_non_negative(steps=steps)
         start_id = self._resolve_node_id(source, auto_create=False)
