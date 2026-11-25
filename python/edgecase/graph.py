@@ -5933,15 +5933,38 @@ class Graph:
         ValueError
             If `resolution=` is not a positive number, or `scale=` or `center=` is invalid.
 
+        See Also
+        --------
+        layout_circular : Place all nodes on one circle.
+        layout_shell : Place nodes on concentric circles, grouped by attribute.
+        plot : Draw the graph using stored positions.
+
         Examples
         --------
-        A path of 40 nodes wound into a spiral:
+        A spiral places the nodes in order along a curve winding out from the center, which packs a
+        long path into a square. By default the angle between neighbors is fixed, so the nodes
+        crowd at the center. `equidistant=True` spaces them evenly along the curve instead. The
+        default on the left and `equidistant=True` on the right, for a path of 40 nodes:
+
+        ::: {layout-ncol="2"}
 
         ```{python}
         import edgecase as ec
 
-        ec.Graph().add_path_graph(40).layout_spiral(equidistant=True).plot(layout="pos")
+        path = ec.Graph().add_path_graph(40)
+
+        path.layout_spiral().plot(
+            layout="pos", width=320, height=320, legend=False
+        )
         ```
+
+        ```{python}
+        path.layout_spiral(equidistant=True).plot(
+            layout="pos", width=320, height=320, legend=False
+        )
+        ```
+
+        :::
         """
         scale, center = self._layout_frame(scale, center, allow_none=False)
         if (
