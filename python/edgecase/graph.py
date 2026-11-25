@@ -52249,6 +52249,9 @@ class Graph:
 
         reach.count_edges(), friends.get_degree("Ada"), reach.get_degree("Ada")
         ```
+
+        [Transforming graphs](../user-guide/transforming.qmd#derived-graphs) shows how squaring the
+        karate club shrinks its diameter.
         """
         self._check_non_negative(k=k)
         result = Graph._from_rust(rust.graph_power(self._graph, k))
