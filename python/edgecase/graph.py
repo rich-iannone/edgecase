@@ -91263,6 +91263,9 @@ class Graph:
         ```{python}
         tree.plot(label_by="label", seed=1, width=400, height=300)
         ```
+
+        [Directed acyclic graphs](../user-guide/dags.qmd#trees) encodes a binary tree as a Prüfer
+        sequence and a nested tuple, and names the methods that rebuild it.
         """
         seq = rust.to_prufer_sequence(self._graph)
         if self._recording_depth == 0:
