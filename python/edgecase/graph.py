@@ -44230,6 +44230,10 @@ class Graph:
         ```{python}
         friends.plot(color_by="clustering_coefficient", label_by="label", seed=8)
         ```
+
+        [Clustering and motifs](../user-guide/clustering-and-motifs.qmd#clustering-coefficients)
+        explains how it differs from `local_clustering_coefficient()` for nodes with fewer than two
+        neighbors.
         """
         if attr_name is None:
             attr_name = "clustering_coefficient"
