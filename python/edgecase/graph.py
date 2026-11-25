@@ -32894,6 +32894,12 @@ class Graph:
         Graph
             Self for method chaining.
 
+        See Also
+        --------
+        set_node_attrs : Set an attribute directly, without selecting first.
+        select_nodes : Select the nodes to set it on.
+        mutate_node_attrs_ws : Compute the new values from existing attributes.
+
         Examples
         --------
         Attributes are applied only to nodes currently in the selection. Here `A` and `B` are
@@ -32902,9 +32908,8 @@ class Graph:
         ```{python}
         import edgecase as ec
 
-        graph = (
-            ec.Graph()
-            .add_nodes([("A", {"value": 10}), ("B", {"value": 20}), ("C", {"value": 30})])
+        graph = ec.Graph().add_nodes(
+            [("A", {"value": 10}), ("B", {"value": 20}), ("C", {"value": 30})]
         )
 
         id_a = graph.get_id_from_label("A")
