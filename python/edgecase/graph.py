@@ -60621,7 +60621,9 @@ class Graph:
 
         star = ec.Graph().add_star_graph(n=5)
 
-        star.degree_centrality().get_node_df().select("label", "degree_centrality")
+        star.degree_centrality().get_node_df().select(
+            "label", "degree_centrality"
+        )
         ```
 
         ### Who has the most ties
@@ -60706,6 +60708,9 @@ class Graph:
         ```
 
         Use `degrees()` for the raw counts, which aren't divided by `n - 1`.
+
+        [Centrality](../user-guide/centrality.qmd#degree-centrality) explains what `mode=` counts in
+        a directed graph.
         """
         if mode not in ("all", "total", "in", "out"):
             raise ValueError(f"Invalid mode {mode!r}. Must be 'all', 'in', or 'out'")
