@@ -22587,27 +22587,44 @@ class Graph:
         int
             The total number of nodes in the graph.
 
+        See Also
+        --------
+        count_edges : The number of edges.
+        density : The share of possible edges that exist, which depends on the node count.
+        count_selected_nodes : The number of nodes in the current selection.
+
         Examples
         --------
-        A graph with three nodes and no edges still has three nodes -- edges don't matter for
-        this count:
+        Every node counts, whether or not it has edges:
 
         ```{python}
         import edgecase as ec
 
-        graph = (
-            ec.Graph()
-            .add_nodes(["A", "B", "C"])
-        )
+        graph = ec.Graph().add_nodes(["A", "B", "C"])
+        graph.add_edge("A", "B")
 
         graph.count_nodes()
         ```
 
-        Deleting a node immediately lowers the count:
+        Deleting a node lowers the count:
 
         ```{python}
-        graph.delete_node("B")
+        graph.delete_node("C")
         graph.count_nodes()
+        ```
+
+        ### How many ties could there be?
+
+        Zachary's karate club has 34 members. Among *n* people there are *n*(*n* − 1)/2 possible
+        ties, 561 here, and the club has 78 of them, about 14%. That ratio is the graph's density:
+
+        ```{python}
+        karate = ec.karate_club()
+        n = karate.count_nodes()
+
+        pairs = n * (n - 1) // 2
+
+        n, pairs, karate.count_edges() / pairs, karate.density()
         ```
         """
         return self._graph.num_nodes()
