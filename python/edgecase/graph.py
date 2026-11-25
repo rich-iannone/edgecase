@@ -33635,51 +33635,56 @@ class Graph:
         Graphviz `label` read by `from_dot()`) is left out of the table. Read it with
         `get_node_attrs()` instead.
 
+        See Also
+        --------
+        get_edge_df : The edges as a Polars DataFrame.
+        get_node_attrs : One attribute as a dictionary, including any the frame leaves out.
+        set_node_attrs : Write values computed in Polars back onto the nodes.
+
         Examples
         --------
-        Every node DataFrame starts with `id`, `label`, and `type`, followed by any custom
-        attributes and a computed `degree` column:
+        The frame has a row per node, sorted by ID. `id`, `label` and `type` come first, then the
+        stored attributes in alphabetical order, then each node's degree:
 
         ```{python}
         import edgecase as ec
 
-        graph = (
-            ec.Graph()
-            .add_nodes(
-                [
-                    ("A", {"type": "user", "score": 95}),
-                    ("B", {"type": "admin", "score": 88}),
-                    ("C", {"type": "user", "score": 92}),
-                ]
-            )
-        )
+        graph = ec.Graph.from_edges([("A", "B"), ("B", "C")])
+        graph.set_node_attrs("score", {"A": 95, "B": 88})
 
-        df = graph.get_node_df()
-        df.columns
+        graph.get_node_df()
         ```
 
-        ```{python}
-        df.shape
-        ```
+        "C" has no `score`, so its value is null.
 
-        Since it's a regular Polars DataFrame, ordinary Polars operations work directly on
-        it -- for example, averaging a numeric attribute:
+        ### Hubs and bridges
 
-        ```{python}
-        df["score"].mean()
-        ```
-
-        Or counting how many nodes match a condition:
+        Zachary's karate club split in two after a dispute between its instructor (member 0) and
+        its administrator (member 33). Storing two centralities on the graph puts them in the node
+        frame side by side, ready for Polars:
 
         ```{python}
         import polars as pl
-        df.filter(pl.col("type") == "user").height
+
+        karate = ec.karate_club()
+        karate.betweenness_centrality(attr_name="betweenness")
+        karate.pagerank(attr_name="pagerank")
+
+        nodes = karate.get_node_df()
+        nodes.sort("betweenness", descending=True).head(5).select(
+            "label", "faction", "degree", "betweenness", "pagerank"
+        )
         ```
 
-        The computed `degree` column can be filtered on too, just like any other column:
+        The two leaders top both measures. Member 31 is the odd one out: it has only 6 ties and
+        about a third of the leaders' PageRank, yet it ranks fifth for betweenness. Its tie to the
+        instructor, member 0, is one of the few that cross between the factions. Sized by
+        betweenness and colored by faction:
 
         ```{python}
-        df.filter(pl.col("degree") > 5)
+        karate.plot(
+            size_by="betweenness", color_by="faction", label_by="label", seed=4
+        )
         ```
         """
         return self._node_df(self.get_node_ids(limit=None))
