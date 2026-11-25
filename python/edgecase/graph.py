@@ -55393,40 +55393,55 @@ class Graph:
 
         Examples
         --------
-        In a random directed graph with 20 nodes and 35 edges, each edge adds one to the degree
-        of both of its endpoints, so the mean total degree is `2 * 35 / 20`, or `3.5`:
+        Each edge adds one to the degree of both its ends, so in a random graph with 20 nodes and
+        35 edges the mean degree is `2 * 35 / 20`, or `3.5`. Unlike the in- and out-degree
+        versions, this works on undirected graphs too:
 
         ```{python}
         import edgecase as ec
 
-        graph = ec.Graph(directed=True)
-        graph.add_gnm_graph(20, 35, seed=23)
+        graph = ec.Graph().add_gnm_graph(20, 35, seed=23)
 
-        graph.aggregate_degree('mean')
+        graph.aggregate_degree("mean"), graph.aggregate_degree("max")
         ```
 
+        ### The club without its leaders
+
+        The karate club's instructor (member 0) and administrator (member 33) have 16 and 17
+        friends, the most in the club. On average a member has 4.6, but leaving the two leaders out
+        with `conditions=` brings it down to 3.8:
+
         ```{python}
-        graph.aggregate_degree('median')
+        karate = ec.karate_club()
+
+        def is_member(n):
+            return n.label not in {"0", "33"}
+
+        (
+            karate.aggregate_degree("mean"),
+            karate.aggregate_degree("mean", conditions=is_member),
+        )
         ```
 
-        Unlike `aggregate_in_degree()`/`aggregate_out_degree()`, this also works on
-        undirected graphs -- every node in a cycle has degree `2`, so the mean is
-        exactly `2.0`:
+        When the club split, the two factions were about as well connected. The instructor's
+        members have a median of 3.5 friends and the administrator's 3:
 
         ```{python}
-        graph_undirected = ec.Graph(directed=False)
-        graph_undirected.add_cycle_graph(10)
-
-        graph_undirected.aggregate_degree('mean')
+        {
+            faction: karate.aggregate_degree(
+                "median", conditions=lambda n: n.attributes["faction"] == faction
+            )
+            for faction in [1, 2]
+        }
         ```
 
-        With `conditions=`, the hub of a star (node `1`, with degree `5`) can be left out, which
-        shows that every other node has degree `1`:
+        Sized by degree, each faction has its leader at the center and a few well-connected
+        members around them:
 
         ```{python}
-        star = ec.Graph().add_star_graph(6)
-
-        star.aggregate_degree('max', conditions=lambda n: n.id != 1)
+        karate.plot(
+            color_by="faction", size_by="degree", label_by="label", seed=3
+        )
         ```
         """
         valid_agg = {"sum", "min", "max", "mean", "median"}
