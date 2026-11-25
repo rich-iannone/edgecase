@@ -27894,6 +27894,12 @@ class Graph:
         int
             Total number of edges where source equals target.
 
+        See Also
+        --------
+        count_loops : Count the self-loops at each node.
+        remove_selfloops : Delete every self-loop.
+        is_simple : Check for loops and parallel edges together.
+
         Examples
         --------
         Two of these three edges connect a node to itself, so `count_all_loops()` reports
