@@ -6403,16 +6403,39 @@ class Graph:
         NodeNotFoundError
             If `source=` doesn't exist.
 
+        See Also
+        --------
+        bfs_layers : List the nodes at each distance from a start node.
+        layout_multipartite : Place nodes in parallel lines, one per layer.
+        to_undirected : Make an undirected copy of the graph.
+
         Examples
         --------
-        A binary tree laid out from its root, one level per row:
+        A breadth-first search from `source=` puts each node in a layer by its distance from the
+        source. In a company's reporting lines, starting from the chief executive, Mira, makes each
+        column a level of management:
 
         ```{python}
         import edgecase as ec
 
-        ec.Graph().add_balanced_tree(2, 3).layout_bfs(source=1, align="horizontal").plot(
-            layout="pos"
-        )
+        org = ec.org_chart().layout_bfs(source="Mira")
+
+        org.plot(layout="pos", label_by="label", width=820, height=480)
+        ```
+
+        ### How far from the intern
+
+        The search follows the edges' directions, which run from managers to their reports, so a
+        search from Noor, the intern, reaches no one and raises an error. In the undirected copy,
+        the layers count the reporting lines between each person and Noor. The path to anyone
+        outside engineering runs up through Mira, and the furthest, 9 lines away, is Ada in
+        finance:
+
+        ```{python}
+        ties = ec.org_chart().to_undirected()
+        ties.layout_bfs(source="Noor")
+
+        ties.plot(layout="pos", label_by="label", width=820, height=480)
         ```
         """
         scale, center = self._layout_frame(scale, center, allow_none=False)
