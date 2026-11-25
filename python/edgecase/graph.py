@@ -19918,6 +19918,12 @@ class Graph:
         TypeError
             If a path is not iterable or holds an unhashable item.
 
+        See Also
+        --------
+        layout_bfs : Draw the tree in layers from the root.
+        add_balanced_tree : Build a tree where every node has the same number of children.
+        get_node_df : Read the letter that each node adds.
+
         Examples
         --------
         Four words share their first letters. The tree has a root, NIL, and one node per
@@ -19926,7 +19932,8 @@ class Graph:
         ```{python}
         import edgecase as ec
 
-        tree = ec.Graph(directed=True).add_prefix_tree(["ant", "and", "bee", "be"])
+        words = ["ant", "and", "bee", "be"]
+        tree = ec.Graph(directed=True).add_prefix_tree(words)
 
         tree.count_nodes(), tree.count_edges()
         ```
@@ -19943,6 +19950,42 @@ class Graph:
         ```{python}
         tree.get_edges_str_repr()
         ```
+
+        ### Shared prefixes or none
+
+        Four words each, drawn in layers from the root and labeled by letter. On the left
+        "cat", "car", "cab" and "cow" share their first letter, and three of them the second,
+        so `9` nodes hold them all. On the right "cat", "dog", "emu" and "fox" share nothing,
+        and every letter needs its own node, `14` in all:
+
+        ```{python}
+        def prefix_tree(words):
+            tree = ec.Graph(directed=True).add_prefix_tree(words)
+            return tree.layout_bfs(source=1)
+
+        shared = prefix_tree(["cat", "car", "cab", "cow"])
+        apart = prefix_tree(["cat", "dog", "emu", "fox"])
+
+        shared.count_nodes(), apart.count_nodes()
+        ```
+
+        ::: {layout-ncol="2"}
+
+        ```{python}
+        shared.plot(
+            layout="pos", label_by="source",
+            width=320, height=320, legend=False,
+        )
+        ```
+
+        ```{python}
+        apart.plot(
+            layout="pos", label_by="source",
+            width=320, height=320, legend=False,
+        )
+        ```
+
+        :::
         """
         from edgecase._generators import prefix_tree_structure
 
