@@ -53942,7 +53942,9 @@ class Graph:
             return x["element"] == y["element"]
 
 
-        found = list(caffeine.optimize_edit_paths(theobromine, node_match=same_element))
+        found = list(
+            caffeine.optimize_edit_paths(theobromine, node_match=same_element)
+        )
         node_path, edge_path, cost = found[-1]
         label = caffeine.get_label_from_id
 
@@ -53958,7 +53960,9 @@ class Graph:
         ```
 
         ```{python}
-        caffeine.plot(color_by="element", highlight=[("N3", "C8")], label_by="label", seed=1)
+        caffeine.plot(
+            color_by="element", highlight=[("N3", "C8")], label_by="label", seed=1
+        )
         ```
 
         With `roots=`, the methyl C8 is forced to stand for theobromine's C1, bonded to N1. The
@@ -53967,7 +53971,9 @@ class Graph:
 
         ```{python}
         rooted = list(
-            caffeine.optimize_edit_paths(theobromine, node_match=same_element, roots=("C8", "C1"))
+            caffeine.optimize_edit_paths(
+                theobromine, node_match=same_element, roots=("C8", "C1")
+            )
         )
         [cost for _, _, cost in rooted]
         ```
