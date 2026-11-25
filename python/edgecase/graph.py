@@ -51162,14 +51162,34 @@ class Graph:
         ---------------
         Equivalent to chaining `disjoint_union()`. Mirrors NetworkX's `disjoint_union_all`.
 
+        See Also
+        --------
+        disjoint_union : Combine two graphs, keeping their nodes apart.
+        union_all : Combine any number of graphs, matching nodes by ID.
+        count_weakly_connected_components : Count the weakly connected components.
+
         Examples
         --------
+        Each graph keeps its own nodes, renumbered after the ones before it, and no edges are
+        added between the graphs. So a triangle, a path of four and a star of five give twelve
+        nodes in three components. A label that's already in use gets a suffix, `_2` for its
+        second use and `_3` for its third:
+
         ```{python}
         import edgecase as ec
 
-        pieces = [ec.Graph().add_cycle_graph(3), ec.Graph().add_path_graph(4), ec.Graph().add_star_graph(5)]
+        pieces = [
+            ec.Graph().add_cycle_graph(3),
+            ec.Graph().add_path_graph(4),
+            ec.Graph().add_star_graph(5),
+        ]
         combined = ec.Graph.disjoint_union_all(pieces)
-        combined.count_nodes(), combined.count_weakly_connected_components()
+
+        combined.count_weakly_connected_components()
+        ```
+
+        ```{python}
+        combined.get_node_df()["label"].to_list()
         ```
         """
         return Graph._fold(graphs, "disjoint_union")
