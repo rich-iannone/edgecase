@@ -25938,6 +25938,9 @@ class Graph:
             layout="pos", color_by="dept", label_by="label", width=820, height=640
         )
         ```
+
+        [Structural properties](../user-guide/structure.qmd#properties) lists every `is_*` test by
+        category.
         """
         return self._graph.is_forest()
 
