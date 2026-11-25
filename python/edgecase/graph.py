@@ -94414,6 +94414,21 @@ class Graph:
         {path.get_label_from_id(n): round(v, 3) + 0.0 for n, v in fiedler.items()}
         ```
 
+        Without `return_dict=True`, the values are stored in the `fiedler_vector` node attribute.
+        Colored by it, the two ends take the two ends of the scale, and `C` the gray midpoint:
+
+        ```{python}
+        spots = {"A": (0, 0), "B": (1, 1), "C": (2, 0), "D": (3, 1), "E": (4, 0)}
+        path.set_node_attrs(
+            "pos", {path.get_id_from_label(v): p for v, p in spots.items()}
+        )
+
+        path.fiedler_vector().plot(
+            layout="pos", color_by="fiedler_vector", color_scale="diverging",
+            label_by="label", height=240,
+        )
+        ```
+
         ### Predicting the split
 
         `karate_club()` links the 34 members of a university karate club who met outside the
@@ -94450,6 +94465,10 @@ class Graph:
 
         all((normalized[n] < 0) == (fiedler[n] < 0) for n in fiedler)
         ```
+
+        [Matrices and spectra](../user-guide/spectral.qmd#ordering-nodes-with-the-fiedler-vector)
+        explains how the Fiedler vector orders the nodes and splits the karate club along its
+        factions.
         """
         scores = rust.fiedler_vector(self._graph, normalized, self._use_weights(weighted))
         params = {} if not normalized else {"normalized": True}
