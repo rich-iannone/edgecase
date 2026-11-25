@@ -3174,6 +3174,12 @@ class Graph:
             If no edge exists with the specified ID. It is a subclass of both `KeyError` and
             `ValueError`.
 
+        See Also
+        --------
+        find_edge_ids : The IDs of the edges between two nodes.
+        delete_edge : Remove an edge by its endpoints.
+        remove_duplicate_edges : Remove all parallel edges at once.
+
         Examples
         --------
         `delete_edge_by_id()` removes a single edge directly, without resolving source and
@@ -3182,36 +3188,12 @@ class Graph:
         ```{python}
         import edgecase as ec
 
-        graph = (
-            ec.Graph()
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_edge(source="A", target="B")
-        )
+        graph = ec.Graph.from_edges([("A", "B")])
 
         edge_id = graph.get_edge_ids()[0]
         graph.delete_edge_by_id(edge_id=edge_id)
 
         graph.has_edge(source="A", target="B")
-        ```
-
-        That makes it the right tool for multigraphs, where several edges connect the same
-        pair of nodes and only a specific one should be removed. `find_edge_ids()` lists the
-        parallel edges, and deleting the second one leaves the weight `1.0` edge in place:
-
-        ```{python}
-        graph = (
-            ec.Graph()
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_edge(source="A", target="B", weight=1.0)
-            .add_edge(source="A", target="B", weight=2.0)
-        )
-
-        parallel = graph.find_edge_ids("A", "B")
-        graph.delete_edge_by_id(edge_id=parallel[1])
-
-        graph.get_edge_df()
         ```
 
         An ID that doesn't belong to any edge raises an `EdgeNotFoundError`:
@@ -3223,6 +3205,35 @@ class Graph:
             print(e)
         ```
 
+        ### A double charge
+
+        Deleting by ID is the right tool when several edges connect the same pair and only a
+        specific one should go. Dee was charged twice for the same coffee on 4 March, and paid for
+        another on 9 March:
+
+        ```{python}
+        card = ec.Graph.from_edges(
+            [
+                ("Dee", "Grocer", 64, {"date": "2026-03-03"}),
+                ("Dee", "Cafe", 12, {"date": "2026-03-04"}),
+                ("Dee", "Cafe", 12, {"date": "2026-03-04"}),
+                ("Dee", "Cafe", 12, {"date": "2026-03-09"}),
+            ],
+            directed=True,
+        )
+
+        charges = card.find_edge_ids("Dee", "Cafe")
+        card.get_edge_df().filter(card.get_edge_df()["id"].is_in(charges))
+        ```
+
+        The second charge is the duplicate, so it's the one to remove by ID. The coffee on 9
+        March stays, and so does the first charge on 4 March:
+
+        ```{python}
+        card.delete_edge_by_id(charges[1])
+
+        card.plot(edge_label_by="date", label_by="label", seed=1)
+        ```
         """
         if not self.has_edge_id(edge_id):
             raise EdgeNotFoundError(f"Edge with ID {edge_id} does not exist")
