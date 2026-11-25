@@ -10260,6 +10260,9 @@ class Graph:
         ```
 
         :::
+
+        [Graph generators](../user-guide/generators.qmd#deterministic-structures) lists the
+        deterministic generators by family.
         """
         dims = list(dims)
         if not dims or any(size < 1 for size in dims):
