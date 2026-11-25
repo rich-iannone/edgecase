@@ -10145,10 +10145,17 @@ class Graph:
         ValueError
             If `rows=` or `cols=` is less than `1`.
 
+        See Also
+        --------
+        add_hexagonal_lattice_graph : Add a hexagonal lattice.
+        add_grid_2d : Add a two-dimensional grid graph.
+        list_triangles : List the triangles in the graph.
+
         Examples
         --------
-        Two rows of four triangles need three rows of three nodes, and the `2 * 4 = 8`
-        triangles share edges, leaving `16` edges in all:
+        A triangular lattice tiles the plane with triangles. `rows=` and `cols=` count the
+        triangles, so two rows of four need three rows of three nodes, and the `8` triangles share
+        their edges, for `16` edges in all:
 
         ```{python}
         import edgecase as ec
@@ -10158,14 +10165,48 @@ class Graph:
         graph.count_nodes(), graph.count_edges(), len(graph.list_triangles())
         ```
 
-        In a larger lattice, an interior node such as `"(2,2)"` has six neighbors, two in its own
-        row and two in each neighboring row:
+        In a larger lattice an inner node such as `"(2,2)"` has six neighbors, two in its own row
+        and two in each of the rows beside it:
 
         ```{python}
         lattice = ec.Graph().add_triangular_lattice_graph(rows=4, cols=8)
+        neighbors = lattice.get_neighbors("(2,2)")
 
-        sorted(lattice.get_label_from_id(nid) for nid in lattice.get_neighbors("(2,2)"))
+        sorted(lattice.get_label_from_id(n) for n in neighbors)
         ```
+
+        ### Squares and triangles
+
+        The lattice above on the left and a square grid of the same `25` nodes on the right. Each
+        inner node of the lattice has six neighbors against four in the grid, which adds `16`
+        edges and brings the far corners closer, `6` steps apart instead of `8`:
+
+        ```{python}
+        square = ec.Graph().add_grid_2d(rows=5, cols=5)
+
+        (
+            lattice.count_edges(),
+            square.count_edges(),
+            lattice.diameter(),
+            square.diameter(),
+        )
+        ```
+
+        ::: {layout-ncol="2"}
+
+        ```{python}
+        lattice.layout_kamada_kawai().plot(
+            layout="pos", label_by="label", width=320, height=320, legend=False
+        )
+        ```
+
+        ```{python}
+        square.layout_kamada_kawai().plot(
+            layout="pos", label_by="label", width=320, height=320, legend=False
+        )
+        ```
+
+        :::
         """
         if rows < 1 or cols < 1:
             raise ValueError("Lattice must have at least 1 row and 1 column")
