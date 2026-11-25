@@ -54047,59 +54047,53 @@ class Graph:
 
         Examples
         --------
-        Taking two of the five edges of a cycle keeps their three endpoints (the two edges share
-        a node) and drops the rest:
+        The edge-induced subgraph keeps the given edges and their endpoints. Unlike `subgraph()`, it
+        drops the other edges between those endpoints. Here the two `"inhibits"` edges are kept,
+        and the `"activates"` edge between `A` and `B` is gone, though both nodes stay:
 
         ```{python}
         import edgecase as ec
 
-        # Create a cycle: 1 -- 2 -- 3 -- 4 -- 5 -- 1
-        graph = ec.Graph().add_cycle_graph(5)
-
-        # Get first two edge IDs
-        edge_ids = list(graph.get_edge_ids())[:2]
-        sub = graph.edge_subgraph(edge_ids)
-
-        # Returns 3 (endpoints of 2 edges)
-        sub.count_nodes()
-        ```
-
-        ```{python}
-        # Returns 2
-        sub.count_edges()
-        ```
-
-        In K4 the first two edges both start at node `1` (`1--2` and `1--3`), so the result is a
-        small star with three nodes and two edges:
-
-        ```{python}
-        graph = ec.Graph().add_full_graph(4)  # K4 with 6 edges
-
-        edge_ids = list(graph.get_edge_ids())[:2]
-        star = graph.edge_subgraph(edge_ids)
-        star.get_edges_str_repr(use_labels=True)
-        ```
-
-        Filtering on an edge attribute pulls out one kind of relationship. Only the two
-        `"inhibits"` edges survive; nodes `A` and `B` are both kept, yet their `"activates"`
-        edge is gone, which an induced subgraph would have kept:
-
-        ```{python}
-        g = ec.Graph(directed=True)
-        g.add_nodes(["A", "B", "C", "D"])
-        g.add_edges(
-            [
-                ("A", "B", {"rel": "activates"}),
-                ("B", "C", {"rel": "inhibits"}),
-                ("C", "D", {"rel": "activates"}),
-                ("A", "D", {"rel": "inhibits"}),
-            ]
-        )
+        g = ec.Graph(directed=True).add_nodes(["A", "B", "C", "D"])
+        g.add_edges([
+            ("A", "B", {"rel": "activates"}),
+            ("B", "C", {"rel": "inhibits"}),
+            ("C", "D", {"rel": "activates"}),
+            ("A", "D", {"rel": "inhibits"}),
+        ])
 
         edf = g.get_edge_df()
-        inhibitory = edf.filter(edf["rel"] == "inhibits")["id"].to_list()
+        inhibits = edf.filter(rel="inhibits")["id"].to_list()
 
-        g.edge_subgraph(inhibitory).get_edges_str_repr(use_labels=True)
+        g.edge_subgraph(inhibits).get_edges_str_repr(use_labels=True)
+        ```
+
+        ### The bridges between two clubs
+
+        `ec.friends(snapshot=2)` is a network of friendships among the members of a chess club and
+        a climbing club. Six friendships cross between the clubs, among 8 people. The edge
+        subgraph keeps just those 6 ties:
+
+        ```{python}
+        friends = ec.friends(snapshot=2)
+        club = friends.get_node_attrs("club")
+        cross = [
+            e for e, s, t in friends.get_edges_as_tuples() if club[s] != club[t]
+        ]
+
+        bridges = friends.edge_subgraph(cross)
+        bridges.count_nodes(), bridges.count_edges()
+        ```
+
+        The subgraph on the same 8 people would also keep the 4 friendships among them within a
+        club:
+
+        ```{python}
+        friends.subgraph(bridges.get_node_ids()).count_edges()
+        ```
+
+        ```{python}
+        bridges.plot(color_by="club", label_by="label", seed=1)
         ```
         """
         from edgecase._core import edge_subgraph
