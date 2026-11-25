@@ -80537,6 +80537,9 @@ class Graph:
         ```{python}
         metro.plot(layout="pos", color_by="zone", label_by="label")
         ```
+
+        [Connectivity and flows](../user-guide/connectivity.qmd#strengthening-a-network) finds the
+        one friendship that would leave the karate club without a bridge.
         """
         if k < 1:
             raise ValueError("k must be at least 1")
