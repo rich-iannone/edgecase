@@ -26826,8 +26826,9 @@ class Graph:
         hexagon = ec.Graph().add_cycle_graph(6)
         two_triangles = ec.Graph().add_cycle_graph(3).add_cycle_graph(3)
 
-        hexagon.could_be_isomorphic(two_triangles, properties="d"), hexagon.could_be_isomorphic(
-            two_triangles
+        (
+            hexagon.could_be_isomorphic(two_triangles, properties="d"),
+            hexagon.could_be_isomorphic(two_triangles),
         )
         ```
 
@@ -26865,10 +26866,15 @@ class Graph:
         ```
 
         ```{python}
-        molecules["isobutane"].plot(label_by="degree", seed=1, width=360, height=360)
+        molecules["isobutane"].plot(
+            label_by="degree", seed=1, width=360, height=360
+        )
         ```
 
         :::
+
+        [Similarity and link prediction](../user-guide/similarity.qmd#isomorphism) tells apart two
+        graphs that share a Weisfeiler–Lehman hash.
         """
         if set(properties) - set("dtc"):
             raise ValueError("properties= may only contain the letters 'd', 't' and 'c'")
