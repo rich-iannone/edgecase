@@ -20379,6 +20379,9 @@ class Graph:
         ```
 
         :::
+
+        [Directed acyclic graphs](../user-guide/dags.qmd#trees) compares the other methods for trees
+        and branchings.
         """
         from edgecase._generators import prefix_tree_structure
 
