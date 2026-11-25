@@ -33046,6 +33046,12 @@ class Graph:
         KeyError
             If `edge_ids=` contains an ID that does not exist in the graph.
 
+        See Also
+        --------
+        set_node_attrs : Set a node attribute in the same way.
+        get_edge_attrs : Read an edge attribute back.
+        set_edge_attrs_ws : Set an attribute on the selected edges only.
+
         Examples
         --------
         The simplest way to target edges is by edge ID. Here the first two edges of a
@@ -33072,7 +33078,8 @@ class Graph:
 
         ```{python}
         graph.set_edge_attrs("status", "active")
-        graph.set_edge_attrs("priority", [1, 2, 3], edge_ids=list(graph.get_edge_ids()))
+        edge_ids = list(graph.get_edge_ids())
+        graph.set_edge_attrs("priority", [1, 2, 3], edge_ids=edge_ids)
 
         graph.get_edge_df()
         ```
