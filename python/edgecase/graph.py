@@ -82167,6 +82167,9 @@ class Graph:
             layout="pos", highlight=list(between), label_by="label"
         )
         ```
+
+        [Connectivity and flows](../user-guide/connectivity.qmd#measuring-connectivity) finds a
+        smallest set of members that separates the karate club's two leaders.
         """
         source_id = self._resolve_node_id(source, auto_create=False)
         sink_id = self._resolve_node_id(target, auto_create=False)
