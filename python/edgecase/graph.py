@@ -56753,9 +56753,13 @@ class Graph:
 
         ```{python}
         novel.plot(
-            highlight=students, size_by="degree", show_labels=False, seed=1
+            highlight_edges=society.get_edge_ids(), size_by="degree",
+            show_labels=False, seed=1,
         )
         ```
+
+        [Structural properties](../user-guide/structure.qmd#the-graph-at-a-glance) lists the methods
+        that give a graph's summary values one at a time.
         """
         return self._graph.average_degree()
 
