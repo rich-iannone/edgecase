@@ -29456,6 +29456,9 @@ class Graph:
             highlight={"accent": ["Hugo", "Tara"], "soft": shared},
         )
         ```
+
+        [Traversals](../user-guide/traversals.qmd#neighbors) finds the four friends that the karate
+        club's two leaders share.
         """
         neighbors1 = set(self.get_neighbors(node_1, mode="all"))
         neighbors2 = set(self.get_neighbors(node_2, mode="all"))
