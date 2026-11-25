@@ -41666,7 +41666,10 @@ class Graph:
         Examples
         --------
         In a triangle with a tail, there are five pairs of edges that meet at a node, and three
-        of them are closed by the third edge of the triangle, so the transitivity is 3/5:
+        of them are closed by the third edge of the triangle, so the transitivity is 3/5. The
+        average clustering of the same graph is 0.58. Transitivity pools every node's pairs of
+        neighbors, so a node with many neighbors weighs more, where the average counts every node
+        the same:
 
         ```{python}
         import edgecase as ec
@@ -41674,15 +41677,7 @@ class Graph:
         graph = ec.Graph.from_edges(
             [("A", "B"), ("B", "C"), ("C", "A"), ("C", "D")]
         )
-        graph.transitivity()
-        ```
-
-        The average clustering of the same graph is 0.58. Transitivity pools every node's pairs
-        of neighbors, so a node with many neighbors weighs more, where the average counts every
-        node the same:
-
-        ```{python}
-        graph.average_clustering_coefficient()
+        graph.transitivity(), graph.average_clustering_coefficient()
         ```
 
         ### Clustered beyond chance?
@@ -41760,6 +41755,10 @@ class Graph:
         )
         cycle.transitivity(), forward.transitivity()
         ```
+
+        [Clustering and motifs](../user-guide/clustering-and-motifs.qmd#two-global-measures)
+        explains why the karate club's transitivity is less than half its average clustering, and
+        compares several networks with randomized versions.
         """
         return self._graph.transitivity()
 
