@@ -40073,6 +40073,10 @@ class Graph:
             label_by="label", height=360,
         )
         ```
+
+        [Coloring, matching, and
+        covering](../user-guide/coloring-matching.qmd#chordal-graphs-and-treewidth) lists the
+        cliques of a graph of meetings.
         """
         cliques = rust.chordal_graph_cliques(self._graph)
         if self._recording_depth == 0:
