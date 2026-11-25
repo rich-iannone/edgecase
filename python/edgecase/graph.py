@@ -12471,6 +12471,12 @@ class Graph:
         ValueError
             If `m=` is less than `1` or greater than `n=`, or `p=` is not between `0` and `1`.
 
+        See Also
+        --------
+        add_extended_barabasi_albert_graph : Grow a preferential attachment graph with extra steps.
+        average_clustering_coefficient : Measure how many triangles close around each node.
+        add_joint_degree_graph : Draw a graph with the joint degrees of another.
+
         Examples
         --------
         A hundred nodes, each new one making three links:
@@ -12496,6 +12502,43 @@ class Graph:
             for p in (0.0, 0.3, 0.6, 0.9)
         ]
         ```
+
+        ### No triangle steps or many
+
+        Forty nodes that each bring two edges, so both graphs have `76` edges. With `p=0.0` on
+        the left every edge goes to a node chosen by degree, as in the Barabási–Albert model.
+        With `p=0.9` on the right the second edge almost always closes a triangle with the
+        first, and the clustering more than doubles:
+
+        ```{python}
+        def powerlaw_cluster(p):
+            return ec.Graph().add_powerlaw_cluster_graph(n=40, m=2, p=p, seed=1)
+
+        plain, clustered = powerlaw_cluster(0.0), powerlaw_cluster(0.9)
+
+        [
+            (g.count_edges(), round(g.average_clustering_coefficient(), 2))
+            for g in (plain, clustered)
+        ]
+        ```
+
+        ::: {layout-ncol="2"}
+
+        ```{python}
+        plain.plot(
+            show_labels=False, node_size=7,
+            width=320, height=320, legend=False, seed=1,
+        )
+        ```
+
+        ```{python}
+        clustered.plot(
+            show_labels=False, node_size=7,
+            width=320, height=320, legend=False, seed=1,
+        )
+        ```
+
+        :::
         """
         self._check_non_negative(n=n, m=m)
 
