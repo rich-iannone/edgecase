@@ -14636,6 +14636,9 @@ class Graph:
         ```
 
         :::
+
+        [Graph generators](../user-guide/generators.qmd#degree-sequences) compares the generators
+        that realize a given degree sequence.
         """
         if not isinstance(joint_degrees, dict) or not all(
             isinstance(row, dict) for row in joint_degrees.values()
