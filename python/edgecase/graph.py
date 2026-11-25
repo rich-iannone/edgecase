@@ -51428,6 +51428,9 @@ class Graph:
         ```{python}
         y2024.compose(update).plot(color_by="club", label_by="label", seed=2)
         ```
+
+        [Transforming graphs](../user-guide/transforming.qmd#set-operations) explains how it differs
+        from `union()` when the two graphs disagree.
         """
         from edgecase._core import graph_compose
 
