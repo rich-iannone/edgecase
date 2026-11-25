@@ -34879,6 +34879,9 @@ class Graph:
             seed=4,
         )
         ```
+
+        [Node and edge data](../user-guide/node-and-edge-data.qmd#the-node-and-edge-tables)
+        describes the columns of both tables and how mixed types are reconciled.
         """
         return self._edge_df(self.get_edge_ids(limit=None), labels=labels)
 
