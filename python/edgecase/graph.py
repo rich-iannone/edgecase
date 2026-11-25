@@ -46051,17 +46051,8 @@ class Graph:
         ```{python}
         import edgecase as ec
 
-        g = (
-            ec.Graph()
-            .add_nodes(["A", "B", "C", "D"])
-            .add_edges([("A", "B"), ("A", "C"), ("B", "D")])
-        )
-
-        h = (
-            ec.Graph()
-            .add_nodes(["A", "B", "C", "D"])
-            .add_edges([("B", "A"), ("B", "D"), ("C", "D")])
-        )
+        g = ec.Graph.from_edges([("A", "B"), ("A", "C"), ("B", "D")])
+        h = ec.Graph.from_edges([("B", "A"), ("B", "D"), ("C", "D")])
 
         g.edge_overlap(h)
         ```
@@ -46070,10 +46061,50 @@ class Graph:
         all:
 
         ```{python}
-        d1 = ec.Graph(directed=True).add_node(label="A").add_node(label="B").add_edge("A", "B")
-        d2 = ec.Graph(directed=True).add_node(label="A").add_node(label="B").add_edge("B", "A")
+        d1 = ec.Graph.from_edges([("A", "B")], directed=True)
+        d2 = ec.Graph.from_edges([("B", "A")], directed=True)
 
         d1.edge_overlap(d2)["jaccard"]
+        ```
+
+        ### Whose circle changed
+
+        `friends()` links 24 members of two clubs who are friends, and `friends(snapshot=2)` is
+        the same group a year later, with eight new friendships. Between the two, 43 of 51
+        friendships are shared:
+
+        ```{python}
+        friends = ec.friends()
+        later = ec.friends(snapshot=2)
+
+        friends.edge_overlap(later)["jaccard"]
+        ```
+
+        Each person's circle is their ego graph: the person, their friends, and the friendships
+        among them. Comparing each circle across the snapshots shows whose changed most:
+
+        ```{python}
+        import polars as pl
+
+        people = friends.get_node_df()["label"].to_list()
+        kept = {}
+        for person in people:
+            overlap = friends.ego_graph(person).edge_overlap(later.ego_graph(person))
+            kept[person] = round(overlap["jaccard"], 2)
+
+        pl.DataFrame({"person": list(kept), "jaccard": list(kept.values())}).sort("jaccard").head(4)
+        ```
+
+        Rosa's new friend Nico already knew two of her friends, Mara and Pablo, so those ties
+        entered her circle with him. Femi and Vik had no friends in common, so their new
+        friendship brought nothing else along, and Femi's circle keeps `0.8` of its ties. Each
+        person colored by that share, with the circles that changed most at the `0.43` end of
+        the scale:
+
+        ```{python}
+        later.set_node_attrs("kept", kept)
+
+        later.plot(color_by="kept", label_by="label", seed=1)
         ```
         """
         from edgecase._core import edge_overlap as _edge_overlap
