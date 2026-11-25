@@ -71051,6 +71051,9 @@ class Graph:
         order = chain.dfs(source="B", return_list=True)
         [chain.get_label_from_id(nid) for nid in order]
         ```
+
+        [Traversals](../user-guide/traversals.qmd#searching) compares breadth-first and depth-first
+        visit orders on a graph of course prerequisites.
         """
         start_id = self._resolve_node_id(source, auto_create=False)
         visited_order = self._graph.dfs(start_id)
