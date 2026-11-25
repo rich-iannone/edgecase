@@ -67156,6 +67156,9 @@ class Graph:
         tree = [(p, n) for n, p in pred.items() if p is not None]
         fx.plot(highlight=tree, label_by="label", curved_edges=True, seed=4)
         ```
+
+        [Paths and distances](../user-guide/paths.qmd#negative-weights) finds the best rate from
+        Swiss francs to every other currency.
         """
         s = self._resolve_node_id(source, auto_create=False)
         use = self._use_weights(weighted)
