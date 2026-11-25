@@ -18633,6 +18633,12 @@ class Graph:
         ValueError
             If a value is not a finite number.
 
+        See Also
+        --------
+        add_interval_graph : Build a graph from overlapping intervals.
+        add_path_graph : Build the path that a steadily rising series gives.
+        get_node_df : See each point's stored value next to its degree.
+
         Examples
         --------
         The peak at the third position sees everything up to the `3`, which hides the last
@@ -18652,11 +18658,43 @@ class Graph:
         graph.get_node_df().select("label", "value", "degree")
         ```
 
-        A straight line is just a path, since every middle point blocks the view:
+        ### A valley or a hill
+
+        Seven values each, drawn at their position and height. In the valley on the left every
+        point looks over the lower ones between, so all `21` pairs see each other. On the hill on
+        the right the middle points block the view, and only the `6` neighboring pairs remain, a
+        path. A straight line is a path in the same way:
 
         ```{python}
-        ec.Graph().add_visibility_graph([1, 2, 3, 4]).count_edges()
+        def drawn(series):
+            graph = ec.Graph().add_visibility_graph(series)
+            values = graph.get_node_attrs("value")
+            graph.set_node_attrs("pos", {v: (v, y) for v, y in values.items()})
+            return graph
+
+        valley = drawn([7, 4, 2, 1, 2, 4, 7])
+        hill = drawn([1, 4, 6, 7, 6, 4, 1])
+
+        valley.count_edges(), hill.count_edges()
         ```
+
+        ::: {layout-ncol="2"}
+
+        ```{python}
+        valley.plot(
+            layout="pos", label_by="value",
+            width=320, height=320, legend=False,
+        )
+        ```
+
+        ```{python}
+        hill.plot(
+            layout="pos", label_by="value",
+            width=320, height=320, legend=False,
+        )
+        ```
+
+        :::
         """
         from edgecase._core import visibility_edges as _edges
 
