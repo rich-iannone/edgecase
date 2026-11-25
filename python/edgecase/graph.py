@@ -49049,8 +49049,10 @@ class Graph:
         import edgecase as ec
 
         graph = ec.Graph.from_edges(
-            [("A", "B"), ("B", "C"), ("C", "A"), ("C", "D"),
-             ("D", "E"), ("D", "F"), ("D", "G"), ("E", "F"), ("E", "G"), ("F", "G")]
+            [
+                ("A", "B"), ("B", "C"), ("C", "A"), ("C", "D"), ("D", "E"),
+                ("D", "F"), ("D", "G"), ("E", "F"), ("E", "G"), ("F", "G"),
+            ]
         )
 
         (
@@ -49065,7 +49067,9 @@ class Graph:
         path to a seed, keeps `-1`:
 
         ```{python}
-        graph = ec.Graph.from_edges([("Xena", "Alice", 3.0), ("Xena", "Bob", 1.0)])
+        graph = ec.Graph.from_edges(
+            [("Xena", "Alice", 3.0), ("Xena", "Bob", 1.0)]
+        )
         graph.add_node(label="Zed")
 
         (
@@ -49089,7 +49093,8 @@ class Graph:
         names = sorted(set(pathway.values()))
 
         classes = proteins.label_propagation(
-            {node: names.index(p) for node, p in pathway.items()}, return_dict=True
+            {node: names.index(p) for node, p in pathway.items()},
+            return_dict=True,
         )
         proteins.set_node_attrs(
             "predicted", {node: names[c] for node, c in classes.items()}
@@ -49123,6 +49128,9 @@ class Graph:
         ```
 
         :::
+
+        [Communities](../user-guide/communities.qmd#semi-supervised-detection) assigns the karate
+        club's members to factions from the two leaders alone.
         """
         from edgecase._core import label_propagation as _label_propagation
 
