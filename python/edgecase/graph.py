@@ -41017,6 +41017,9 @@ class Graph:
         ```
 
         :::
+
+        [Structural properties](../user-guide/structure.qmd#cliques) lists the karate club's 36
+        maximal cliques, and finds the largest of them.
         """
         nodes, weight = rust.max_weight_clique(self._graph, node_weight_attr)
         if weight == int(weight):
