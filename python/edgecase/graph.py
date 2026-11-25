@@ -55281,6 +55281,9 @@ class Graph:
         ```
 
         :::
+
+        [Transforming graphs](../user-guide/transforming.qmd#spanners) thins the jazz network to a
+        seventh of its edges, and measures how much longer its distances become.
         """
         if stretch < 1.0:
             raise ValueError("stretch must be at least 1.0")
