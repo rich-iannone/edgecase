@@ -34441,6 +34441,9 @@ class Graph:
         ```{python}
         graph.get_edge_attrs("weight", sources=["A", "C"], targets=["B", "D"])
         ```
+
+        [Node and edge data](../user-guide/node-and-edge-data.qmd#reading-attributes) reads the
+        weights of every edge that touches Valjean in *Les Misérables*.
         """
         result = {}
 
