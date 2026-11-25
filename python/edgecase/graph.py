@@ -72136,7 +72136,9 @@ class Graph:
         ### Two stops from Central
 
         `metro()` is a made-up city's metro network. Six stations are exactly two stops from
-        Central, no fewer:
+        Central, no fewer. Central's four neighbors, Market, Museum, Old Town and Riverside, are
+        left out, since they're only one stop away, and so are the stations three or more stops
+        out:
 
         ```{python}
         metro = ec.metro()
@@ -72148,6 +72150,9 @@ class Graph:
         ```{python}
         metro.plot(layout="pos", highlight=list(two_stops), label_by="label")
         ```
+
+        [Traversals](../user-guide/traversals.qmd#distances-from-a-source) counts the karate club
+        members exactly two steps from the instructor.
         """
         with self._no_recording():
             layers = self.bfs_layers(source, mode=mode)
