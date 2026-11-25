@@ -66505,6 +66505,9 @@ class Graph:
         ```{python}
         metro.plot(layout="pos", highlight=middle, label_by="label")
         ```
+
+        [Structural properties](../user-guide/structure.qmd#distances) sums up the karate club's
+        distances, and explains how a disconnected graph is handled.
         """
         return self._graph.get_radius_with_unconnected(unconnected)
 
