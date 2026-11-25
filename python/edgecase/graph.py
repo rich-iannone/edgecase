@@ -20944,11 +20944,19 @@ class Graph:
             If `p_matrix=` doesn't have exactly `len(sizes) ** 2` entries, or if any probability
             is outside `[0.0, 1.0]`.
 
+        See Also
+        --------
+        cmty_stochastic_block_model : Fit a stochastic block model to find communities.
+        add_random_partition_graph : Add a random graph with planted groups.
+        add_lfr_graph : Add an LFR community benchmark graph.
+        cmty_louvain : Find communities with the Louvain method.
+
         Examples
         --------
-        Two blocks of ten nodes, densely connected inside (`0.8`) and sparsely between
-        (`0.05`). Labels `"0"` to `"9"` form block `0` and `"10"` to `"19"` block `1`, so
-        counting edges by block shows nearly all of them falling inside the blocks:
+        `sizes=` splits the nodes into blocks, and `p_matrix=`, a flattened square matrix, gives
+        the probability of an edge between each pair of blocks. Two blocks of ten nodes, densely
+        connected inside (`0.8`) and sparsely between (`0.05`): labels `"0"` to `"9"` form block
+        `0` and `"10"` to `"19"` block `1`, and nearly all the edges fall inside the blocks:
 
         ```{python}
         import edgecase as ec
@@ -20957,11 +20965,11 @@ class Graph:
             sizes=[10, 10], p_matrix=[0.8, 0.05, 0.05, 0.8], seed=23
         )
 
-        def block(nid):
-            return 0 if int(graph.get_label_from_id(nid)) < 10 else 1
+        def within(g):
+            edges = g.get_edges_as_tuples()
+            return sum((s <= 10) == (t <= 10) for _, s, t in edges)
 
-        within = sum(block(s) == block(t) for _, s, t in graph.get_edges_as_tuples())
-        graph.count_edges(), within, graph.count_edges() - within
+        graph.count_edges(), within(graph)
         ```
 
         A community detection algorithm should recover the planted blocks. Louvain assigns the
@@ -20970,12 +20978,12 @@ class Graph:
         ```{python}
         communities = graph.cmty_louvain(return_dict=True)
 
-        {graph.get_label_from_id(nid): communities[nid] for nid in sorted(communities)}
+        {graph.get_label_from_id(n): communities[n] for n in sorted(communities)}
         ```
 
         With probability `1.0` inside blocks and `0.0` between them, the result is a set of
-        disjoint cliques, which makes the labelling easy to see -- a triangle on `"0"`, `"1"`,
-        `"2"` and a single edge between `"3"` and `"4"`:
+        separate cliques, which makes the labelling easy to see: a triangle on `"0"`, `"1"` and
+        `"2"`, and a single edge between `"3"` and `"4"`:
 
         ```{python}
         cliques = ec.Graph().generate_stochastic_block_model(
@@ -20984,6 +20992,43 @@ class Graph:
 
         cliques.get_edges_str_repr(use_labels=True)
         ```
+
+        ### Clear blocks or blurred ones
+
+        The graph above on the left, and on the right two blocks with probability `0.5` inside
+        and `0.3` between, with each node colored by its block. As the two probabilities draw
+        closer, more edges cross between the blocks, here `34` of `82`, and the blocks get harder
+        to see:
+
+        ```{python}
+        blurred = ec.Graph().generate_stochastic_block_model(
+            sizes=[10, 10], p_matrix=[0.5, 0.3, 0.3, 0.5], seed=23
+        )
+        blocks = {n: n // 11 for n in range(1, 21)}
+
+        for g in (graph, blurred):
+            g.set_node_attrs("block", blocks)
+
+        blurred.count_edges(), within(blurred)
+        ```
+
+        ::: {layout-ncol="2"}
+
+        ```{python}
+        graph.plot(
+            color_by="block", show_labels=False,
+            width=320, height=320, legend=False, seed=1,
+        )
+        ```
+
+        ```{python}
+        blurred.plot(
+            color_by="block", show_labels=False,
+            width=320, height=320, legend=False, seed=1,
+        )
+        ```
+
+        :::
         """
         from edgecase._core import generate_stochastic_block_model as _generate_sbm
 
