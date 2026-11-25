@@ -19640,6 +19640,12 @@ class Graph:
             If `n=` is not positive, `d=` is odd or less than `2`, `n - 1` is less than `d=`,
             `epsilon=` is negative, or no candidate passes in `max_tries=` attempts.
 
+        See Also
+        --------
+        add_maybe_regular_expander : Build a regular graph from Hamiltonian cycles, unchecked.
+        add_random_regular_graph : Draw a uniform random regular graph.
+        is_regular_expander : Check the spectral expansion of a regular graph.
+
         Examples
         --------
         A 6-regular expander on 100 nodes:
@@ -19657,6 +19663,38 @@ class Graph:
         ```{python}
         graph.diameter()
         ```
+
+        ### Random or local edges
+
+        Two 4-regular graphs on `30` nodes, with the nodes in order around a circle. On the left,
+        the expander's edges jump all over the circle. On the right, the ring lattice from
+        `add_smallworld_graph()` with `p=0.0` joins each node only to the two nodes on either
+        side, so it takes twice as many steps to cross and fails the expander check:
+
+        ```{python}
+        expander = ec.Graph().add_random_regular_expander_graph(n=30, d=4, seed=1)
+        ring = ec.Graph().add_smallworld_graph(n=30, k=4, p=0.0)
+
+        [(g.diameter(), g.is_regular_expander()) for g in (expander, ring)]
+        ```
+
+        ::: {layout-ncol="2"}
+
+        ```{python}
+        expander.layout_circular(order="id").plot(
+            layout="pos", show_labels=False, node_size=6,
+            width=320, height=320, legend=False,
+        )
+        ```
+
+        ```{python}
+        ring.layout_circular(order="id").plot(
+            layout="pos", show_labels=False, node_size=6,
+            width=320, height=320, legend=False,
+        )
+        ```
+
+        :::
         """
         self._check_non_negative(n=n, d=d, max_tries=max_tries)
 
