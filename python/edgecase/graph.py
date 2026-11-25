@@ -7180,6 +7180,9 @@ class Graph:
 
         It needs no seed. It does need the distance between every pair of nodes, which makes it
         slower than the spring layout on large graphs.
+
+        [Layouts](../user-guide/layouts.qmd#force-directed-layouts) compares the four force-directed
+        layouts on the dolphin network.
         """
         scale, center = self._layout_frame(scale, center)
         use_w = self._use_weights(weighted)
