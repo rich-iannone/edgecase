@@ -4,6 +4,7 @@
 // nodes go over them as the SVG draws them. The shapes are those of the SVG, from the same
 // geometry
 use super::geometry::{self, Head};
+use super::palette;
 use super::Scene;
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
@@ -71,16 +72,86 @@ pub struct Image {
     pub height: u32,
     pub pixels: Vec<u8>,
     pub color: png::ColorType,
+    /// For an indexed image, the colors its pixels index, as straight RGBA
+    pub palette: Vec<[u8; 4]>,
 }
 
 impl Image {
+    /// The image in at most 256 colors, its own if it has no more
+    pub fn indexed(self) -> Image {
+        let rgba: Vec<u8> = match self.color {
+            png::ColorType::Indexed => return self,
+            png::ColorType::Rgba => self.pixels,
+            png::ColorType::Rgb => self
+                .pixels
+                .par_chunks_exact(3)
+                .flat_map_iter(|p| [p[0], p[1], p[2], 255])
+                .collect(),
+            png::ColorType::GrayscaleAlpha => self
+                .pixels
+                .par_chunks_exact(2)
+                .flat_map_iter(|p| [p[0], p[0], p[0], p[1]])
+                .collect(),
+            png::ColorType::Grayscale => self
+                .pixels
+                .par_iter()
+                .flat_map_iter(|&g| [g, g, g, 255])
+                .collect(),
+        };
+        let indexed = palette::quantize(&rgba);
+        Image {
+            width: self.width,
+            height: self.height,
+            pixels: indexed.indexes,
+            color: png::ColorType::Indexed,
+            palette: indexed.palette,
+        }
+    }
+
     /// The image as PNG
     pub fn png(&self) -> Vec<u8> {
+        if self.color != png::ColorType::Indexed {
+            return self.encode(png::Filter::Adaptive);
+        }
+        // Indexes are amounts when the entries run in order, as a mask's opacities do, and the
+        // filters' differences between neighbors then deflate better; otherwise they're names,
+        // and the differences deflate worse. Whichever comes out smaller
+        let (a, b) = rayon::join(
+            || self.encode(png::Filter::Adaptive),
+            || self.encode(png::Filter::NoFilter),
+        );
+        if b.len() < a.len() {
+            b
+        } else {
+            a
+        }
+    }
+
+    fn encode(&self, filter: png::Filter) -> Vec<u8> {
         let mut out = Vec::new();
         let mut encoder = png::Encoder::new(&mut out, self.width, self.height);
         encoder.set_color(self.color);
         encoder.set_depth(png::BitDepth::Eight);
         encoder.set_compression(png::Compression::Balanced);
+        encoder.set_filter(filter);
+        if self.color == png::ColorType::Indexed {
+            encoder.set_palette(
+                self.palette
+                    .iter()
+                    .flat_map(|c| [c[0], c[1], c[2]])
+                    .collect::<Vec<_>>(),
+            );
+            // The entries are in order of opacity, so the alphas can stop at the last translucent
+            let alphas: Vec<u8> = self
+                .palette
+                .iter()
+                .map(|c| c[3])
+                .take_while(|&a| a < 255)
+                .collect();
+            if !alphas.is_empty() {
+                encoder.set_trns(alphas);
+            }
+        }
         let mut writer = encoder
             .write_header()
             .expect("a PNG header writes to memory");
@@ -713,6 +784,7 @@ pub fn draw(scene: &Scene, style: &Style) -> Image {
         height,
         pixels,
         color,
+        palette: Vec::new(),
     }
 }
 
