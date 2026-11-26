@@ -65,9 +65,10 @@ player, player.svg[:60]
 ```
 
 There are two ways to save a drawing to a file. The `output=` argument saves it as part of the call,
-and the `save()` method saves an existing plot. In both cases, a path ending in `.html` writes a
-small web page that keeps the hover tooltips, and any other extension writes the plain SVG, which
-can be opened by vector graphics editors and placed in documents and slides:
+and the `save()` method saves an existing plot. In both cases, the extension picks the format. A
+path ending in `.html` writes a small web page that keeps the hover tooltips, `.svg` writes the plain
+SVG, which can be opened by vector graphics editors and placed in documents and slides, and `.png`
+writes an image at twice the plot's size, sharp on high-density screens:
 
 ```{python}
 #| eval: false
@@ -75,6 +76,7 @@ karate.plot(label_by="label", seed=1, output="karate.svg")
 
 player = karate.plot(label_by="label", seed=1)
 player.save("karate.html")
+player.save("karate.png")
 ```
 
 The plot is returned either way, so `output=` can be used in a notebook cell that also displays the
@@ -304,9 +306,12 @@ make the drawing busier and the SVG several times larger without making it clear
 crowded drawings, `"auto"` routing leaves the edges straight by itself.
 
 An output of more than 10 MB, more than a notebook should hold, comes with a warning, and a graph
-whose output would pass 200 MB raises an error rather than being drawn. For graphs the size of the
+whose SVG would pass 200 MB raises an error rather than being drawn. For graphs the size of the
 jazz network and larger, several strategies help:
 
+- draw the edges and nodes as images with `backend="png"`, which keeps the output to a few
+  megabytes however large the graph is, and shows where many edges cross by how dark they get; the
+  labels and the legend stay text, but the nodes and edges have no tooltips
 - draw a meaningful part of the graph, such as a k-core, an ego network, or one community, with
   the methods of [Transforming graphs](transforming.qmd)
 - collapse groups of nodes into single nodes with `quotient_graph()`, so that the drawing shows how
@@ -330,7 +335,7 @@ jazz network and larger, several strategies help:
 | `curved_edges=` | curved rather than straight edges | `False` |
 | `node_overlap=`, `edge_routing=` | overlap removal and routing around nodes | `"remove"`, `"auto"` |
 | `theme=` | `"light"` or `"dark"` | `"light"` |
-| `output=` | a path to save to, as `.svg` or `.html` | `None` |
+| `output=` | a path to save to, as `.svg`, `.html` or `.png` | `None` |
 
 The arguments for colors and sizes, `color_by=`, `size_by=`, `edge_color_by=`, `palette=`, and
 `cross_community_color=`, are covered in [Aesthetics](aesthetics.qmd).
