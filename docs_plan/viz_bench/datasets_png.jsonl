@@ -1,0 +1,6 @@
+{"graph": "power_grid", "labels": false, "n": 4941, "m": 6594, "backend": "png", "load_s": 0.04, "plot_s": 1.31, "png_s": 0.07, "html_mb": 0.808, "html_gz_mb": 0.609, "elements": 10, "png_kb": 364, "rss_mb": 162, "warnings": []}
+{"graph": "ca_grqc", "labels": false, "n": 5242, "m": 28980, "backend": "png", "load_s": 0.11, "plot_s": 1.26, "png_s": 0.09, "html_mb": 0.655, "html_gz_mb": 0.492, "elements": 10, "png_kb": 316, "rss_mb": 193, "warnings": []}
+{"graph": "internet", "labels": false, "n": 6474, "m": 13895, "backend": "png", "load_s": 0.07, "plot_s": 1.69, "png_s": 0.07, "html_mb": 0.771, "html_gz_mb": 0.581, "elements": 10, "png_kb": 354, "rss_mb": 173, "warnings": []}
+{"graph": "gnutella", "labels": false, "n": 6301, "m": 20777, "backend": "png", "load_s": 0.09, "plot_s": 1.7, "png_s": 0.08, "html_mb": 0.769, "html_gz_mb": 0.579, "elements": 10, "png_kb": 358, "rss_mb": 182, "warnings": []}
+{"graph": "pgp", "labels": false, "n": 10680, "m": 24340, "backend": "png", "load_s": 0.11, "plot_s": 2.91, "png_s": 0.09, "html_mb": 0.868, "html_gz_mb": 0.654, "elements": 10, "png_kb": 389, "rss_mb": 189, "warnings": []}
+{"graph": "condmat", "labels": false, "n": 23133, "m": 186936, "backend": "png", "load_s": 0.71, "plot_s": 7.59, "png_s": 0.3, "html_mb": 0.92, "html_gz_mb": 0.694, "elements": 10, "png_kb": 453, "rss_mb": 463, "warnings": []}
