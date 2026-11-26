@@ -283,7 +283,7 @@ saved with `save()` to an HTML file that keeps all the controls.
 
 | Method | Displays | Colors and sizes from | Save with |
 |---|---|---|---|
-| `plot()` | inline, as SVG with tooltips | `color_by=`, `size_by=` | `output=` or `save()`, as `.svg` or `.html` |
+| `plot()` | inline, as SVG with tooltips | `color_by=`, `size_by=` | `output=` or `save()`, as `.svg`, `.html` or `.png` |
 | `plot_vis()` | inline in IPython, else in a browser | the stored `color` attribute | [`plot_graph(output_path=)`](../reference/plot_graph.qmd) |
 | [`graph_widget()`](../reference/graph_widget.qmd) | `show()`, in a notebook | the stored `color` and `size` attributes, or `color_by=`, `size_by=` | `to_html()` |
 | `plot_cosmo()` | as a Jupyter widget | `point_color_by=`, `point_size_by=`, `link_color_by=`, `link_width_by=` | the Cosmograph widget's own export |
