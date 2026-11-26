@@ -313,6 +313,30 @@ def test_one_scene_draws_every_theme(case, monkeypatch):
         assert _normalized(drawn._repr_html_()) == _normalized(p._repr_html_())
 
 
+def test_scene_checks_its_columns():
+    from edgecase._core import Scene
+
+    scene = Scene(200, 100, colors=[("#111111", "#eeeeee")])
+    nodes = (["a", "b"], [0.0, 1.0], [0.0, 1.0], [5.0, 5.0], [0, 0], [0, 0], [1.5, 1.5])
+    with pytest.raises(ValueError, match="x has 1 entries for 2 nodes"):
+        scene.set_nodes(["a", "b"], [0.0], *nodes[2:], [0.3, 0.3], [0, 1], ["{}", "{}"])
+    with pytest.raises(ValueError, match="fill has index 1, past the 1 colors"):
+        scene.set_nodes(*nodes[:4], [0, 1], *nodes[5:], [0.3, 0.3], [0, 1], ["{}", "{}"])
+    scene.set_nodes(*nodes, [0.3, 0.3], [1, 0], ["{}", "{}"])
+    assert scene.node_count == 2
+    edge = ([0], [1], [0], [1.0], [0.6], [0.0], [1.0], [None], [0])
+    with pytest.raises(ValueError, match="tgt has index 2, past the 2 nodes"):
+        scene.set_edges([0], [2], *edge[2:], ["{}"])
+    # Lean scenes hold the edges' tooltips in one table, and others hold them edge by edge
+    with pytest.raises(ValueError, match="unless the scene is lean"):
+        scene.set_edges(*edge)
+    scene.set_edges(*edge, ["{}"])
+    assert scene.edge_count == 1
+    with pytest.raises(ValueError, match="colors has 0 entries"):
+        scene.svg([], "#fff", "#000", "sans-serif")
+    assert scene.svg(["#123456"], "#fff", "#000", "sans-serif").endswith("</svg>")
+
+
 def test_saved_default_theme_is_the_light_one(tmp_path):
     # Saved files take the light colors of the automatic theme, so they match the light theme
     p = _florentine().plot(layout="pos")
