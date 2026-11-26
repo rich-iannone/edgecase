@@ -116,11 +116,14 @@ pub fn straight(
     })
 }
 
-/// A path through `waypoints`, trimmed to stop at the borders of the end nodes: a line for two
-/// points, and a smooth run of cubic Beziers (Catmull-Rom) for more. Empty for fewer than two
-pub fn waypoints_path(waypoints: &[(f64, f64)], r_src: f64, r_dst: f64) -> String {
+/// `waypoints` trimmed to stop at the borders of the end nodes, or `None` for fewer than two
+pub fn trimmed_waypoints(
+    waypoints: &[(f64, f64)],
+    r_src: f64,
+    r_dst: f64,
+) -> Option<Vec<(f64, f64)>> {
     if waypoints.len() < 2 {
-        return String::new();
+        return None;
     }
     let mut pts = waypoints.to_vec();
     let n = pts.len();
@@ -137,33 +140,53 @@ pub fn waypoints_path(waypoints: &[(f64, f64)], r_src: f64, r_dst: f64) -> Strin
     if d > r_dst + 1.0 {
         pts[n - 1] = (pts[n - 1].0 - dx / d * r_dst, pts[n - 1].1 - dy / d * r_dst);
     }
+    Some(pts)
+}
 
+/// The cubic Bezier (Catmull-Rom) from point `i` of `pts` to the next: its two control points
+/// and its end
+pub fn catmull_rom(pts: &[(f64, f64)], i: usize) -> [(f64, f64); 3] {
+    let n = pts.len();
+    let p0 = pts[i.saturating_sub(1)];
+    let p1 = pts[i];
+    let p2 = pts[(i + 1).min(n - 1)];
+    let p3 = pts[(i + 2).min(n - 1)];
+    let c1x = p1.0 + (p2.0 - p0.0) / 6.0;
+    let c1y = p1.1 + (p2.1 - p0.1) / 6.0;
+    let c2x = p2.0 - (p3.0 - p1.0) / 6.0;
+    let c2y = p2.1 - (p3.1 - p1.1) / 6.0;
+    [(c1x, c1y), (c2x, c2y), p2]
+}
+
+/// The `d` of a path through points already trimmed: a line for two, and a smooth run of cubic
+/// Beziers (Catmull-Rom) for more
+fn waypoints_d(pts: &[(f64, f64)]) -> String {
+    let n = pts.len();
     let mut path = format!("M{},{}", F1(pts[0].0), F1(pts[0].1));
     if n == 2 {
         let _ = write!(path, " L{},{}", F1(pts[1].0), F1(pts[1].1));
         return path;
     }
     for i in 0..n - 1 {
-        let p0 = pts[i.saturating_sub(1)];
-        let p1 = pts[i];
-        let p2 = pts[(i + 1).min(n - 1)];
-        let p3 = pts[(i + 2).min(n - 1)];
-        let c1x = p1.0 + (p2.0 - p0.0) / 6.0;
-        let c1y = p1.1 + (p2.1 - p0.1) / 6.0;
-        let c2x = p2.0 - (p3.0 - p1.0) / 6.0;
-        let c2y = p2.1 - (p3.1 - p1.1) / 6.0;
+        let [c1, c2, p2] = catmull_rom(pts, i);
         let _ = write!(
             path,
             " C{},{} {},{} {},{}",
-            F1(c1x),
-            F1(c1y),
-            F1(c2x),
-            F1(c2y),
+            F1(c1.0),
+            F1(c1.1),
+            F1(c2.0),
+            F1(c2.1),
             F1(p2.0),
             F1(p2.1)
         );
     }
     path
+}
+
+/// A path through `waypoints`, trimmed to stop at the borders of the end nodes: a line for two
+/// points, and a smooth run of cubic Beziers (Catmull-Rom) for more. Empty for fewer than two
+pub fn waypoints_path(waypoints: &[(f64, f64)], r_src: f64, r_dst: f64) -> String {
+    trimmed_waypoints(waypoints, r_src, r_dst).map_or_else(String::new, |pts| waypoints_d(&pts))
 }
 
 /// A routed edge's arrowhead, and the middle of its base, where the path stops; `None` when the
@@ -194,6 +217,25 @@ pub fn routed_head(waypoints: &[(f64, f64)], r_dst: f64, width: f64) -> Option<(
     Some((head, bx, by))
 }
 
+/// The waypoints of a routed edge's path, as `routed()` draws it through them, stopping short
+/// of its arrowhead (`None` for fewer than two), and the arrowhead (`None` for none)
+pub fn routed_points(
+    waypoints: &[(f64, f64)],
+    r_src: f64,
+    r_dst: f64,
+    width: f64,
+    directed: bool,
+) -> (Option<Vec<(f64, f64)>>, Option<Head>) {
+    match routed_head(waypoints, r_dst, width).filter(|_| directed) {
+        None => (trimmed_waypoints(waypoints, r_src, r_dst), None),
+        Some((head, bx, by)) => {
+            let mut trimmed = waypoints.to_vec();
+            *trimmed.last_mut().expect("a head has a route") = (bx, by);
+            (trimmed_waypoints(&trimmed, r_src, 0.0), Some(head))
+        }
+    }
+}
+
 /// A routed edge's path, stopping short of its arrowhead, and the arrowhead (`None` for none)
 pub fn routed(
     waypoints: &[(f64, f64)],
@@ -202,21 +244,15 @@ pub fn routed(
     width: f64,
     directed: bool,
 ) -> (String, Option<Head>) {
-    match routed_head(waypoints, r_dst, width).filter(|_| directed) {
-        None => (waypoints_path(waypoints, r_src, r_dst), None),
-        Some((head, bx, by)) => {
-            let mut trimmed = waypoints.to_vec();
-            *trimmed.last_mut().expect("a head has a route") = (bx, by);
-            (waypoints_path(&trimmed, r_src, 0.0), Some(head))
-        }
-    }
+    let (pts, head) = routed_points(waypoints, r_src, r_dst, width, directed);
+    (pts.map_or_else(String::new, |pts| waypoints_d(&pts)), head)
 }
 
 /// A curved edge, a quadratic Bezier bowed out by `bow` of its length, trimmed to the node
-/// borders: its path's `d` and its arrowhead (`None` for none). `None` for an edge whose ends
-/// are at one point
+/// borders: its start, control point and end, and its arrowhead (`None` for none). `None` for an
+/// edge whose ends are at one point
 #[allow(clippy::too_many_arguments)]
-pub fn curved(
+pub fn curved_points(
     x1: f64,
     y1: f64,
     x2: f64,
@@ -226,7 +262,7 @@ pub fn curved(
     width: f64,
     directed: bool,
     bow: f64,
-) -> Option<(String, Option<Head>)> {
+) -> Option<([(f64, f64); 3], Option<Head>)> {
     let dx = x2 - x1;
     let dy = y2 - y1;
     let dist = (dx * dx + dy * dy).sqrt();
@@ -259,23 +295,15 @@ pub fn curved(
     } else {
         (x2, y2)
     };
-    let d = format!(
-        "M {} {} Q {} {} {} {}",
-        F1(sx),
-        F1(sy),
-        F1(mx),
-        F1(my),
-        F1(ex),
-        F1(ey)
-    );
+    let points = [(sx, sy), (mx, my), (ex, ey)];
     if !directed {
-        return Some((d, None));
+        return Some((points, None));
     }
     let tx = 2.0 * (ex - mx);
     let ty = 2.0 * (ey - my);
     let t_len = (tx * tx + ty * ty).sqrt();
     if t_len <= 1e-6 {
-        return Some((d, None));
+        return Some((points, None));
     }
     let (_, _, p1x, p1y, p2x, p2y) = arrow(ex, ey, tx / t_len, ty / t_len, width);
     let head = Head {
@@ -286,22 +314,51 @@ pub fn curved(
         p2x,
         p2y,
     };
-    Some((d, Some(head)))
+    Some((points, Some(head)))
+}
+
+/// A curved edge, as `curved_points()` gives it: its path's `d` and its arrowhead
+#[allow(clippy::too_many_arguments)]
+pub fn curved(
+    x1: f64,
+    y1: f64,
+    x2: f64,
+    y2: f64,
+    r_src: f64,
+    r_dst: f64,
+    width: f64,
+    directed: bool,
+    bow: f64,
+) -> Option<(String, Option<Head>)> {
+    let ([(sx, sy), (mx, my), (ex, ey)], head) =
+        curved_points(x1, y1, x2, y2, r_src, r_dst, width, directed, bow)?;
+    let d = format!(
+        "M {} {} Q {} {} {} {}",
+        F1(sx),
+        F1(sy),
+        F1(mx),
+        F1(my),
+        F1(ex),
+        F1(ey)
+    );
+    Some((d, head))
 }
 
 // sin(0.45) and cos(0.45), as Python's math module gives them, for the ends of a self-loop
 const LOOP_SIN: f64 = 0.43496553411123023;
 const LOOP_COS: f64 = 0.9004471023526769;
 
-/// A self-loop above its node, of `loop_size` times the usual size, as `curved()` gives it
-pub fn self_loop(
+/// A self-loop above its node, of `loop_size` times the usual size, as `curved()` gives it: its
+/// start, then two cubic Beziers as their two control points and their end each, and its
+/// arrowhead (`None` for none)
+pub fn self_loop_points(
     x: f64,
     y: f64,
     r: f64,
     width: f64,
     directed: bool,
     loop_size: f64,
-) -> (String, Option<Head>) {
+) -> ([(f64, f64); 7], Option<Head>) {
     let lr = r * 1.2 * loop_size;
     // The arc's center, above the node
     let cx_arc = x;
@@ -322,31 +379,23 @@ pub fn self_loop(
     let c3y = cy_arc;
     let c4x = ex + cp_h * 0.3;
     let c4y = ey - cp_h;
-    let d = format!(
-        "M {} {} C {} {} {} {} {} {} C {} {} {} {} {} {}",
-        F1(sx),
-        F1(sy),
-        F1(c1x),
-        F1(c1y),
-        F1(c2x),
-        F1(c2y),
-        F1(cx_arc),
-        F1(cy_arc - lr * 0.2),
-        F1(c3x),
-        F1(c3y),
-        F1(c4x),
-        F1(c4y),
-        F1(ex),
-        F1(ey)
-    );
+    let points = [
+        (sx, sy),
+        (c1x, c1y),
+        (c2x, c2y),
+        (cx_arc, cy_arc - lr * 0.2),
+        (c3x, c3y),
+        (c4x, c4y),
+        (ex, ey),
+    ];
     if !directed {
-        return (d, None);
+        return (points, None);
     }
     let tan_x = ex - c4x;
     let tan_y = ey - c4y;
     let t_len = (tan_x * tan_x + tan_y * tan_y).sqrt();
     if t_len <= 1e-6 {
-        return (d, None);
+        return (points, None);
     }
     let (_, _, p1x, p1y, p2x, p2y) = arrow(ex, ey, tan_x / t_len, tan_y / t_len, width);
     let head = Head {
@@ -357,7 +406,30 @@ pub fn self_loop(
         p2x,
         p2y,
     };
-    (d, Some(head))
+    (points, Some(head))
+}
+
+/// A self-loop, as `self_loop_points()` gives it: its path's `d` and its arrowhead
+pub fn self_loop(
+    x: f64,
+    y: f64,
+    r: f64,
+    width: f64,
+    directed: bool,
+    loop_size: f64,
+) -> (String, Option<Head>) {
+    let (points, head) = self_loop_points(x, y, r, width, directed, loop_size);
+    let mut d = format!("M {} {}", F1(points[0].0), F1(points[0].1));
+    for (k, (px, py)) in points[1..].iter().enumerate() {
+        let _ = write!(
+            d,
+            " {}{} {}",
+            if k % 3 == 0 { "C " } else { "" },
+            F1(*px),
+            F1(*py)
+        );
+    }
+    (d, head)
 }
 
 /// The box `(min x, min y, width, height)` around nodes at `xs`, `ys` of radii `rs`, with
