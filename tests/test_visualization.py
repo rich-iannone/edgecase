@@ -133,6 +133,71 @@ class TestPlotNodeValues:
         # The ends are named as their labels are drawn, here the IDs
         assert self._edge_tooltips(_abc_path().plot(seed=1).svg)[0]["edge"] == "1 — 2"
 
+    @staticmethod
+    def _tip_table(page: str) -> dict:
+        """{row number: tooltip} from the table of edge tooltips in a plot's HTML."""
+        found = re.search(
+            r'<script type="application/json" class="ec-edge-tips">(.*?)</script>', page, re.S
+        )
+        table = json.loads(found.group(1))
+        rows = {}
+        for key, column in zip(table["k"], table["c"]):
+            cells = enumerate(column) if isinstance(column, list) else column.items()
+            for i, value in cells:
+                rows.setdefault(int(i), {})[key] = value
+        return rows
+
+    @staticmethod
+    def _tooltip_graph():
+        # Straight, routed and bowed (reciprocal) edges, a loop, and edges with and without
+        # attributes
+        g = ec.Graph(directed=True).add_nodes(["a", "b", "c", "d", "e"])
+        g.add_edges([("a", "b")], weight=0.5, rel="knows")
+        g.add_edges([("b", "a"), ("c", "c")])
+        g.add_edges([("c", "d")], rel="</script><b>")
+        g.add_edges([("d", "e"), ("a", "e"), ("b", "d")], since=2020)
+        return g
+
+    def test_large_plots_hover_edges_as_drawn(self, monkeypatch):
+        """Above `EDGE_HIT_AREAS_MAX` edges, an edge has no hit area; it is hovered as drawn,
+        and its tooltip is its row of one table. The edges and tooltips are otherwise the same."""
+        import edgecase.svg_renderer as svg_renderer
+
+        g = self._tooltip_graph()
+        full = g.plot(seed=1, label_by="label")
+        monkeypatch.setattr(svg_renderer, "EDGE_HIT_AREAS_MAX", 3)
+        lean = g.plot(seed=1, label_by="label")
+
+        assert 'stroke="transparent"' not in lean.svg
+        assert "data-edge=" not in lean.svg
+        assert 'class="ec-edge-tips"' not in full._repr_html_()
+        # Each edge drawn is tagged with its row
+        tagged = [int(i) for i in re.findall(r' data-e="(\d+)"', lean.svg)]
+        assert sorted(tagged) == list(range(7))
+
+        # On a line of their own
+        hit_area = r"\n<(?:line|path) [^\n]*stroke=\"transparent\"[^\n]*"
+        assert re.sub(r' data-e="\d+"', "", lean.svg) == re.sub(hit_area, "", full.svg)
+
+        rows = self._tip_table(lean._repr_html_())
+        assert sorted(rows) == sorted(tagged)
+        tips = sorted(rows.values(), key=lambda tip: tip["id"])
+        assert tips == sorted(self._edge_tooltips(full.svg), key=lambda tip: tip["id"])
+        # A key that some rows lack is left out of theirs
+        assert sum("since" in tip for tip in rows.values()) == 3
+
+    def test_tooltip_table_survives_any_value(self):
+        from edgecase.svg_renderer import _tooltip_table
+
+        rows = [{"id": 1, "rel": "</script>", "score": math.nan}, {"id": 2, "pos": [math.inf, 1]}]
+        text = _tooltip_table(rows)
+        assert "<" not in text
+        table = json.loads(text)
+        assert table == {
+            "k": ["id", "rel", "score", "pos"],
+            "c": [[1, 2], {"0": "</script>"}, {"0": "nan"}, {"1": ["inf", 1]}],
+        }
+
     @pytest.mark.parametrize("opts", [{"curved_edges": True}, {"edge_routing": "around"}])
     def test_edge_tooltips_on_curved_and_routed_edges(self, opts):
         g = ec.Graph(directed=True).add_nodes(list("ABCD")).add_edges([("A", "B"), ("B", "A")])
