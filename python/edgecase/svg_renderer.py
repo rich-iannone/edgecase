@@ -12,6 +12,7 @@ import hashlib
 import html as html_mod
 import json
 import math
+import os
 import random
 import re
 import struct
@@ -170,31 +171,49 @@ class _Colors:
         html_str: str,
         output: Optional[str],
         png: Optional[Callable[[], bytes]] = None,
+        svg: Optional[Callable[[], str]] = None,
     ) -> "StepPlayer":
         """The `StepPlayer` for the rendering, saved to `output=` when that is given. `png` makes
-        its PNG image, if it has one."""
+        its PNG image, if it has one, and `svg` the SVG that it holds, when that isn't the one
+        that the HTML shows."""
         for_files = None
         if self.save_light:
-            values = {name: lt for (lt, _), name in self._vars.items()}
-            for_files = tuple(
-                _HIDDEN_IMAGE_RE.sub("", _VAR_RE.sub(lambda m: str(values[m.group(1)]), markup))
-                for markup in (svg_str, html_str)
-            )
+            for_files = (self._for_file(svg_str), self._for_file(html_str))
         if self.auto and self._vars:
-            style = f'<style class="ec-theme-vars">{self._css()}</style>'
-            # The SVG carries its own definitions, so that it works on its own, too
-            head_end = svg_str.index(">", svg_str.index("<svg")) + 1
-            head = svg_str[:head_end]
-            if ' class="' in head:
-                head = head.replace(' class="', ' class="ec-theme ', 1)
-            else:
-                head = head.replace("<svg", '<svg class="ec-theme"', 1)
-            svg_str = head + style + svg_str[head_end:]
-            html_str = f'<div class="ec-theme" style="display:contents">{style}{html_str}</div>'
-        result = StepPlayer(svg_str, html_str, for_files, png)
+            html_str = (
+                f'<div class="ec-theme" style="display:contents">{self._style()}{html_str}</div>'
+            )
+        own_svg = None
+        if svg is not None:
+
+            def own_svg() -> Tuple[str, Optional[str]]:
+                drawn = svg()
+                return self._own(drawn), self._for_file(drawn) if self.save_light else None
+
+        result = StepPlayer(self._own(svg_str), html_str, for_files, png, own_svg)
         if output:
             result.save(output)
         return result
+
+    def _style(self) -> str:
+        return f'<style class="ec-theme-vars">{self._css()}</style>'
+
+    def _own(self, svg_str: str) -> str:
+        """`svg_str` carrying the definitions of its variables, so that it works on its own."""
+        if not (self.auto and self._vars):
+            return svg_str
+        head_end = svg_str.index(">", svg_str.index("<svg")) + 1
+        head = svg_str[:head_end]
+        if ' class="' in head:
+            head = head.replace(' class="', ' class="ec-theme ', 1)
+        else:
+            head = head.replace("<svg", '<svg class="ec-theme"', 1)
+        return head + self._style() + svg_str[head_end:]
+
+    def _for_file(self, markup: str) -> str:
+        """`markup` for a file, in the light theme (see `save_light`)."""
+        values = {name: lt for (lt, _), name in self._vars.items()}
+        return _HIDDEN_IMAGE_RE.sub("", _VAR_RE.sub(lambda m: str(values[m.group(1)]), markup))
 
 
 # Default node color when no color_by mapping
@@ -225,6 +244,7 @@ class StepPlayer:
         html_str: str,
         for_files: Optional[Tuple[str, str]] = None,
         png: Optional[Callable[[], bytes]] = None,
+        svg: Optional[Callable[[], Tuple[str, Optional[str]]]] = None,
     ) -> None:
         self._svg = svg_str
         self._html = html_str
@@ -233,10 +253,20 @@ class StepPlayer:
         # What makes the PNG image, when it's first wanted, and the image
         self._make_png = png
         self._png: Optional[bytes] = None
+        # What makes the SVG and the one for files, when it isn't the one that the HTML shows
+        self._make_svg = svg
 
     @property
     def svg(self) -> str:
+        self._draw_svg()
         return self._svg
+
+    def _draw_svg(self) -> None:
+        if self._make_svg is not None:
+            self._svg, for_file = self._make_svg()
+            self._make_svg = None
+            if self._for_files is not None and for_file is not None:
+                self._for_files = (for_file, self._for_files[1])
 
     def _png_bytes(self) -> Optional[bytes]:
         if self._png is None and self._make_png is not None:
@@ -262,6 +292,8 @@ class StepPlayer:
         of a plot."""
         p = Path(path)
         suffix = p.suffix.lower()
+        if suffix == ".svg":
+            self._draw_svg()
         svg_str, html_str = self._for_files or (self._svg, self._html)
         if suffix in (".html", ".htm"):
             p.write_text(html_str, encoding="utf-8")
@@ -1275,13 +1307,52 @@ NOTEBOOK_BYTES_MAX = 10_000_000
 PLOT_BYTES_MAX = 200_000_000
 _LEAN_NODE_BYTES = 60
 _LEAN_EDGE_BYTES = 40
-# What `plot()` draws the edges and nodes as: SVG elements, or images (see `_raster_layers()`)
-BACKENDS = ("svg", "png")
+# What `plot()` draws the edges and nodes as: SVG elements, images (see `_raster_layers()`), or
+# by default SVG while its HTML fits `NOTEBOOK_BYTES_MAX` and images past that
+BACKENDS = ("auto", "svg", "png")
 # The images' pixels to a pixel of the plot, so that they stay sharp on high-density screens
 RASTER_SCALE = 2.0
 # The least radius of the automatic node size, as SVG and as an image, whose nodes can be
 # smaller since they don't each take an element
 _NODE_SIZE_MIN = {"svg": 3.5, "png": 1.0}
+
+
+_PACKAGE_DIR = str(Path(__file__).parent) + os.sep
+
+
+def _user_stacklevel() -> int:
+    """The `stacklevel` that points the caller's warning at the code that called into edgecase,
+    however deep in it the warning comes from."""
+    level, frame = 1, sys._getframe(1)
+    while frame is not None and frame.f_code.co_filename.startswith(_PACKAGE_DIR):
+        level += 1
+        frame = frame.f_back
+    return level
+
+
+def _least_svg_bytes(n: int, n_edges: int) -> int:
+    """The fewest bytes that the SVG of `n` nodes and `n_edges` edges takes."""
+    return n * _LEAN_NODE_BYTES + n_edges * _LEAN_EDGE_BYTES
+
+
+def _check_svg_size(n: int, n_edges: int, plotted: bool = False) -> None:
+    """Raise `ValueError` if the SVG of `n` nodes and `n_edges` edges would pass
+    `PLOT_BYTES_MAX`: for `plot()`, or for the SVG of a plot that drew them as images."""
+    least = _least_svg_bytes(n, n_edges)
+    if least <= PLOT_BYTES_MAX:
+        return
+    size = f"at least {least / 1e6:,.0f} MB for {n:,} nodes and {n_edges:,} edges"
+    limit = f"{PLOT_BYTES_MAX / 1e6:.0f} MB"
+    if plotted:
+        raise ValueError(
+            f"The plot's SVG would take {size}, past plot()'s limit of {limit}. Save it as .png "
+            "or .html instead"
+        )
+    raise ValueError(
+        f"plot() would write {size}, past its limit of {limit}. Plot it with backend='png' "
+        "instead, or a part of the graph, such as what k_core(), ego_graph() or subgraph() "
+        "returns"
+    )
 
 
 # The theme's colors, as (light, dark) pairs for a scene's color table
@@ -1310,20 +1381,34 @@ def render_plot(
     graph,
     theme: Optional[str] = None,
     output: Optional[str] = None,
-    backend: str = "svg",
+    backend: str = "auto",
     **options,
 ) -> "StepPlayer":
     """Render a graph as a static SVG wrapped in a StepPlayer: the scene that `build_scene()`
     makes of it with `options`, drawn in `theme`, its edges and nodes as SVG elements or, with
-    `backend="png"`, as images."""
+    `backend="png"`, as images. With `backend="auto"`, they are images where their SVG would
+    pass `NOTEBOOK_BYTES_MAX`, and the player's SVG is then drawn when it is first wanted."""
     _check_style(options.get("layout", "force"), theme, stored_ok=True)
     if backend not in BACKENDS:
         raise ValueError(
             f"Unknown backend {backend!r}; use one of {', '.join(map(repr, BACKENDS))}"
         )
     colors = _Colors(theme)
-    scene = build_scene(graph, backend=backend, **options)
-    svg_str, html_str = emit_svg(scene, colors, raster=backend == "png")
+    # The SVG and HTML for backend="auto", if they fit
+    fitting: List[Tuple[str, str]] = []
+
+    def fits(scene: Scene) -> bool:
+        svg_str, html_str = emit_svg(scene, colors)
+        if len(html_str) > NOTEBOOK_BYTES_MAX:
+            return False
+        fitting.append((svg_str, html_str))
+        return True
+
+    scene = build_scene(graph, backend=backend, fits=fits, **options)
+    picked = backend
+    if backend == "auto":
+        picked = "svg" if fitting else "png"
+    svg_str, html_str = fitting[0] if fitting else emit_svg(scene, colors, raster=picked == "png")
     if len(html_str) > NOTEBOOK_BYTES_MAX:
         smaller = (
             "backend='png' makes it smaller, as does plotting a part of the graph"
@@ -1337,8 +1422,27 @@ def render_plot(
             stacklevel=3,
         )
     # The edges as the SVG draws them, or as its images do
-    tone = "over" if backend == "svg" else "log"
-    return colors.finish(svg_str, html_str, output, png=lambda: plot_png(scene, theme, tone))
+    tone = "over" if picked == "svg" else "log"
+
+    def vector() -> str:
+        # The SVG that the images stand in for
+        _check_svg_size(scene.node_count, scene.edge_count, plotted=True)
+        svg_str = emit_svg(scene, colors)[0]
+        if len(svg_str) > NOTEBOOK_BYTES_MAX:
+            warnings.warn(
+                f"The SVG is {len(svg_str) / 1e6:,.0f} MB, which is why the plot draws its "
+                "edges and nodes as images. A .png or .html file of it is smaller",
+                stacklevel=_user_stacklevel(),
+            )
+        return svg_str
+
+    return colors.finish(
+        svg_str,
+        html_str,
+        output,
+        png=lambda: plot_png(scene, theme, tone),
+        svg=vector if backend == "auto" and picked == "png" and scene.node_count else None,
+    )
 
 
 def build_scene(
@@ -1368,11 +1472,14 @@ def build_scene(
     highlight_edges=None,
     legend: bool = True,
     backend: str = "svg",
+    fits: Optional[Callable[[Scene], bool]] = None,
 ) -> Scene:
     """The scene for `plot()` of `graph`, which takes the same arguments: the layout, and the
     colors, sizes, highlighting, shapes, labels, tooltips and legend that the arguments give.
     With `backend="png"`, the automatic node size can be smaller, and there's no limit to the
-    output's size, which an SVG's elements would pass.
+    output's size, which an SVG's elements would pass. With `backend="auto"`, it is the scene
+    for SVG if `fits()` is true of that, and the one for images otherwise, or straight away when
+    even the fewest bytes the SVG could take would pass `NOTEBOOK_BYTES_MAX`.
 
     `edgecase._core.SceneBuilder` reads the graph and works these out, and makes the scene
     (`edgecase._core.Scene`), which holds them as columns, an entry for each node (in the order
@@ -1402,22 +1509,14 @@ def build_scene(
 
     n = len(node_ids)
     n_edges = graph.count_edges()
-    least = n * _LEAN_NODE_BYTES + n_edges * _LEAN_EDGE_BYTES
-    if backend == "svg" and least > PLOT_BYTES_MAX:
-        raise ValueError(
-            f"plot() would write at least {least / 1e6:,.0f} MB for {n:,} nodes and "
-            f"{n_edges:,} edges, past its limit of {PLOT_BYTES_MAX / 1e6:.0f} MB. Plot it with "
-            "backend='png' instead, or a part of the graph, such as what k_core(), ego_graph() "
-            "or subgraph() returns"
-        )
+    if backend == "svg":
+        _check_svg_size(n, n_edges)
+    elif backend == "auto" and _least_svg_bytes(n, n_edges) > NOTEBOOK_BYTES_MAX:
+        # Without drawing the SVG to find out
+        backend = "png"
     if edge_width == 1.2:
         edge_width = max(0.5, 3.0 - n * 0.06) if n < 40 else max(0.5, 1.2 - (n - 40) * 0.002)
     edge_width = max(edge_width, 0.5)
-
-    # Adaptive node size: radius ≈ 15% of avg node spacing so nodes don't overlap
-    if node_size == 16.0:
-        avg_spacing = math.sqrt(float(width * height) / max(n, 1))
-        node_size = max(_NODE_SIZE_MIN[backend], min(16.0, avg_spacing * 0.15))
 
     # The nodes and edges, and the values of the attributes that the arguments name, read once
     builder = SceneBuilder(
@@ -1452,58 +1551,71 @@ def build_scene(
             seed=seed,
         )
 
-    # --- Aesthetic mappings ---
-
-    # The colors, sizes and widths. Legends are shown only for what they can tell apart: a
-    # palette's colors repeat after its length, so a categorical block with more values than
-    # that is left out
+    # --- Aesthetic mappings, overlap removal and routing, which depend on the node size ---
     from edgecase.colors import get_palette
 
-    legend_blocks = builder.encode(
-        get_palette(palette) if color_by or edge_color_by else [],
-        color_scale,
-        color_midpoint,
-        cross_community_color,
-        node_size,
-        edge_width,
-        edge_opacity,
-        LEGEND_MAX_ITEMS if legend else None,
-    )
+    def scene_for(backend: str) -> Scene:
+        size = node_size
+        # Adaptive node size: radius ≈ 15% of avg node spacing so nodes don't overlap
+        if node_size == 16.0:
+            avg_spacing = math.sqrt(float(width * height) / max(n, 1))
+            size = max(_NODE_SIZE_MIN[backend], min(16.0, avg_spacing * 0.15))
 
-    # Highlighting: each node and edge is accent, soft or muted
-    if highlight is not None or highlight_edges is not None:
-        builder.highlight(_resolve_highlight(graph, highlight, highlight_edges))
-
-    # --- Overlap removal (force layout only) ---
-    if node_overlap != "allow" and layout not in ("circular",) and n >= 2:
-        overlap_pad = float(node_overlap) if isinstance(node_overlap, (int, float)) else 2.0
-        radii = dict(zip(str_ids, builder.radii))
-        positions = _remove_overlaps(positions, radii, padding=overlap_pad, seed=seed)
-
-    # The legend gets a column of its own at the right, so that it never covers the drawing
-    legend_marks: List[Tuple[Any, ...]] = []
-    legend_w = 0.0
-    if legend_blocks:
-        legend_marks, legend_w, _ = _legend_layout(legend_blocks)
-
-    # Non-curved edges are routed around the nodes in their way
-    route = None
-    if edge_routing != "straight" and not curved_edges and n >= 3:
-        route = (
-            float(edge_routing) if isinstance(edge_routing, (int, float)) else 3.0,
-            ROUTE_WAYPOINTS_MAX if edge_routing == "auto" else None,
+        # The colors, sizes and widths. Legends are shown only for what they can tell apart: a
+        # palette's colors repeat after its length, so a categorical block with more values
+        # than that is left out
+        legend_blocks = builder.encode(
+            get_palette(palette) if color_by or edge_color_by else [],
+            color_scale,
+            color_midpoint,
+            cross_community_color,
+            size,
+            edge_width,
+            edge_opacity,
+            LEGEND_MAX_ITEMS if legend else None,
         )
-    return builder.scene(
-        positions,
-        width,
-        height,
-        curved_edges,
-        bool(show_labels),
-        legend_marks,
-        legend_w,
-        route,
-        lean_min=LEAN_MIN,
-    )
+
+        # Highlighting: each node and edge is accent, soft or muted
+        if highlight is not None or highlight_edges is not None:
+            builder.highlight(_resolve_highlight(graph, highlight, highlight_edges))
+
+        # --- Overlap removal (force layout only) ---
+        placed = positions
+        if node_overlap != "allow" and layout not in ("circular",) and n >= 2:
+            overlap_pad = float(node_overlap) if isinstance(node_overlap, (int, float)) else 2.0
+            radii = dict(zip(str_ids, builder.radii))
+            placed = _remove_overlaps(positions, radii, padding=overlap_pad, seed=seed)
+
+        # The legend gets a column of its own at the right, so that it never covers the drawing
+        legend_marks: List[Tuple[Any, ...]] = []
+        legend_w = 0.0
+        if legend_blocks:
+            legend_marks, legend_w, _ = _legend_layout(legend_blocks)
+
+        # Non-curved edges are routed around the nodes in their way
+        route = None
+        if edge_routing != "straight" and not curved_edges and n >= 3:
+            route = (
+                float(edge_routing) if isinstance(edge_routing, (int, float)) else 3.0,
+                ROUTE_WAYPOINTS_MAX if edge_routing == "auto" else None,
+            )
+        return builder.scene(
+            placed,
+            width,
+            height,
+            curved_edges,
+            bool(show_labels),
+            legend_marks,
+            legend_w,
+            route,
+            lean_min=LEAN_MIN,
+        )
+
+    if backend != "auto":
+        return scene_for(backend)
+    # The SVG's if it fits, and the images' otherwise, on the same layout
+    scene = scene_for("svg")
+    return scene if fits(scene) else scene_for("png")
 
 
 def emit_svg(scene: Scene, colors: "_Colors", raster: bool = False) -> Tuple[str, str]:
