@@ -392,7 +392,7 @@ def test_the_png_backend_draws_images_under_text():
     assert 'class="ec-legend"' in raster.svg
     # No tooltips
     assert "data-attrs" not in raster.svg and "<script" not in raster._repr_html_()
-    with pytest.raises(ValueError, match="Unknown backend 'jpeg'; use one of 'svg', 'png'"):
+    with pytest.raises(ValueError, match="Unknown backend 'jpeg'; use one of 'auto', 'svg', 'png'"):
         g.plot(backend="jpeg")
 
 
@@ -414,16 +414,93 @@ def test_the_png_backend_has_smaller_nodes_and_no_size_limit(monkeypatch):
     assert radii["svg"] == {3.5} and max(radii["png"]) < 2.5
     monkeypatch.setattr(svg_renderer, "PLOT_BYTES_MAX", 1000)
     with pytest.raises(ValueError, match=r"past its limit of 0 MB\. Plot it with backend='png'"):
-        ec.karate_club().plot()
+        ec.karate_club().plot(backend="svg")
     ec.karate_club().plot(backend="png")
 
 
 def test_the_warning_suggests_the_png_backend(monkeypatch):
     monkeypatch.setattr(svg_renderer, "NOTEBOOK_BYTES_MAX", 1000)
     with pytest.warns(UserWarning, match="backend='png' makes it smaller"):
-        ec.karate_club().plot(seed=1)
+        ec.karate_club().plot(seed=1, backend="svg")
     with pytest.warns(UserWarning, match=r"MB a notebook output .*\. Plotting a part"):
         ec.karate_club().plot(seed=1, backend="png")
+
+
+def _radii(markup):
+    return {float(r) for r in re.findall(r'<circle [^>]*r="([0-9.]+)"', markup)}
+
+
+def test_auto_picks_the_scene_by_its_svg(monkeypatch):
+    g = ec.Graph().add_nodes(list(range(3000)))
+    given, radii = [], {}
+
+    def draw(scene):
+        return svg_renderer.emit_svg(scene, svg_renderer._Colors("light"))[0]
+
+    for answer in (True, False):
+
+        def fits(scene):
+            given.append(_radii(draw(scene)))
+            return answer
+
+        scene = svg_renderer.build_scene(g, layout="random", seed=1, backend="auto", fits=fits)
+        radii[answer] = _radii(draw(scene))
+    # It is asked about the SVG's scene, and gives that or the images' (with smaller nodes)
+    assert given == [{3.5}, {3.5}]
+    assert radii[True] == {3.5} and max(radii[False]) < 2.5
+    # It isn't asked when the SVG would surely be too large
+    monkeypatch.setattr(svg_renderer, "NOTEBOOK_BYTES_MAX", 1000)
+    scene = svg_renderer.build_scene(g, layout="random", seed=1, backend="auto", fits=pytest.fail)
+    assert _radii(draw(scene)) == radii[False]
+
+
+def _unnumbered(html):
+    return re.sub(r"ec-tooltip-\d+", "ec-tooltip", html)
+
+
+def _parallel_edges():
+    # 20,000 edges between 50 nodes, whose SVG takes at least 0.8 MB, and is about 1.8 MB
+    pairs = [(k % 50, (k * 7 + 1) % 50) for k in range(20000)]
+    return ec.Graph.from_edges([(a, b) for a, b in pairs if a != b])
+
+
+@pytest.mark.parametrize("budget", [None, 1_000_000])
+def test_auto_is_svg_within_the_budget_and_images_past_it(monkeypatch, budget):
+    g = _parallel_edges()
+    if budget:
+        monkeypatch.setattr(svg_renderer, "NOTEBOOK_BYTES_MAX", budget)
+    opts = {"seed": 1, "show_labels": False}
+    auto = g.plot(**opts)
+    picked = g.plot(backend="png" if budget else "svg", **opts)
+    assert ("<image" in auto._repr_html_()) == bool(budget)
+    # As the backend picked draws it, but for the numbering of the tooltips on the page
+    assert _unnumbered(auto._repr_html_()) == _unnumbered(picked._repr_html_())
+    assert auto._repr_png_()[0] == picked._repr_png_()[0]
+
+
+def test_the_svg_of_images_is_drawn_when_wanted(monkeypatch, tmp_path):
+    monkeypatch.setattr(svg_renderer, "NOTEBOOK_BYTES_MAX", 1_000_000)
+    g = _parallel_edges()
+    for theme in ("light", None):
+        auto = g.plot(seed=1, show_labels=False, theme=theme)
+        vector = g.plot(seed=1, show_labels=False, theme=theme, backend="svg")
+        html = auto._repr_html_()
+        # The SVG that the images stand in for, with a note on its size
+        with pytest.warns(UserWarning, match=r"The SVG is \d MB, which is why") as caught:
+            auto.save(tmp_path / "auto.svg")
+        assert caught[0].filename == __file__
+        vector.save(tmp_path / "vector.svg")
+        saved = (tmp_path / "auto.svg").read_text()
+        assert saved == (tmp_path / "vector.svg").read_text() and "<image" not in saved
+        assert auto._repr_html_() == html
+    assert auto.svg.startswith('<svg class="ec-theme"') and "<image" not in auto.svg
+    # It is too large
+    auto = g.plot(seed=1, show_labels=False)
+    monkeypatch.setattr(svg_renderer, "PLOT_BYTES_MAX", 1000)
+    with pytest.raises(ValueError, match=r"The plot's SVG would take at least 1 MB .*\.png"):
+        auto.svg
+    # Asked for, the images stay in the SVG
+    assert "<image" in g.plot(seed=1, show_labels=False, backend="png").svg
 
 
 @pytest.mark.parametrize("backend", ["svg", "png"])
