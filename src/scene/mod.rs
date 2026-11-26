@@ -1,8 +1,16 @@
 // The scene that `plot()` draws: its nodes, edges and labels as typed columns, filled from
 // Python once it has read the attributes and worked out the encodings, and the SVG they make
+mod builder;
+mod color;
 mod geometry;
+mod highlight;
 mod pyfmt;
 mod svg;
+mod tips;
+
+pub use builder::SceneBuilder;
+pub use highlight::{edge_ends, marked_edges, marked_nodes};
+pub use tips::{tooltip_attrs, tooltip_table};
 
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
