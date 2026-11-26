@@ -142,8 +142,10 @@ class _Colors:
         return self.pick("light", "dark")
 
     def _css(self) -> str:
-        light = ";".join(f"{name}:{lt}" for (lt, _), name in self._vars.items())
-        dark = ";".join(f"{name}:{dk}" for (_, dk), name in self._vars.items())
+        # In the order of the names, so that it doesn't depend on the order of the picks
+        defined = sorted(self._vars.items(), key=lambda item: item[1])
+        light = ";".join(f"{name}:{lt}" for (lt, _), name in defined)
+        dark = ";".join(f"{name}:{dk}" for (_, dk), name in defined)
         # Each rule outranks the ones before it whatever the order of the renderings on the page
         # (by its specificity), and the page's scheme outranks the system's. Dark comes last, so
         # that it wins should a page somehow carry both markers
@@ -1705,56 +1707,87 @@ def _text_width(text: str, size: float = _LEGEND_FONT) -> float:
     return len(text) * size * 0.58
 
 
-def _svg_legend(
-    blocks: List[Dict[str, Any]], colors: "_Colors", th: Theme
-) -> Tuple[str, float, float]:
-    """The legend for `blocks` (as `render_plot()` gathers them), drawn from (0, 0) in pixels, and
-    its width and height.
+def _legend_layout(blocks: List[Dict[str, Any]]) -> Tuple[List[Tuple[Any, ...]], float, float]:
+    """The legend for `blocks` (as `build_scene()` gathers them) as marks placed from (0, 0) in
+    pixels, for `_svg_legend()` to draw, and its width and height.
 
     A `"swatches"` block lists `(shape, (light, dark), text)` items, the shape being `"node"` (a
     dot) or `"edge"` (a line). A `"ramp"` block draws its `scale` as a bar, labelled with the
     values its `ends` stand for (and the midpoint of a diverging scale), and a gray dot for nodes
     without a value when it is `missing` one.
+
+    The marks are `("text", x, y, text, weight)`, `("node", y, (light, dark))` (a dot with a
+    border), `("dot", y, (light, dark))` (one without), `("edge", y, (light, dark))` and
+    `("ramp", top, scale)`.
     """
-    parts = []
+    marks: List[Tuple[Any, ...]] = []
     y = _LEGEND_PAD
     widest = 0.0
     text_x = 22.0
-    font = f'font-family="{FONT_FAMILY}" font-size="{_LEGEND_FONT:g}"'
-
-    def text(x, ty, s, weight=""):
-        w = f' font-weight="{weight}"' if weight else ""
-        return (
-            f'<text x="{x:.1f}" y="{ty:.1f}" {font}{w} fill="{th.label_color}" '
-            f'dominant-baseline="middle">{html_mod.escape(s)}</text>'
-        )
 
     for block in blocks:
         title = _legend_text(str(block["title"]))
-        parts.append(text(0, y, title, "600"))
+        marks.append(("text", 0, y, title, "600"))
         widest = max(widest, _text_width(title) * 1.05)
         y += _LEGEND_ROW
         if block["kind"] == "swatches":
             for shape, pair, label in block["items"]:
-                c = colors.pick(*pair)
-                if shape == "node":
-                    border = colors.pick(_darken(pair[0], 0.3), _darken(pair[1], 0.3))
-                    parts.append(
-                        f'<circle cx="7" cy="{y:.1f}" r="5" fill="{c}" stroke="{border}" '
-                        f'stroke-width="1" stroke-opacity="0.4"/>'
-                    )
-                else:
-                    parts.append(
-                        f'<line x1="0" y1="{y:.1f}" x2="14" y2="{y:.1f}" stroke="{c}" '
-                        f'stroke-width="3" stroke-linecap="round"/>'
-                    )
+                marks.append((shape, y, pair))
                 label = _legend_text(label)
-                parts.append(text(text_x, y, label))
+                marks.append(("text", text_x, y, label, ""))
                 widest = max(widest, text_x + _text_width(label))
                 y += _LEGEND_ROW
         else:
             lo, hi, mid = block["ends"]
-            stops = DIVERGING_STOPS if block["scale"] == "diverging" else SEQUENTIAL_STOPS
+            top = y - _LEGEND_FONT / 2
+            marks.append(("ramp", top, block["scale"]))
+            ticks = [(top, _fmt_num(hi)), (top + _LEGEND_RAMP, _fmt_num(lo))]
+            if mid is not None:
+                ticks.insert(1, (top + _LEGEND_RAMP / 2, _fmt_num(mid)))
+            for ty, label in ticks:
+                marks.append(("text", text_x, ty, label, ""))
+                widest = max(widest, text_x + _text_width(label))
+            y = top + _LEGEND_RAMP + _LEGEND_ROW
+            if block.get("missing"):
+                marks.append(("dot", y, MISSING_COLOR))
+                marks.append(("text", text_x, y, "no value", ""))
+                widest = max(widest, text_x + _text_width("no value"))
+                y += _LEGEND_ROW
+        y += _LEGEND_ROW / 2
+    return marks, widest + 2 * _LEGEND_PAD, y
+
+
+def _svg_legend(marks: List[Tuple[Any, ...]], colors: "_Colors", th: Theme) -> str:
+    """The legend's `marks` (from `_legend_layout()`) in SVG."""
+    parts = []
+    font = f'font-family="{FONT_FAMILY}" font-size="{_LEGEND_FONT:g}"'
+    for kind, *mark in marks:
+        if kind == "text":
+            x, ty, s, weight = mark
+            w = f' font-weight="{weight}"' if weight else ""
+            parts.append(
+                f'<text x="{x:.1f}" y="{ty:.1f}" {font}{w} fill="{th.label_color}" '
+                f'dominant-baseline="middle">{html_mod.escape(s)}</text>'
+            )
+        elif kind == "node":
+            y, pair = mark
+            border = colors.pick(_darken(pair[0], 0.3), _darken(pair[1], 0.3))
+            parts.append(
+                f'<circle cx="7" cy="{y:.1f}" r="5" fill="{colors.pick(*pair)}" '
+                f'stroke="{border}" stroke-width="1" stroke-opacity="0.4"/>'
+            )
+        elif kind == "dot":
+            y, pair = mark
+            parts.append(f'<circle cx="7" cy="{y:.1f}" r="5" fill="{colors.pick(*pair)}"/>')
+        elif kind == "edge":
+            y, pair = mark
+            parts.append(
+                f'<line x1="0" y1="{y:.1f}" x2="14" y2="{y:.1f}" stroke="{colors.pick(*pair)}" '
+                f'stroke-width="3" stroke-linecap="round"/>'
+            )
+        else:
+            top, scale = mark
+            stops = DIVERGING_STOPS if scale == "diverging" else SEQUENTIAL_STOPS
             first = stops[0][0]
             stop_marks = []
             for k in range(11):
@@ -1764,7 +1797,6 @@ def _svg_legend(
                 )
             # Named after its colors, so that equal ramps on one page can share the name
             grad = "ec-ramp-" + hashlib.sha1("".join(stop_marks).encode()).hexdigest()[:8]
-            top = y - _LEGEND_FONT / 2
             parts.append(
                 f'<defs><linearGradient id="{grad}" x1="0" y1="1" x2="0" y2="0">'
                 + "".join(stop_marks)
@@ -1772,23 +1804,7 @@ def _svg_legend(
                 f'<rect x="2" y="{top:.1f}" width="10" height="{_LEGEND_RAMP:g}" rx="2" '
                 f'fill="url(#{grad})"/>'
             )
-            marks = [(top, _fmt_num(hi)), (top + _LEGEND_RAMP, _fmt_num(lo))]
-            if mid is not None:
-                marks.insert(1, (top + _LEGEND_RAMP / 2, _fmt_num(mid)))
-            for ty, label in marks:
-                parts.append(text(text_x, ty, label))
-                widest = max(widest, text_x + _text_width(label))
-            y = top + _LEGEND_RAMP + _LEGEND_ROW
-            if block.get("missing"):
-                pair = MISSING_COLOR
-                parts.append(
-                    f'<circle cx="7" cy="{y:.1f}" r="5" fill="{colors.pick(*pair)}"/>'
-                )
-                parts.append(text(text_x, y, "no value"))
-                widest = max(widest, text_x + _text_width("no value"))
-                y += _LEGEND_ROW
-        y += _LEGEND_ROW / 2
-    return "".join(parts), widest + 2 * _LEGEND_PAD, y
+    return "".join(parts)
 
 
 # ---------------------------------------------------------------------------
@@ -1958,9 +1974,6 @@ def _tooltip_table(rows: List[Dict[str, Any]]) -> str:
     return json.dumps({"k": keys, "c": columns}, default=str).replace("<", "\\u003c")
 
 
-# Above this many edges, edges are hovered as drawn, with no wider invisible copy, and their
-# tooltips come from one table rather than each edge's markup. The copies would be about half of
-# the output, and that many of them make hovering slow
 # Above this many nodes or edges, `plot()` writes lean SVG: no hit areas around the edges, the
 # edges' tooltips in one table (see `_tooltip_table()`), and elements gathered into groups that
 # carry their style (see `_StyleRuns`)
@@ -2044,7 +2057,90 @@ def _lean_line(
     return line, None if corners is None else (ex, ey, *corners)
 
 
+# The theme's colors, as (light, dark) pairs for a scene's color table
+_BG_COLORS = (LIGHT.bg, DARK.bg)
+_EDGE_COLORS = (LIGHT.edge_color, DARK.edge_color)
+_LABEL_COLORS = (LIGHT.label_color, DARK.label_color)
+
+
+@dataclass
+class Scene:
+    """What `plot()` draws, worked out apart from the theme and the markup, for `emit_svg()`.
+
+    The nodes and the edges are columns, lists with an entry for each node (in the order of the
+    graph's node IDs) or each edge (in the order of `build_scene()`'s edges). The color columns
+    index `colors`, a table of (light, dark) pairs, which the emitter turns into the colors of the
+    theme. An empty graph has no nodes and no edges.
+    """
+
+    width: int
+    height: int
+    directed: bool = False
+    # Every edge drawn as a curve
+    curved: bool = False
+    # (min x, min y, width, height), legend included
+    viewbox: Tuple[float, float, float, float] = (0, 0, 100, 100)
+    colors: List[Tuple[str, str]] = dataclasses.field(default_factory=list)
+
+    node_ids: List[str] = dataclasses.field(default_factory=list)
+    node_x: List[float] = dataclasses.field(default_factory=list)
+    node_y: List[float] = dataclasses.field(default_factory=list)
+    node_r: List[float] = dataclasses.field(default_factory=list)
+    node_fill: List[int] = dataclasses.field(default_factory=list)
+    node_border: List[int] = dataclasses.field(default_factory=list)
+    node_border_width: List[float] = dataclasses.field(default_factory=list)
+    node_border_opacity: List[float] = dataclasses.field(default_factory=list)
+    # The nodes as drawn, the highlighted ones last
+    node_order: List[int] = dataclasses.field(default_factory=list)
+    node_tips: List[Dict[str, Any]] = dataclasses.field(default_factory=list)
+    # The text under each node, or None without labels
+    labels: Optional[List[str]] = None
+    label_color: List[int] = dataclasses.field(default_factory=list)
+    font_size: float = 0.0
+
+    # The ends of each edge, as node indexes
+    edge_src: List[int] = dataclasses.field(default_factory=list)
+    edge_tgt: List[int] = dataclasses.field(default_factory=list)
+    edge_color: List[int] = dataclasses.field(default_factory=list)
+    edge_width: List[float] = dataclasses.field(default_factory=list)
+    edge_opacity: List[float] = dataclasses.field(default_factory=list)
+    # How far parallel and reciprocal edges bow out, and the size of self-loops (see
+    # `_compute_edge_fans()`)
+    edge_bow: List[float] = dataclasses.field(default_factory=list)
+    edge_loop: List[float] = dataclasses.field(default_factory=list)
+    # The waypoints of an edge routed around nodes, or None for a direct one
+    edge_route: List[Optional[List[Tuple[float, float]]]] = dataclasses.field(default_factory=list)
+    # The edges as drawn, the highlighted ones last
+    edge_order: List[int] = dataclasses.field(default_factory=list)
+    edge_tips: List[Dict[str, Any]] = dataclasses.field(default_factory=list)
+    # The text along each edge (None for none), or None without `edge_label_by=`
+    edge_labels: Optional[List[Optional[str]]] = None
+
+    # The legend's marks (see `_legend_layout()`), and its width in pixels, at the right
+    legend: List[Tuple[Any, ...]] = dataclasses.field(default_factory=list)
+    legend_w: float = 0.0
+
+
 def render_plot(
+    graph, theme: Optional[str] = None, output: Optional[str] = None, **options
+) -> "StepPlayer":
+    """Render a graph as a static SVG wrapped in a StepPlayer: the scene that `build_scene()`
+    makes of it with `options`, drawn in `theme`."""
+    _check_style(options.get("layout", "force"), theme, stored_ok=True)
+    colors = _Colors(theme)
+    scene = build_scene(graph, **options)
+    svg_str, html_str = emit_svg(scene, colors)
+    if len(html_str) > NOTEBOOK_BYTES_MAX:
+        warnings.warn(
+            f"The plot is {len(html_str) / 1e6:,.0f} MB, past the "
+            f"{NOTEBOOK_BYTES_MAX / 1e6:.0f} MB a notebook output should stay within. Plotting a "
+            "part of the graph, such as what k_core() or ego_graph() returns, makes it smaller",
+            stacklevel=3,
+        )
+    return colors.finish(svg_str, html_str, output)
+
+
+def build_scene(
     graph,
     layout: str = "force",
     color_by: Optional[str] = None,
@@ -2053,7 +2149,6 @@ def render_plot(
     label_by: str = "id",
     edge_label_by: Optional[str] = None,
     curved_edges: bool = False,
-    theme: Optional[str] = None,
     palette: str = "tableau",
     width: int = 700,
     height: int = 500,
@@ -2064,7 +2159,6 @@ def render_plot(
     node_overlap: Union[str, float] = "remove",
     edge_routing: Union[str, float] = "auto",
     show_labels: bool = True,
-    output: Optional[str] = None,
     seed: Optional[int] = None,
     edge_width_by: Optional[str] = None,
     color_scale: Optional[str] = None,
@@ -2072,10 +2166,11 @@ def render_plot(
     highlight=None,
     highlight_edges=None,
     legend: bool = True,
-) -> "StepPlayer":
-    """Render a graph as a static SVG wrapped in a StepPlayer."""
+) -> Scene:
+    """The scene for `plot()` of `graph`, which takes the same arguments: the layout, and the
+    colors, sizes, highlighting, shapes, labels, tooltips and legend that the arguments give."""
 
-    _check_style(layout, theme, stored_ok=True)
+    _check_style(layout, None, stored_ok=True)
     if isinstance(edge_routing, str) and edge_routing not in ("auto", "around", "straight"):
         raise ValueError(
             f"Unknown edge_routing {edge_routing!r}; use 'auto', 'around', 'straight' or a "
@@ -2086,8 +2181,6 @@ def render_plot(
             f"Unknown color_scale {color_scale!r}; use one of "
             f"{', '.join(map(repr, COLOR_SCALES))}"
         )
-    colors = _Colors(theme)
-    th = colors.theme
     if color_by or edge_color_by:
         from edgecase.colors import get_palette
 
@@ -2096,15 +2189,7 @@ def render_plot(
     # --- Extract graph data ---
     node_ids = list(graph.get_node_ids(limit=None))
     if not node_ids:
-        svg = (
-            f'<svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="{height}" '
-            f'viewBox="0 0 {width} {height}">'
-            f'<rect width="100%" height="100%" fill="{th.bg}"/>'
-            f'<text x="{width / 2}" y="{height / 2}" text-anchor="middle" '
-            f'fill="{th.label_color}" font-family="{FONT_FAMILY}" '
-            f'font-size="14">Empty graph</text></svg>'
-        )
-        return colors.finish(svg, svg, output)
+        return Scene(width=width, height=height)
 
     n = len(node_ids)
     n_edges = graph.count_edges()
@@ -2225,7 +2310,6 @@ def render_plot(
                 f"edge_width_by={edge_width_by!r}: no edge has an attribute {edge_width_by!r}"
             )
 
-
     # Convert node_ids to strings for consistency
     str_ids = [str(nid) for nid in node_ids]
 
@@ -2293,7 +2377,6 @@ def render_plot(
     else:
         for nid in str_ids:
             node_colors[nid] = (DEFAULT_NODE_COLOR, DEFAULT_NODE_COLOR)
-    color_map = {nid: colors.pick(*pair) for nid, pair in node_colors.items()}
 
     # Edge color mapping: by an edge attribute's values, or by the groups of the endpoints
     edge_community = {}
@@ -2332,15 +2415,13 @@ def render_plot(
         order = _sorted_values(ecb_vals)
         ecb_palette = _build_color_map(order, palette) if ecb_vals else {}
         ecb_node_colors = {
-            nid: ecb_palette.get(edge_community.get(nid), th.edge_color) for nid in str_ids
+            nid: (ecb_palette[c],) * 2 if c in ecb_palette else _EDGE_COLORS
+            for nid, c in edge_community.items()
         }
-        default_cross = ("#52525b", "#a1a1aa")
-        ecb_cross_color = cross_community_color or colors.pick(*default_cross)
-        cross_item = (
-            "edge",
-            (cross_community_color,) * 2 if cross_community_color else default_cross,
-            "between groups",
+        ecb_cross_color = (
+            (cross_community_color,) * 2 if cross_community_color else ("#52525b", "#a1a1aa")
         )
+        cross_item = ("edge", ecb_cross_color, "between groups")
         if edge_color_by == color_by and legend_blocks and legend_blocks[0]["kind"] == "swatches":
             legend_blocks[0]["items"].append(cross_item)
         else:
@@ -2437,9 +2518,10 @@ def render_plot(
 
     # --- Compute viewBox ---
     # The legend gets a column of its own at the right, so that it never covers the drawing
-    legend_svg, legend_w = "", 0
+    legend_marks: List[Tuple[Any, ...]] = []
+    legend_w = 0.0
     if legend_blocks:
-        legend_svg, legend_w, _ = _svg_legend(legend_blocks, colors, th)
+        legend_marks, legend_w, _ = _legend_layout(legend_blocks)
     legend_w = min(legend_w, width * 0.4)
     vb = _compute_viewbox(
         positions,
@@ -2452,19 +2534,6 @@ def render_plot(
         # Viewbox units per pixel
         unit = vb[3] / height
         vb = (vb[0], vb[1], vb[2] + legend_w * unit, vb[3])
-    vb_str = f"{vb[0]:.1f} {vb[1]:.1f} {vb[2]:.1f} {vb[3]:.1f}"
-
-    # --- Build SVG ---
-    svg_parts = []
-    svg_parts.append(
-        f'<svg xmlns="http://www.w3.org/2000/svg" '
-        f'width="{width}" height="{height}" '
-        f'viewBox="{vb_str}" '
-        f'style="font-family: {FONT_FAMILY};">'
-    )
-    svg_parts.append(
-        f'<rect x="{vb[0]:.1f}" y="{vb[1]:.1f}" width="{vb[2]:.1f}" height="{vb[3]:.1f}" fill="{th.bg}"/>'
-    )
 
     # Precompute routed edge paths (avoid nodes for non-curved edges), once for each pair of
     # ends however many edges join them
@@ -2490,41 +2559,27 @@ def render_plot(
     # Compute fan-out bows for parallel / reciprocal edges
     edge_bows, edge_loop_sizes = _compute_edge_fans(edges)
 
-    edge_tips = _tooltip_rows(
-        [{**head, **e_attrs} for head, e_attrs in zip(edge_tip_heads, edge_attrs_list)]
-    )
-    lean = n > LEAN_MIN or len(edges) > LEAN_MIN
-    edge_tip_table = _tooltip_table(edge_tips) if lean else None
-    edge_runs = _StyleRuns(svg_parts)
-    run_groups: Dict[Tuple[str, float, float], Tuple[str, str]] = {}
+    # The colors as indexes into the scene's table of them
+    color_index: Dict[Tuple[str, str], int] = {}
+
+    def color(pair):
+        return color_index.setdefault(tuple(pair), len(color_index))
 
     # Highlighted elements are drawn over the muted ones, and accent over soft
     level_rank = {None: 0, "soft": 1, "accent": 2}
-    accent = colors.pick(*ACCENT_COLOR)
 
-    # Edges first (painter's algorithm)
-    edge_order = range(len(edges))
-    if edge_level:
-        edge_order = sorted(edge_order, key=lambda j: level_rank[edge_level[j]])
-    for i in edge_order:
-        src, tgt = edges[i]
-        if src not in positions or tgt not in positions:
-            continue
-        x1, y1 = positions[src]
-        x2, y2 = positions[tgt]
-        r_src = radii.get(src, node_size)
-        r_dst = radii.get(tgt, node_size)
-
-        # Edge color
-        e_color = th.edge_color
+    # Edges
+    edge_color_col, edge_width_col, edge_opacity_col = [], [], []
+    for i, (src, tgt) in enumerate(edges):
+        e_color = _EDGE_COLORS
         if edge_attr_colors is not None:
             if edge_attr_colors[i] is not None:
-                e_color = colors.pick(*edge_attr_colors[i])
+                e_color = edge_attr_colors[i]
         elif edge_color_by and edge_community:
             src_comm = edge_community.get(src)
             tgt_comm = edge_community.get(tgt)
             if src_comm is not None and src_comm == tgt_comm:
-                e_color = ecb_node_colors.get(src, th.edge_color)
+                e_color = ecb_node_colors.get(src, _EDGE_COLORS)
             elif src_comm is not None or tgt_comm is not None:
                 e_color = ecb_cross_color
         elif (
@@ -2532,42 +2587,184 @@ def render_plot(
             and node_community.get(src) == node_community.get(tgt)
             and node_community.get(src) is not None
         ):
-            e_color = color_map.get(src, th.edge_color)
+            e_color = node_colors.get(src, _EDGE_COLORS)
 
         e_width = edge_widths[i]
         e_opacity = edge_opacity
         if edge_level:
             level = edge_level[i]
             if level is None:
-                e_color = th.edge_color
+                e_color = _EDGE_COLORS
                 e_opacity = edge_opacity * 0.5
             else:
                 # A highlighted edge keeps a color that edge_color_by= gives it, or else takes
                 # the accent (rather than its group's color from color_by=, so that a path or
                 # matching is all of one color)
-                if not edge_color_by or e_color == th.edge_color:
-                    e_color = accent
+                if not edge_color_by or e_color == _EDGE_COLORS:
+                    e_color = ACCENT_COLOR
                 if level == "accent":
                     e_width = max(e_width * 2.0, 1.5)
                     e_opacity = max(edge_opacity, 0.9)
                 else:
                     e_width = max(e_width * 1.3, 1.0)
                     e_opacity = max(edge_opacity, 0.5)
+        edge_color_col.append(color(e_color))
+        edge_width_col.append(e_width)
+        edge_opacity_col.append(e_opacity)
+    edge_order = list(range(len(edges)))
+    if edge_level:
+        edge_order.sort(key=lambda j: level_rank[edge_level[j]])
+
+    edge_labels = None
+    if edge_label_by:
+        label_vals = edge_values(edge_label_by) or [None] * len(edges)
+        edge_labels = [None if v is None else str(v) for v in label_vals]
+
+    # Node tooltips: the ID and the label as well, when it differs from the ID, since either may
+    # be drawn under the node, then the node's attributes
+    node_tips = []
+    for raw_nid, nid in zip(node_ids, str_ids):
+        tip = {"id": nid}
+        n_label = graph.get_label_from_id(raw_nid)
+        if n_label is not None and str(n_label) != nid:
+            tip["label"] = n_label
+        node_tips.append({**tip, **node_data.get(raw_nid, {})})
+
+    # Nodes
+    surface = (LIGHT.bg, DARK.bg)
+    node_fill, node_border, node_border_width, node_border_opacity = [], [], [], []
+    for nid in str_ids:
+        light, dark = node_colors.get(nid, (DEFAULT_NODE_COLOR, DEFAULT_NODE_COLOR))
+        border_opacity, border_width = 0.3, 1.5
+        ring = None
+        if node_level:
+            level = node_level[nid]
+            if not color_by:
+                light, dark = ACCENT_COLOR
+            if level is None:
+                light, dark = MUTED_NODE_COLOR
+            elif level == "soft":
+                # A ring of the color around a pale version of it
+                ring = (light, dark)
+                light, dark = _mix(light, surface[0], 0.7), _mix(dark, surface[1], 0.7)
+                border_opacity, border_width = 1.0, 2.0
+        node_fill.append(color((light, dark)))
+        node_border.append(
+            color(ring if ring is not None else (_darken(light, 0.3), _darken(dark, 0.3)))
+        )
+        node_border_width.append(border_width)
+        node_border_opacity.append(border_opacity)
+    node_order = list(range(n))
+    if node_level:
+        node_order.sort(key=lambda k: level_rank[node_level[str_ids[k]]])
+
+    label_color = [
+        color(MUTED_LABEL_COLOR if node_level and node_level[nid] is None else _LABEL_COLORS)
+        for nid in str_ids
+    ]
+
+    index = {nid: k for k, nid in enumerate(str_ids)}
+    return Scene(
+        width=width,
+        height=height,
+        directed=is_directed,
+        curved=curved_edges,
+        viewbox=vb,
+        colors=list(color_index),
+        node_ids=str_ids,
+        node_x=[positions[nid][0] for nid in str_ids],
+        node_y=[positions[nid][1] for nid in str_ids],
+        node_r=[radii.get(nid, node_size) for nid in str_ids],
+        node_fill=node_fill,
+        node_border=node_border,
+        node_border_width=node_border_width,
+        node_border_opacity=node_border_opacity,
+        node_order=node_order,
+        node_tips=_tooltip_rows(node_tips),
+        labels=[label_map[nid] for nid in str_ids] if show_labels else None,
+        label_color=label_color,
+        font_size=max(8, min(13, node_size * 0.7)),
+        edge_src=[index[src] for src, _ in edges],
+        edge_tgt=[index[tgt] for _, tgt in edges],
+        edge_color=edge_color_col,
+        edge_width=edge_width_col,
+        edge_opacity=edge_opacity_col,
+        edge_bow=edge_bows,
+        edge_loop=edge_loop_sizes,
+        edge_route=[edge_routes.get(e) for e in edges],
+        edge_order=edge_order,
+        edge_tips=_tooltip_rows(
+            [{**head, **e_attrs} for head, e_attrs in zip(edge_tip_heads, edge_attrs_list)]
+        ),
+        edge_labels=edge_labels,
+        legend=legend_marks,
+        legend_w=legend_w,
+    )
+
+
+def emit_svg(scene: Scene, colors: "_Colors") -> Tuple[str, str]:
+    """`scene` drawn in the colors of `colors`'s theme: the SVG, and the HTML that shows it with
+    tooltips."""
+    th = colors.theme
+    width, height = scene.width, scene.height
+    if not scene.node_ids:
+        svg = (
+            f'<svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="{height}" '
+            f'viewBox="0 0 {width} {height}">'
+            f'<rect width="100%" height="100%" fill="{th.bg}"/>'
+            f'<text x="{width / 2}" y="{height / 2}" text-anchor="middle" '
+            f'fill="{th.label_color}" font-family="{FONT_FAMILY}" '
+            f'font-size="14">Empty graph</text></svg>'
+        )
+        return svg, svg
+
+    picked = [colors.pick(*pair) for pair in scene.colors]
+    ids, xs, ys, rs = scene.node_ids, scene.node_x, scene.node_y, scene.node_r
+    is_directed, curved_edges = scene.directed, scene.curved
+    edge_labels = scene.edge_labels
+    vb = scene.viewbox
+    vb_str = f"{vb[0]:.1f} {vb[1]:.1f} {vb[2]:.1f} {vb[3]:.1f}"
+
+    svg_parts = []
+    svg_parts.append(
+        f'<svg xmlns="http://www.w3.org/2000/svg" '
+        f'width="{width}" height="{height}" '
+        f'viewBox="{vb_str}" '
+        f'style="font-family: {FONT_FAMILY};">'
+    )
+    svg_parts.append(
+        f'<rect x="{vb[0]:.1f}" y="{vb[1]:.1f}" width="{vb[2]:.1f}" height="{vb[3]:.1f}" fill="{th.bg}"/>'
+    )
+
+    lean = len(ids) > LEAN_MIN or len(scene.edge_src) > LEAN_MIN
+    edge_tip_table = _tooltip_table(scene.edge_tips) if lean else None
+    edge_runs = _StyleRuns(svg_parts)
+    run_groups: Dict[Tuple[str, float, float], Tuple[str, str]] = {}
+
+    # Edges first (painter's algorithm)
+    for i in scene.edge_order:
+        s, t = scene.edge_src[i], scene.edge_tgt[i]
+        src, tgt = ids[s], ids[t]
+        x1, y1, x2, y2 = xs[s], ys[s], xs[t], ys[t]
+        r_src, r_dst = rs[s], rs[t]
+        e_color = picked[scene.edge_color[i]]
+        e_width = scene.edge_width[i]
+        e_opacity = scene.edge_opacity[i]
 
         if edge_tip_table is None:
-            attrs_j, tag = _attrs_json(edge_tips[i]), ""
+            attrs_j, tag = _attrs_json(scene.edge_tips[i]), ""
         else:
             # The edge's row in the table
             attrs_j, tag = None, f' data-e="{i}"'
         eid = f"{src}-{tgt}-{i}"
 
-        bow = edge_bows[i]
+        bow = scene.edge_bow[i]
 
         # In lean SVG, an edge joins the run of edges drawn in its style
-        route = edge_routes.get((src, tgt))
+        route = scene.edge_route[i]
         if lean:
-            if src == tgt:
-                shape = _loop_geometry(x1, y1, r_src, e_width, is_directed, edge_loop_sizes[i])
+            if s == t:
+                shape = _loop_geometry(x1, y1, r_src, e_width, is_directed, scene.edge_loop[i])
             elif curved_edges or abs(bow) > 1e-6:
                 shape = _curved_geometry(
                     x1,
@@ -2593,7 +2790,7 @@ def render_plot(
                         f'<g fill="{e_color}" fill-opacity="{e_opacity}">',
                     )
                 # Curved edges keep their IDs for their labels, which follow them
-                path_id = f' id="path-{eid}"' if curved_edges and edge_label_by else ""
+                path_id = f' id="path-{eid}"' if curved_edges and edge_labels is not None else ""
                 edge_runs.add(
                     groups,
                     f'<path{tag}{path_id} d="{line}"/>',
@@ -2603,7 +2800,7 @@ def render_plot(
         edge_runs.flush()
 
         # Self-loop
-        if src == tgt:
+        if s == t:
             svg_parts.append(
                 _svg_edge_loop(
                     x1,
@@ -2615,7 +2812,7 @@ def render_plot(
                     is_directed,
                     eid,
                     attrs_j,
-                    loop_size=edge_loop_sizes[i],
+                    loop_size=scene.edge_loop[i],
                     tag=tag,
                 )
             )
@@ -2695,23 +2892,21 @@ def render_plot(
     edge_runs.flush()
 
     # Edge labels (stretch goal)
-    if edge_label_by:
-        edge_label_values = edge_values(edge_label_by) or []
+    if edge_labels is not None:
         # Each edge's place among the edges between the same two nodes, numbered as in
         # `_compute_edge_fans()`
         fan_members: Dict[Tuple[str, str], List[int]] = {}
-        for i, (src, tgt) in enumerate(edges):
-            if src != tgt:
+        for i, (s, t) in enumerate(zip(scene.edge_src, scene.edge_tgt)):
+            if s != t:
+                src, tgt = ids[s], ids[t]
                 fan_members.setdefault((min(src, tgt), max(src, tgt)), []).append(i)
         fan_place = {i: (k, m) for m in fan_members.values() for k, i in enumerate(m)}
-        for i, (src, tgt) in enumerate(edges):
-            if src not in positions or tgt not in positions:
-                continue
-            label_val = edge_label_values[i] if i < len(edge_label_values) else None
+        for i, (s, t) in enumerate(zip(scene.edge_src, scene.edge_tgt)):
+            label_val = edge_labels[i]
             if label_val is None:
                 continue
-            x1, y1 = positions[src]
-            x2, y2 = positions[tgt]
+            src, tgt = ids[s], ids[t]
+            x1, y1, x2, y2 = xs[s], ys[s], xs[t], ys[t]
             eid = f"{src}-{tgt}-{i}"
             k, fan = fan_place.get(i, (0, [i]))
 
@@ -2727,9 +2922,8 @@ def render_plot(
                     if d_e > 1e-6:
                         ux_e, uy_e = dx_e / d_e, dy_e / d_e
                         px_e, py_e = -uy_e, ux_e
-                        r_src = radii.get(src, node_size)
-                        r_dst = radii.get(tgt, node_size)
-                        bow_val = 0.2 + edge_bows[i]
+                        r_src, r_dst = rs[s], rs[t]
+                        bow_val = 0.2 + scene.edge_bow[i]
                         cmx = (x1 + x2) / 2 + px_e * d_e * bow_val
                         cmy = (y1 + y2) / 2 + py_e * d_e * bow_val
                         # Reversed: swap start/end
@@ -2754,7 +2948,7 @@ def render_plot(
                     f'<text font-family="{FONT_FAMILY}" font-size="10" '
                     f'fill="{th.label_color}" fill-opacity="0.7" pointer-events="none">'
                     f'<textPath href="#{text_path_ref}" startOffset="50%" text-anchor="middle">'
-                    f"{html_mod.escape(str(label_val))}</textPath></text>"
+                    f"{html_mod.escape(label_val)}</textPath></text>"
                 )
             elif len(fan) >= 3 and math.dist((x1, y1), (x2, y2)) > 1e-6:
                 # Three or more edges between two nodes leave no room beside the inner ones, so
@@ -2765,24 +2959,22 @@ def render_plot(
                 a_x, a_y, b_x, b_y = (x1, y1, x2, y2) if src <= tgt else (x2, y2, x1, y1)
                 dist = math.dist((a_x, a_y), (b_x, b_y))
                 box_w = max(
-                    _text_width(str(edge_label_values[j]), 10)
-                    for j in fan
-                    if j < len(edge_label_values) and edge_label_values[j] is not None
+                    _text_width(edge_labels[j], 10) for j in fan if edge_labels[j] is not None
                 )
                 step = (box_w * abs(b_x - a_x) + 11 * abs(b_y - a_y)) / dist + 3
                 rank = k - (len(fan) - 1) / 2
-                t = 0.5 + rank * min(step / dist, 0.7 / (len(fan) - 1))
+                t_ = 0.5 + rank * min(step / dist, 0.7 / (len(fan) - 1))
                 # The edge's offset from the straight line, on the side of the A-to-B normal
-                v = edge_bows[i] if src <= tgt else -edge_bows[i]
-                bulge = dist * v * 2 * t * (1 - t)
-                mx = a_x + (b_x - a_x) * t - (b_y - a_y) / dist * bulge
-                my = a_y + (b_y - a_y) * t + (b_x - a_x) / dist * bulge
+                v = scene.edge_bow[i] if src <= tgt else -scene.edge_bow[i]
+                bulge = dist * v * 2 * t_ * (1 - t_)
+                mx = a_x + (b_x - a_x) * t_ - (b_y - a_y) / dist * bulge
+                my = a_y + (b_y - a_y) * t_ + (b_x - a_x) / dist * bulge
                 svg_parts.append(
                     f'<text x="{mx:.1f}" y="{my + 3.5:.1f}" text-anchor="middle" '
                     f'font-family="{FONT_FAMILY}" font-size="10" '
                     f'fill="{th.label_color}" fill-opacity="0.7" stroke="{th.bg}" '
                     f'stroke-width="3" stroke-linejoin="round" paint-order="stroke" '
-                    f'pointer-events="none">{html_mod.escape(str(label_val))}</text>'
+                    f'pointer-events="none">{html_mod.escape(label_val)}</text>'
                 )
             else:
                 # Midpoint label, offset perpendicular to the edge. A parallel edge is drawn as a
@@ -2795,7 +2987,7 @@ def render_plot(
                 dist = math.sqrt(dx * dx + dy * dy)
                 if dist > 1e-6:
                     px, py = -dy / dist, dx / dist
-                    bow = edge_bows[i]
+                    bow = scene.edge_bow[i]
                     offset = 8 + dist * abs(bow) / 2 if abs(bow) > 1e-6 else 8
                     if bow < -1e-6:
                         px, py = -px, -py
@@ -2808,48 +3000,19 @@ def render_plot(
                     f'<text x="{mx:.1f}" y="{my:.1f}" text-anchor="{anchor}" '
                     f'font-family="{FONT_FAMILY}" font-size="10" '
                     f'fill="{th.label_color}" fill-opacity="0.7" '
-                    f'pointer-events="none">{html_mod.escape(str(label_val))}</text>'
+                    f'pointer-events="none">{html_mod.escape(label_val)}</text>'
                 )
 
-    # Node tooltips: the ID and the label as well, when it differs from the ID, since either may
-    # be drawn under the node, then the node's attributes
-    node_tips = []
-    for raw_nid, nid in zip(node_ids, str_ids):
-        tip = {"id": nid}
-        n_label = graph.get_label_from_id(raw_nid)
-        if n_label is not None and str(n_label) != nid:
-            tip["label"] = n_label
-        node_tips.append({**tip, **node_data.get(raw_nid, {})})
-    node_tips = dict(zip(str_ids, _tooltip_rows(node_tips)))
-
     # Nodes on top
-    node_order = list(str_ids)
-    if node_level:
-        node_order.sort(key=lambda v: level_rank[node_level[v]])
-    surface = (LIGHT.bg, DARK.bg)
     node_runs = _StyleRuns(svg_parts)
-    for nid in node_order:
-        if nid not in positions:
-            continue
-        x, y = positions[nid]
-        r = radii.get(nid, node_size)
-        light, dark = node_colors.get(nid, (DEFAULT_NODE_COLOR, DEFAULT_NODE_COLOR))
-        border_opacity, border_width = 0.3, 1.5
-        if node_level:
-            level = node_level[nid]
-            if not color_by:
-                light, dark = ACCENT_COLOR
-            if level is None:
-                light, dark = MUTED_NODE_COLOR
-            elif level == "soft":
-                # A ring of the color around a pale version of it
-                ring = colors.pick(light, dark)
-                light, dark = _mix(light, surface[0], 0.7), _mix(dark, surface[1], 0.7)
-                border_opacity, border_width = 1.0, 2.0
-        fill = colors.pick(light, dark)
-        border = colors.pick(_darken(light, 0.3), _darken(dark, 0.3))
-        if node_level and node_level[nid] == "soft":
-            border = ring
+    for k in scene.node_order:
+        nid = ids[k]
+        x, y, r = xs[k], ys[k], rs[k]
+        fill = picked[scene.node_fill[k]]
+        border = picked[scene.node_border[k]]
+        border_width = scene.node_border_width[k]
+        border_opacity = scene.node_border_opacity[k]
+        tip = _attrs_json(scene.node_tips[k])
         if lean:
             node_runs.add(
                 (
@@ -2857,7 +3020,7 @@ def render_plot(
                     f'stroke-opacity="{border_opacity}">',
                 ),
                 f'<circle cx="{x:.1f}" cy="{y:.1f}" r="{r:.1f}" '
-                f"data-node=\"{html_mod.escape(nid)}\" data-attrs='{_attrs_json(node_tips[nid])}'/>",
+                f"data-node=\"{html_mod.escape(nid)}\" data-attrs='{tip}'/>",
             )
             continue
         svg_parts.append(
@@ -2867,7 +3030,7 @@ def render_plot(
                 r,
                 fill,
                 nid,
-                _attrs_json(node_tips[nid]),
+                tip,
                 border_opacity=border_opacity,
                 border=border,
                 border_width=border_width,
@@ -2876,41 +3039,26 @@ def render_plot(
     node_runs.flush()
 
     # Labels
-    if show_labels:
-        font_size = max(8, min(13, node_size * 0.7))
-        muted_label = colors.pick(*MUTED_LABEL_COLOR)
-        for nid in str_ids:
-            if nid not in positions:
-                continue
-            x, y = positions[nid]
-            r = radii.get(nid, node_size)
+    if scene.labels is not None:
+        for k, text in enumerate(scene.labels):
+            svg_parts.append(
+                _svg_label(xs[k], ys[k], rs[k], text, picked[scene.label_color[k]], scene.font_size)
+            )
 
-            text = label_map[nid]
-            color = muted_label if node_level and node_level[nid] is None else th.label_color
-
-            svg_parts.append(_svg_label(x, y, r, text, color, font_size))
-
-    if legend_blocks:
+    if scene.legend:
+        # Viewbox units per pixel
+        unit = vb[3] / height
         svg_parts.append(
             f'<g class="ec-legend" transform="translate('
-            f"{vb[0] + vb[2] - (legend_w - _LEGEND_PAD) * unit:.1f} "
-            f'{vb[1]:.1f}) scale({unit:.4f})">{legend_svg}</g>'
+            f"{vb[0] + vb[2] - (scene.legend_w - _LEGEND_PAD) * unit:.1f} "
+            f'{vb[1]:.1f}) scale({unit:.4f})">{_svg_legend(scene.legend, colors, th)}</g>'
         )
 
     svg_parts.append("</svg>")
     svg_str = "\n".join(svg_parts)
 
     # --- HTML wrapper with hover tooltips ---
-    html_str = _generate_html_wrapper(svg_str, th, width, height, edge_tip_table)
-    if len(html_str) > NOTEBOOK_BYTES_MAX:
-        warnings.warn(
-            f"The plot is {len(html_str) / 1e6:,.0f} MB, past the "
-            f"{NOTEBOOK_BYTES_MAX / 1e6:.0f} MB a notebook output should stay within. Plotting a "
-            "part of the graph, such as what k_core() or ego_graph() returns, makes it smaller",
-            stacklevel=3,
-        )
-
-    return colors.finish(svg_str, html_str, output)
+    return svg_str, _generate_html_wrapper(svg_str, th, width, height, edge_tip_table)
 
 
 # ---------------------------------------------------------------------------
