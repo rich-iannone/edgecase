@@ -5,6 +5,7 @@ mod color;
 mod css;
 mod geometry;
 mod highlight;
+mod palette;
 mod pyfmt;
 mod raster;
 mod svg;
@@ -339,9 +340,11 @@ impl Scene {
     /// one. The image is `scale` pixels to a pixel of the frame. `tone` is how the edges'
     /// density shows: `"over"` as the SVG draws it, `"log"` by its logarithm and `"eq_hist"` by
     /// its rank. `edges` and `nodes` say which are drawn, so that each can be a layer of its
-    /// own. Labels and the legend aren't drawn.
+    /// own. With `palette`, the image is indexed, in at most 256 colors: its own if it has no
+    /// more, otherwise the nearest that the quantizer finds, which makes it two to three times
+    /// smaller. Labels and the legend aren't drawn.
     #[allow(clippy::too_many_arguments)]
-    #[pyo3(signature = (colors, bg=None, scale=2.0, tone="log", edges=true, nodes=true))]
+    #[pyo3(signature = (colors, bg=None, scale=2.0, tone="log", edges=true, nodes=true, palette=false))]
     fn png<'py>(
         &self,
         py: Python<'py>,
@@ -351,6 +354,7 @@ impl Scene {
         tone: &str,
         edges: bool,
         nodes: bool,
+        palette: bool,
     ) -> PyResult<Bound<'py, PyBytes>> {
         check_len(
             "colors",
@@ -382,11 +386,12 @@ impl Scene {
             edges,
             nodes,
         };
-        self.raster(py, &style)
+        self.raster(py, &style, palette)
     }
 
     /// The edges as a PNG mask: white, with the opacity at which `png()` draws them, to be
-    /// tinted with any color, the edges' own in either theme when `edge_tint` is one.
+    /// tinted with any color, the edges' own in either theme when `edge_tint` is one. It is
+    /// indexed, a palette of white at each opacity, which loses nothing.
     #[pyo3(signature = (scale=2.0, tone="log"))]
     fn edge_mask<'py>(
         &self,
@@ -403,7 +408,7 @@ impl Scene {
             edges: true,
             nodes: false,
         };
-        self.raster(py, &style)
+        self.raster(py, &style, true)
     }
 
     /// The index in the color table of the color that every edge has, opaque in both themes,
@@ -450,9 +455,18 @@ impl Scene {
         Ok((width as u32, height as u32))
     }
 
-    fn raster<'py>(&self, py: Python<'py>, style: &raster::Style) -> PyResult<Bound<'py, PyBytes>> {
+    /// The scene drawn in `style`, as PNG, indexed with `palette`
+    fn raster<'py>(
+        &self,
+        py: Python<'py>,
+        style: &raster::Style,
+        palette: bool,
+    ) -> PyResult<Bound<'py, PyBytes>> {
         self.raster_size(style.scale)?;
-        let png = py.allow_threads(|| raster::draw(self, style).png());
+        let png = py.allow_threads(|| {
+            let image = raster::draw(self, style);
+            if palette { image.indexed() } else { image }.png()
+        });
         Ok(PyBytes::new(py, &png))
     }
 }
