@@ -48,11 +48,12 @@ attribute with its type, some keep only the structure, and the rest fall in betw
 | DOT | `from_dot()` | `to_dot()` | everything, as strings | Graphviz, build and compiler tools |
 | TikZ | — | `to_latex()`, `to_latex_raw()` | a drawing | LaTeX documents |
 | Cypher | `from_cypher()` | `to_cypher()` | labels, types, properties | Neo4j, Memgraph |
+| Parquet | `from_parquet()` | `to_parquet()` | everything, plus positions | Polars, pandas, DuckDB, Spark |
 
 Each function takes a path as a string or a `pathlib.Path`. The text formats can also be read from
 a string holding the data itself, and their writers return the text when no path is given. This
-page goes through the formats in families, with an example of each, and ends with the general
-route for tabular files such as CSV and Parquet.
+page goes through the formats in families, with an example of each, and ends with tables of nodes
+and edges: Parquet files, and the general route for CSV files and other tabular formats.
 
 ## A graph to exchange
 
@@ -614,16 +615,50 @@ to and from graph databases such as Neo4j and Memgraph. Both are described in
 
 ## Tables of nodes and edges
 
-Much network data lives in tables rather than in graph formats: CSV files, Parquet files,
-spreadsheets, and databases. Polars reads and writes all of these, so the general route is to go
-through the node and edge tables. [`get_node_df()`](../reference/Graph.get_node_df.qmd) and
-[`get_edge_df()`](../reference/Graph.get_edge_df.qmd) give the tables, which Polars can write in any
-of its formats. Parquet is a good choice, since it is compact and fast, and keeps the column types,
-including lists and structs:
+Much network data lives in tables rather than in graph formats: Parquet files, CSV files,
+spreadsheets, and databases. Parquet, the compact, typed column format that data tools share, has
+a pair of functions of its own. [`to_parquet()`](../reference/to_parquet.qmd) writes a graph as two
+files, a table of its nodes and a table of its edges:
 
 ```{python}
-karate.get_node_df().write_parquet("karate-nodes.parquet")
-karate.get_edge_df().write_parquet("karate-edges.parquet")
+ec.to_parquet(lab, "lab-nodes.parquet", "lab-edges.parquet")
+pl.read_parquet("lab-nodes.parquet")
+```
+
+The columns are plain ones, so the files open as they are in Polars, pandas, DuckDB, Spark, and R.
+Each node has its `id` and `label` and a column per attribute, and the positions that
+`layout_kamada_kawai()` stored in the `pos` attribute, in the LaTeX example above, are in
+`layout_x` and `layout_y` (and `layout_z`, for a 3D layout). Each edge has its `id`, the node IDs
+of its endpoints, its weight, and its attributes:
+
+```{python}
+pl.read_parquet("lab-edges.parquet")
+```
+
+Attributes that a Parquet column can't hold with one type, such as dictionaries or a mix of
+strings and numbers, are written as JSON strings. [`from_parquet()`](../reference/from_parquet.qmd)
+decodes them again, and reads the graph's direction, weighting, and name from the files' metadata,
+so the round trip gives back the same graph, down to its node and edge IDs:
+
+```{python}
+lab2 = ec.from_parquet("lab-nodes.parquet", "lab-edges.parquet")
+lab2.get_node_df().equals(lab.get_node_df()), lab2.get_edge_df().equals(lab.get_edge_df())
+```
+
+`from_parquet()` also reads tables that other tools wrote, when their columns are named the same
+way. An edge table needs `source` and `target` columns, and a node table, if there is one, an `id`
+column that the endpoints refer to. Passing `None` for the node table creates the nodes from the
+edges. Files without EdgeCase's metadata are read as undirected unless `directed=True` is passed,
+and as weighted when the edge table has a numeric `weight` column.
+
+For the other formats, such as CSV files, Arrow IPC files, and databases, the route goes through
+Polars and the node and edge tables. [`get_node_df()`](../reference/Graph.get_node_df.qmd) and
+[`get_edge_df()`](../reference/Graph.get_edge_df.qmd) give the tables, which Polars can write in any
+of its formats:
+
+```{python}
+karate.get_node_df().write_ipc("karate-nodes.arrow")
+karate.get_edge_df().write_ipc("karate-edges.arrow")
 ```
 
 The `Graph` constructor then builds the graph from the tables again (see
@@ -632,8 +667,8 @@ endpoints in columns named `from` and `to`, so the `source` and `target` columns
 the `degree` column, which EdgeCase computes rather than stores, is best dropped:
 
 ```{python}
-nodes = pl.read_parquet("karate-nodes.parquet").drop("degree")
-edges = pl.read_parquet("karate-edges.parquet").rename({"source": "from", "target": "to"})
+nodes = pl.read_ipc("karate-nodes.arrow").drop("degree")
+edges = pl.read_ipc("karate-edges.arrow").rename({"source": "from", "target": "to"})
 
 restored = ec.Graph(nodes_df=nodes, edges_df=edges)
 same_nodes = restored.get_node_df().equals(karate.get_node_df())
@@ -665,7 +700,8 @@ choice is open:
 | Draw it with D3.js or another web library | node-link JSON |
 | Draw it with Graphviz | DOT |
 | Put a figure in a LaTeX document | `to_latex()` |
-| Store it compactly, with all attributes and types | Parquet node and edge tables |
+| Store it compactly, with all attributes and types | Parquet, with `to_parquet()` |
+| Query it with Polars, pandas, DuckDB, or Spark | Parquet, with `to_parquet()` |
 | Share the edges with any program or spreadsheet | a TSV edge list |
 | Catalog many small unlabelled graphs | graph6 or sparse6 |
 | Load it into a graph database | Cypher |
