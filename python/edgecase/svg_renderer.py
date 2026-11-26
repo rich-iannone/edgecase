@@ -14,6 +14,7 @@ import math
 import random
 import re
 import sys
+import warnings
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, Union
@@ -1227,6 +1228,51 @@ def _svg_edge_hit_area(geometry: str, width: float, edge_id: str, attrs_json: st
     )
 
 
+def _straight_geometry(
+    x1: float,
+    y1: float,
+    x2: float,
+    y2: float,
+    r_src: float,
+    r_dst: float,
+    width: float,
+    directed: bool,
+) -> Optional[Tuple[float, float, float, float, float, float, Optional[Tuple[float, ...]]]]:
+    """A straight edge's line, trimmed to the node borders and short of its arrowhead, as
+    `(sx, sy, ex_line, ey_line, ex, ey, head)`. `(ex, ey)` is where the edge meets the target, and
+    `head` the arrowhead's other two corners `(p1x, p1y, p2x, p2y)`, or `None` for an undirected
+    edge. `None` for an edge whose ends are at one point."""
+    dx = x2 - x1
+    dy = y2 - y1
+    dist = math.sqrt(dx * dx + dy * dy)
+    if dist < 1e-6:
+        return None
+
+    ux, uy = dx / dist, dy / dist
+
+    # Trim endpoints to node borders
+    sx = x1 + ux * r_src
+    sy = y1 + uy * r_src
+    ex = x2 - ux * r_dst
+    ey = y2 - uy * r_dst
+
+    if not directed:
+        return sx, sy, ex, ey, ex, ey, None
+
+    # Arrowhead scales with edge width
+    arrow_scale = max(width / 1.2, 0.6)
+    head_len = 8.0 * arrow_scale
+    head_wid = 5.0 * arrow_scale
+    bx = ex - ux * head_len
+    by = ey - uy * head_len
+    ppx, ppy = -uy, ux
+    p1x = bx + ppx * head_wid / 2
+    p1y = by + ppy * head_wid / 2
+    p2x = bx - ppx * head_wid / 2
+    p2y = by - ppy * head_wid / 2
+    return sx, sy, bx, by, ex, ey, (p1x, p1y, p2x, p2y)
+
+
 def _svg_edge_straight(
     x1: float,
     y1: float,
@@ -1247,41 +1293,14 @@ def _svg_edge_straight(
     With `attrs_json`, the edge gets a hit area carrying it (see `_svg_edge_hit_area()`). `tag`
     is attributes for the element drawn (e.g., `' data-e="3"'`), the same for each primitive.
     """
-    dx = x2 - x1
-    dy = y2 - y1
-    dist = math.sqrt(dx * dx + dy * dy)
-    if dist < 1e-6:
+    geometry = _straight_geometry(x1, y1, x2, y2, r_src, r_dst, width, directed)
+    if geometry is None:
         return ""
-
-    ux, uy = dx / dist, dy / dist
-
-    # Trim endpoints to node borders
-    sx = x1 + ux * r_src
-    sy = y1 + uy * r_src
-    ex = x2 - ux * r_dst
-    ey = y2 - uy * r_dst
+    sx, sy, ex_line, ey_line, ex, ey, head = geometry
 
     parts = []
-
-    # Arrowhead scales with edge width
-    arrow_scale = max(width / 1.2, 0.6)
-    head_len = 8.0 * arrow_scale
-    head_wid = 5.0 * arrow_scale
-    if directed:
-        ex_line = ex - ux * head_len
-        ey_line = ey - uy * head_len
-    else:
-        ex_line = ex
-        ey_line = ey
-
-    if directed:
-        bx = ex - ux * head_len
-        by = ey - uy * head_len
-        ppx, ppy = -uy, ux
-        p1x = bx + ppx * head_wid / 2
-        p1y = by + ppy * head_wid / 2
-        p2x = bx - ppx * head_wid / 2
-        p2y = by - ppy * head_wid / 2
+    if head is not None:
+        p1x, p1y, p2x, p2y = head
         parts.append(
             f'<g{tag} opacity="{opacity}">'
             f'<line x1="{sx:.1f}" y1="{sy:.1f}" x2="{ex_line:.1f}" y2="{ey_line:.1f}" '
@@ -1310,6 +1329,33 @@ def _svg_edge_straight(
     return "\n".join(parts)
 
 
+def _routed_head(
+    waypoints: List[Tuple[float, float]], r_dst: float, width: float
+) -> Optional[Tuple[float, ...]]:
+    """The arrowhead of a routed edge, as `(ex, ey, bx, by, p1x, p1y, p2x, p2y)`: its tip at the
+    target's border, the middle of its base (where the path stops) and the other two corners.
+    `None` when the last leg of the route has no length."""
+    arrow_scale = max(width / 1.2, 0.6)
+    head_len = 8.0 * arrow_scale
+    head_wid = 5.0 * arrow_scale
+    dx = waypoints[-1][0] - waypoints[-2][0]
+    dy = waypoints[-1][1] - waypoints[-2][1]
+    d = math.sqrt(dx * dx + dy * dy)
+    if d <= 1e-6:
+        return None
+    ux, uy = dx / d, dy / d
+    ex = waypoints[-1][0] - ux * r_dst
+    ey = waypoints[-1][1] - uy * r_dst
+    bx = ex - ux * head_len
+    by = ey - uy * head_len
+    ppx, ppy = -uy, ux
+    p1x = bx + ppx * head_wid / 2
+    p1y = by + ppy * head_wid / 2
+    p2x = bx - ppx * head_wid / 2
+    p2y = by - ppy * head_wid / 2
+    return ex, ey, bx, by, p1x, p1y, p2x, p2y
+
+
 def _svg_edge_routed(
     waypoints: List[Tuple[float, float]],
     r_src: float,
@@ -1333,26 +1379,11 @@ def _svg_edge_routed(
         if attrs_json is not None
         else None
     )
-    arrow_scale = max(width / 1.2, 0.6)
-    head_len = 8.0 * arrow_scale
-    head_wid = 5.0 * arrow_scale
 
     if directed:
-        pts = list(waypoints)
-        dx = pts[-1][0] - pts[-2][0]
-        dy = pts[-1][1] - pts[-2][1]
-        d = math.sqrt(dx * dx + dy * dy)
-        if d > 1e-6:
-            ux, uy = dx / d, dy / d
-            ex = pts[-1][0] - ux * r_dst
-            ey = pts[-1][1] - uy * r_dst
-            bx = ex - ux * head_len
-            by = ey - uy * head_len
-            ppx, ppy = -uy, ux
-            p1x = bx + ppx * head_wid / 2
-            p1y = by + ppy * head_wid / 2
-            p2x = bx - ppx * head_wid / 2
-            p2y = by - ppy * head_wid / 2
+        head = _routed_head(waypoints, r_dst, width)
+        if head is not None:
+            ex, ey, bx, by, p1x, p1y, p2x, p2y = head
             # Trim path to stop before arrowhead
             trim_pts = list(waypoints)
             trim_pts[-1] = (bx, by)
@@ -1400,11 +1431,62 @@ def _svg_edge_curved(
     tag: str = "",
 ) -> str:
     """Render a curved edge (quadratic Bezier) with optional arrowhead."""
+    geometry = _curved_geometry(x1, y1, x2, y2, r_src, r_dst, width, directed, bow)
+    if geometry is None:
+        return ""
+    path_d, head = geometry
+
+    parts = []
+    path_id = f"path-{edge_id}"
+
+    if directed:
+        arrow_svg = ""
+        if head is not None:
+            ex, ey, p1x, p1y, p2x, p2y = head
+            arrow_svg = (
+                f'<polygon points="{ex:.1f},{ey:.1f} {p1x:.1f},{p1y:.1f} {p2x:.1f},{p2y:.1f}" '
+                f'fill="{color}"/>'
+            )
+        parts.append(
+            f'<g{tag} opacity="{opacity}">'
+            f'<path id="{path_id}" d="{path_d}" '
+            f'fill="none" stroke="{color}" stroke-width="{width}" '
+            f'stroke-linecap="round"/>'
+            f"{arrow_svg}</g>"
+        )
+    else:
+        parts.append(
+            f'<path{tag} id="{path_id}" '
+            f'd="{path_d}" '
+            f'fill="none" stroke="{color}" stroke-width="{width}" stroke-opacity="{opacity}" '
+            f'stroke-linecap="round"/>'
+        )
+    if attrs_json is not None:
+        parts.append(_svg_edge_hit_area(f'path d="{path_d}"', width, edge_id, attrs_json))
+
+    return "\n".join(parts)
+
+
+def _curved_geometry(
+    x1: float,
+    y1: float,
+    x2: float,
+    y2: float,
+    r_src: float,
+    r_dst: float,
+    width: float,
+    directed: bool,
+    bow: float,
+) -> Optional[Tuple[str, Optional[Tuple[float, ...]]]]:
+    """A curved edge (a quadratic Bezier bowed by `bow` of its length), trimmed to the node
+    borders, as `(d, head)`: the path's `d`, and the arrowhead as `(ex, ey, p1x, p1y, p2x, p2y)`,
+    its tip and other two corners, or `None` for none. `None` for an edge whose ends are at one
+    point."""
     dx = x2 - x1
     dy = y2 - y1
     dist = math.sqrt(dx * dx + dy * dy)
     if dist < 1e-6:
-        return ""
+        return None
 
     ux, uy = dx / dist, dy / dist
     # Perpendicular
@@ -1435,56 +1517,27 @@ def _svg_edge_curved(
         ey = y2 - tey * r_dst
     else:
         ex, ey = x2, y2
+    path_d = f"M {sx:.1f} {sy:.1f} Q {mx:.1f} {my:.1f} {ex:.1f} {ey:.1f}"
+    if not directed:
+        return path_d, None
 
-    parts = []
-    path_id = f"path-{edge_id}"
-
-    if directed:
-        # Arrowhead pointing along curve tangent at t=1
-        tx = 2 * (ex - mx)
-        ty = 2 * (ey - my)
-        t_len = math.sqrt(tx * tx + ty * ty)
-        arrow_svg = ""
-        if t_len > 1e-6:
-            tux, tuy = tx / t_len, ty / t_len
-            arrow_scale = max(width / 1.2, 0.6)
-            head_len, head_wid = 8.0 * arrow_scale, 5.0 * arrow_scale
-            bx = ex - tux * head_len
-            by = ey - tuy * head_len
-            ppx, ppy = -tuy, tux
-            p1x = bx + ppx * head_wid / 2
-            p1y = by + ppy * head_wid / 2
-            p2x = bx - ppx * head_wid / 2
-            p2y = by - ppy * head_wid / 2
-            arrow_svg = (
-                f'<polygon points="{ex:.1f},{ey:.1f} {p1x:.1f},{p1y:.1f} {p2x:.1f},{p2y:.1f}" '
-                f'fill="{color}"/>'
-            )
-        parts.append(
-            f'<g{tag} opacity="{opacity}">'
-            f'<path id="{path_id}" d="M {sx:.1f} {sy:.1f} Q {mx:.1f} {my:.1f} {ex:.1f} {ey:.1f}" '
-            f'fill="none" stroke="{color}" stroke-width="{width}" '
-            f'stroke-linecap="round"/>'
-            f"{arrow_svg}</g>"
-        )
-    else:
-        parts.append(
-            f'<path{tag} id="{path_id}" '
-            f'd="M {sx:.1f} {sy:.1f} Q {mx:.1f} {my:.1f} {ex:.1f} {ey:.1f}" '
-            f'fill="none" stroke="{color}" stroke-width="{width}" stroke-opacity="{opacity}" '
-            f'stroke-linecap="round"/>'
-        )
-    if attrs_json is not None:
-        parts.append(
-            _svg_edge_hit_area(
-                f'path d="M {sx:.1f} {sy:.1f} Q {mx:.1f} {my:.1f} {ex:.1f} {ey:.1f}"',
-                width,
-                edge_id,
-                attrs_json,
-            )
-        )
-
-    return "\n".join(parts)
+    # Arrowhead pointing along curve tangent at t=1
+    tx = 2 * (ex - mx)
+    ty = 2 * (ey - my)
+    t_len = math.sqrt(tx * tx + ty * ty)
+    if t_len <= 1e-6:
+        return path_d, None
+    tux, tuy = tx / t_len, ty / t_len
+    arrow_scale = max(width / 1.2, 0.6)
+    head_len, head_wid = 8.0 * arrow_scale, 5.0 * arrow_scale
+    bx = ex - tux * head_len
+    by = ey - tuy * head_len
+    ppx, ppy = -tuy, tux
+    p1x = bx + ppx * head_wid / 2
+    p1y = by + ppy * head_wid / 2
+    p2x = bx - ppx * head_wid / 2
+    p2y = by - ppy * head_wid / 2
+    return path_d, (ex, ey, p1x, p1y, p2x, p2y)
 
 
 def _svg_edge_loop(
@@ -1501,6 +1554,40 @@ def _svg_edge_loop(
     tag: str = "",
 ) -> str:
     """Render a self-loop as a circular arc above the node."""
+    path_d, head = _loop_geometry(x, y, r, width, directed, loop_size)
+
+    parts = []
+    path_id = f"path-{edge_id}"
+    if directed:
+        arrow_svg = ""
+        if head is not None:
+            ex, ey, p1x, p1y, p2x, p2y = head
+            arrow_svg = (
+                f'<polygon points="{ex:.1f},{ey:.1f} {p1x:.1f},{p1y:.1f} {p2x:.1f},{p2y:.1f}" '
+                f'fill="{color}"/>'
+            )
+        parts.append(
+            f'<g{tag} opacity="{opacity}">'
+            f'<path id="{path_id}" d="{path_d}" '
+            f'fill="none" stroke="{color}" stroke-width="{width}" '
+            f'stroke-linecap="round"/>'
+            f"{arrow_svg}</g>"
+        )
+    else:
+        parts.append(
+            f'<path{tag} id="{path_id}" d="{path_d}" '
+            f'fill="none" stroke="{color}" stroke-width="{width}" stroke-opacity="{opacity}" '
+            f'stroke-linecap="round"/>'
+        )
+    if attrs_json is not None:
+        parts.append(_svg_edge_hit_area(f'path d="{path_d}"', width, edge_id, attrs_json))
+    return "\n".join(parts)
+
+
+def _loop_geometry(
+    x: float, y: float, r: float, width: float, directed: bool, loop_size: float
+) -> Tuple[str, Optional[Tuple[float, ...]]]:
+    """A self-loop above its node, as `(d, head)`, as `_curved_geometry()` gives them."""
     lr = r * 1.2 * loop_size
     # Arc center above the node
     cx_arc = x
@@ -1528,46 +1615,26 @@ def _svg_edge_loop(
         f"C {c1x:.1f} {c1y:.1f} {c2x:.1f} {c2y:.1f} {cx_arc:.1f} {cy_arc - lr * 0.2:.1f} "
         f"C {c3x:.1f} {c3y:.1f} {c4x:.1f} {c4y:.1f} {ex:.1f} {ey:.1f}"
     )
+    if not directed:
+        return path_d, None
 
-    parts = []
-    path_id = f"path-{edge_id}"
-    if directed:
-        # Arrowhead tangent at the end of the curve
-        tan_x = ex - c4x
-        tan_y = ey - c4y
-        t_len = math.sqrt(tan_x * tan_x + tan_y * tan_y)
-        arrow_svg = ""
-        if t_len > 1e-6:
-            tux, tuy = tan_x / t_len, tan_y / t_len
-            arrow_scale = max(width / 1.2, 0.6)
-            head_len, head_wid = 8.0 * arrow_scale, 5.0 * arrow_scale
-            bx = ex - tux * head_len
-            by = ey - tuy * head_len
-            ppx, ppy = -tuy, tux
-            p1x = bx + ppx * head_wid / 2
-            p1y = by + ppy * head_wid / 2
-            p2x = bx - ppx * head_wid / 2
-            p2y = by - ppy * head_wid / 2
-            arrow_svg = (
-                f'<polygon points="{ex:.1f},{ey:.1f} {p1x:.1f},{p1y:.1f} {p2x:.1f},{p2y:.1f}" '
-                f'fill="{color}"/>'
-            )
-        parts.append(
-            f'<g{tag} opacity="{opacity}">'
-            f'<path id="{path_id}" d="{path_d}" '
-            f'fill="none" stroke="{color}" stroke-width="{width}" '
-            f'stroke-linecap="round"/>'
-            f"{arrow_svg}</g>"
-        )
-    else:
-        parts.append(
-            f'<path{tag} id="{path_id}" d="{path_d}" '
-            f'fill="none" stroke="{color}" stroke-width="{width}" stroke-opacity="{opacity}" '
-            f'stroke-linecap="round"/>'
-        )
-    if attrs_json is not None:
-        parts.append(_svg_edge_hit_area(f'path d="{path_d}"', width, edge_id, attrs_json))
-    return "\n".join(parts)
+    # Arrowhead tangent at the end of the curve
+    tan_x = ex - c4x
+    tan_y = ey - c4y
+    t_len = math.sqrt(tan_x * tan_x + tan_y * tan_y)
+    if t_len <= 1e-6:
+        return path_d, None
+    tux, tuy = tan_x / t_len, tan_y / t_len
+    arrow_scale = max(width / 1.2, 0.6)
+    head_len, head_wid = 8.0 * arrow_scale, 5.0 * arrow_scale
+    bx = ex - tux * head_len
+    by = ey - tuy * head_len
+    ppx, ppy = -tuy, tux
+    p1x = bx + ppx * head_wid / 2
+    p1y = by + ppy * head_wid / 2
+    p2x = bx - ppx * head_wid / 2
+    p2y = by - ppy * head_wid / 2
+    return path_d, (ex, ey, p1x, p1y, p2x, p2y)
 
 
 def _svg_node(
@@ -1894,7 +1961,87 @@ def _tooltip_table(rows: List[Dict[str, Any]]) -> str:
 # Above this many edges, edges are hovered as drawn, with no wider invisible copy, and their
 # tooltips come from one table rather than each edge's markup. The copies would be about half of
 # the output, and that many of them make hovering slow
-EDGE_HIT_AREAS_MAX = 2000
+# Above this many nodes or edges, `plot()` writes lean SVG: no hit areas around the edges, the
+# edges' tooltips in one table (see `_tooltip_table()`), and elements gathered into groups that
+# carry their style (see `_StyleRuns`)
+LEAN_MIN = 2000
+# With `edge_routing="auto"`, edges are routed while all the routes have no more waypoints than
+# this, about 2 MB of paths. A crowded drawing bends each edge around many nodes, which reads
+# poorly as well as being large, so it gets straight edges
+ROUTE_WAYPOINTS_MAX = 50_000
+# The budget for a plot's HTML in a notebook. Past it, `plot()` says so
+NOTEBOOK_BYTES_MAX = 10_000_000
+# The most that `plot()` writes. A graph whose lean SVG would surely be larger is refused before
+# any work is done, from the fewest bytes a node and an edge take in it
+PLOT_BYTES_MAX = 200_000_000
+_LEAN_NODE_BYTES = 60
+_LEAN_EDGE_BYTES = 40
+
+
+class _StyleRuns:
+    """Elements of lean SVG, gathered into groups that carry their style. Each run of consecutive
+    elements with the same style is one group, or one group per layer (an edge's line and its
+    arrowhead), and its elements inherit the style from it."""
+
+    def __init__(self, out: List[str]) -> None:
+        self.out = out
+        self.groups: Tuple[str, ...] = ()
+        self.layers: List[List[str]] = []
+
+    def add(self, groups: Tuple[str, ...], *elements: Optional[str]) -> None:
+        """Add an element to each layer (`None` for none), `groups` being the layers' opening
+        tags."""
+        if groups != self.groups:
+            self.flush()
+            self.groups = groups
+            self.layers = [[] for _ in groups]
+        for layer, element in zip(self.layers, elements):
+            if element is not None:
+                layer.append(element)
+
+    def flush(self) -> None:
+        """Write out the run so far, so that what follows is drawn over it."""
+        for group, layer in zip(self.groups, self.layers):
+            if layer:
+                self.out.append(group)
+                self.out.extend(layer)
+                self.out.append("</g>")
+        self.groups, self.layers = (), []
+
+
+def _head_d(head: Tuple[float, ...]) -> str:
+    """The `d` of an arrowhead in lean SVG, from its tip and other two corners."""
+    ex, ey, p1x, p1y, p2x, p2y = head
+    return f"M{ex:.1f} {ey:.1f}L{p1x:.1f} {p1y:.1f}L{p2x:.1f} {p2y:.1f}Z"
+
+
+def _lean_line(
+    route: Optional[List[Tuple[float, float]]],
+    x1: float,
+    y1: float,
+    x2: float,
+    y2: float,
+    r_src: float,
+    r_dst: float,
+    width: float,
+    directed: bool,
+) -> Optional[Tuple[str, Optional[Tuple[float, ...]]]]:
+    """A straight or routed edge, drawn as `_svg_edge_straight()` and `_svg_edge_routed()` draw
+    it, as `(d, head)`, as `_curved_geometry()` gives them."""
+    if route is not None:
+        head = _routed_head(route, r_dst, width) if directed else None
+        if head is None:
+            return _waypoints_to_svg_path(route, r_src, r_dst), None
+        ex, ey, bx, by, p1x, p1y, p2x, p2y = head
+        trim_pts = list(route)
+        trim_pts[-1] = (bx, by)
+        return _waypoints_to_svg_path(trim_pts, r_src, 0), (ex, ey, p1x, p1y, p2x, p2y)
+    geometry = _straight_geometry(x1, y1, x2, y2, r_src, r_dst, width, directed)
+    if geometry is None:
+        return None
+    sx, sy, lx, ly, ex, ey, corners = geometry
+    line = f"M{sx:.1f} {sy:.1f}L{lx:.1f} {ly:.1f}"
+    return line, None if corners is None else (ex, ey, *corners)
 
 
 def render_plot(
@@ -1915,7 +2062,7 @@ def render_plot(
     edge_opacity: float = 0.4,
     cross_community_color: Optional[str] = None,
     node_overlap: Union[str, float] = "remove",
-    edge_routing: Union[str, float] = "around",
+    edge_routing: Union[str, float] = "auto",
     show_labels: bool = True,
     output: Optional[str] = None,
     seed: Optional[int] = None,
@@ -1929,6 +2076,11 @@ def render_plot(
     """Render a graph as a static SVG wrapped in a StepPlayer."""
 
     _check_style(layout, theme, stored_ok=True)
+    if isinstance(edge_routing, str) and edge_routing not in ("auto", "around", "straight"):
+        raise ValueError(
+            f"Unknown edge_routing {edge_routing!r}; use 'auto', 'around', 'straight' or a "
+            "clearance in pixels"
+        )
     if color_scale is not None and color_scale not in COLOR_SCALES:
         raise ValueError(
             f"Unknown color_scale {color_scale!r}; use one of "
@@ -1955,6 +2107,14 @@ def render_plot(
         return colors.finish(svg, svg, output)
 
     n = len(node_ids)
+    n_edges = graph.count_edges()
+    least = n * _LEAN_NODE_BYTES + n_edges * _LEAN_EDGE_BYTES
+    if least > PLOT_BYTES_MAX:
+        raise ValueError(
+            f"plot() would write at least {least / 1e6:,.0f} MB for {n:,} nodes and "
+            f"{n_edges:,} edges, past its limit of {PLOT_BYTES_MAX / 1e6:.0f} MB. Plot a part "
+            "of the graph instead, such as what k_core(), ego_graph() or subgraph() returns"
+        )
     if edge_width == 1.2:
         edge_width = max(0.5, 3.0 - n * 0.06) if n < 40 else max(0.5, 1.2 - (n - 40) * 0.002)
     edge_width = max(edge_width, 0.5)
@@ -2321,8 +2481,11 @@ def render_plot(
             [radii.get(nid, 5.0) for nid in str_ids],
             [(index[src], index[tgt]) for src, tgt in pairs],
             margin=route_margin,
+            max_waypoints=ROUTE_WAYPOINTS_MAX if edge_routing == "auto" else None,
         )
-        edge_routes = {pair: route for pair, route in zip(pairs, routes) if route is not None}
+        # None when the routes would bend too much for "auto"
+        if routes is not None:
+            edge_routes = {pair: route for pair, route in zip(pairs, routes) if route is not None}
 
     # Compute fan-out bows for parallel / reciprocal edges
     edge_bows, edge_loop_sizes = _compute_edge_fans(edges)
@@ -2330,7 +2493,10 @@ def render_plot(
     edge_tips = _tooltip_rows(
         [{**head, **e_attrs} for head, e_attrs in zip(edge_tip_heads, edge_attrs_list)]
     )
-    edge_tip_table = _tooltip_table(edge_tips) if len(edges) > EDGE_HIT_AREAS_MAX else None
+    lean = n > LEAN_MIN or len(edges) > LEAN_MIN
+    edge_tip_table = _tooltip_table(edge_tips) if lean else None
+    edge_runs = _StyleRuns(svg_parts)
+    run_groups: Dict[Tuple[str, float, float], Tuple[str, str]] = {}
 
     # Highlighted elements are drawn over the muted ones, and accent over soft
     level_rank = {None: 0, "soft": 1, "accent": 2}
@@ -2397,6 +2563,45 @@ def render_plot(
 
         bow = edge_bows[i]
 
+        # In lean SVG, an edge joins the run of edges drawn in its style
+        route = edge_routes.get((src, tgt))
+        if lean:
+            if src == tgt:
+                shape = _loop_geometry(x1, y1, r_src, e_width, is_directed, edge_loop_sizes[i])
+            elif curved_edges or abs(bow) > 1e-6:
+                shape = _curved_geometry(
+                    x1,
+                    y1,
+                    x2,
+                    y2,
+                    r_src,
+                    r_dst,
+                    e_width,
+                    is_directed,
+                    0.2 + bow if curved_edges else bow,
+                )
+            else:
+                shape = _lean_line(route, x1, y1, x2, y2, r_src, r_dst, e_width, is_directed)
+            if shape is not None:
+                line, head = shape
+                style = (e_color, e_width, e_opacity)
+                groups = run_groups.get(style)
+                if groups is None:
+                    groups = run_groups[style] = (
+                        f'<g fill="none" stroke="{e_color}" stroke-width="{e_width}" '
+                        f'stroke-opacity="{e_opacity}" stroke-linecap="round">',
+                        f'<g fill="{e_color}" fill-opacity="{e_opacity}">',
+                    )
+                # Curved edges keep their IDs for their labels, which follow them
+                path_id = f' id="path-{eid}"' if curved_edges and edge_label_by else ""
+                edge_runs.add(
+                    groups,
+                    f'<path{tag}{path_id} d="{line}"/>',
+                    None if head is None else f'<path{tag} d="{_head_d(head)}"/>',
+                )
+            continue
+        edge_runs.flush()
+
         # Self-loop
         if src == tgt:
             svg_parts.append(
@@ -2416,7 +2621,6 @@ def render_plot(
             )
             continue
 
-        route = edge_routes.get((src, tgt))
         if curved_edges:
             svg_parts.append(
                 _svg_edge_curved(
@@ -2488,6 +2692,7 @@ def render_plot(
                     tag=tag,
                 )
             )
+    edge_runs.flush()
 
     # Edge labels (stretch goal)
     if edge_label_by:
@@ -2622,6 +2827,7 @@ def render_plot(
     if node_level:
         node_order.sort(key=lambda v: level_rank[node_level[v]])
     surface = (LIGHT.bg, DARK.bg)
+    node_runs = _StyleRuns(svg_parts)
     for nid in node_order:
         if nid not in positions:
             continue
@@ -2644,6 +2850,16 @@ def render_plot(
         border = colors.pick(_darken(light, 0.3), _darken(dark, 0.3))
         if node_level and node_level[nid] == "soft":
             border = ring
+        if lean:
+            node_runs.add(
+                (
+                    f'<g fill="{fill}" stroke="{border}" stroke-width="{border_width:g}" '
+                    f'stroke-opacity="{border_opacity}">',
+                ),
+                f'<circle cx="{x:.1f}" cy="{y:.1f}" r="{r:.1f}" '
+                f"data-node=\"{html_mod.escape(nid)}\" data-attrs='{_attrs_json(node_tips[nid])}'/>",
+            )
+            continue
         svg_parts.append(
             _svg_node(
                 x,
@@ -2657,6 +2873,7 @@ def render_plot(
                 border_width=border_width,
             )
         )
+    node_runs.flush()
 
     # Labels
     if show_labels:
@@ -2685,6 +2902,13 @@ def render_plot(
 
     # --- HTML wrapper with hover tooltips ---
     html_str = _generate_html_wrapper(svg_str, th, width, height, edge_tip_table)
+    if len(html_str) > NOTEBOOK_BYTES_MAX:
+        warnings.warn(
+            f"The plot is {len(html_str) / 1e6:,.0f} MB, past the "
+            f"{NOTEBOOK_BYTES_MAX / 1e6:.0f} MB a notebook output should stay within. Plotting a "
+            "part of the graph, such as what k_core() or ego_graph() returns, makes it smaller",
+            stacklevel=3,
+        )
 
     return colors.finish(svg_str, html_str, output)
 
