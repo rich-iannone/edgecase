@@ -1239,9 +1239,14 @@ def _svg_edge_straight(
     opacity: float,
     directed: bool,
     edge_id: str,
-    attrs_json: str,
+    attrs_json: Optional[str],
+    tag: str = "",
 ) -> str:
-    """Render a straight edge with endpoint trimming and optional arrowhead."""
+    """Render a straight edge with endpoint trimming and optional arrowhead.
+
+    With `attrs_json`, the edge gets a hit area carrying it (see `_svg_edge_hit_area()`). `tag`
+    is attributes for the element drawn (e.g., `' data-e="3"'`), the same for each primitive.
+    """
     dx = x2 - x1
     dy = y2 - y1
     dist = math.sqrt(dx * dx + dy * dy)
@@ -1278,7 +1283,7 @@ def _svg_edge_straight(
         p2x = bx - ppx * head_wid / 2
         p2y = by - ppy * head_wid / 2
         parts.append(
-            f'<g opacity="{opacity}">'
+            f'<g{tag} opacity="{opacity}">'
             f'<line x1="{sx:.1f}" y1="{sy:.1f}" x2="{ex_line:.1f}" y2="{ey_line:.1f}" '
             f'stroke="{color}" stroke-width="{width}" '
             f'stroke-linecap="round"/>'
@@ -1288,18 +1293,19 @@ def _svg_edge_straight(
         )
     else:
         parts.append(
-            f'<line x1="{sx:.1f}" y1="{sy:.1f}" x2="{ex_line:.1f}" y2="{ey_line:.1f}" '
+            f'<line{tag} x1="{sx:.1f}" y1="{sy:.1f}" x2="{ex_line:.1f}" y2="{ey_line:.1f}" '
             f'stroke="{color}" stroke-width="{width}" stroke-opacity="{opacity}" '
             f'stroke-linecap="round"/>'
         )
-    parts.append(
-        _svg_edge_hit_area(
-            f'line x1="{sx:.1f}" y1="{sy:.1f}" x2="{ex:.1f}" y2="{ey:.1f}"',
-            width,
-            edge_id,
-            attrs_json,
+    if attrs_json is not None:
+        parts.append(
+            _svg_edge_hit_area(
+                f'line x1="{sx:.1f}" y1="{sy:.1f}" x2="{ex:.1f}" y2="{ey:.1f}"',
+                width,
+                edge_id,
+                attrs_json,
+            )
         )
-    )
 
     return "\n".join(parts)
 
@@ -1313,7 +1319,8 @@ def _svg_edge_routed(
     opacity: float,
     directed: bool,
     edge_id: str,
-    attrs_json: str,
+    attrs_json: Optional[str],
+    tag: str = "",
 ) -> str:
     """Render a routed edge as a smooth bezier path through waypoints."""
     path_d = _waypoints_to_svg_path(waypoints, r_src, r_dst)
@@ -1321,7 +1328,11 @@ def _svg_edge_routed(
         return ""
 
     parts = []
-    hit_area = _svg_edge_hit_area(f'path d="{path_d}"', width, edge_id, attrs_json)
+    hit_area = (
+        _svg_edge_hit_area(f'path d="{path_d}"', width, edge_id, attrs_json)
+        if attrs_json is not None
+        else None
+    )
     arrow_scale = max(width / 1.2, 0.6)
     head_len = 8.0 * arrow_scale
     head_wid = 5.0 * arrow_scale
@@ -1347,7 +1358,7 @@ def _svg_edge_routed(
             trim_pts[-1] = (bx, by)
             path_d = _waypoints_to_svg_path(trim_pts, r_src, 0)
             parts.append(
-                f'<g opacity="{opacity}">'
+                f'<g{tag} opacity="{opacity}">'
                 f'<path d="{path_d}" fill="none" stroke="{color}" '
                 f'stroke-width="{width}" stroke-linecap="round"/>'
                 f'<polygon points="{ex:.1f},{ey:.1f} {p1x:.1f},{p1y:.1f} {p2x:.1f},{p2y:.1f}" '
@@ -1356,17 +1367,18 @@ def _svg_edge_routed(
             )
         else:
             parts.append(
-                f'<path d="{path_d}" fill="none" stroke="{color}" '
+                f'<path{tag} d="{path_d}" fill="none" stroke="{color}" '
                 f'stroke-width="{width}" stroke-opacity="{opacity}" '
                 f'stroke-linecap="round"/>'
             )
     else:
         parts.append(
-            f'<path d="{path_d}" fill="none" stroke="{color}" '
+            f'<path{tag} d="{path_d}" fill="none" stroke="{color}" '
             f'stroke-width="{width}" stroke-opacity="{opacity}" '
             f'stroke-linecap="round"/>'
         )
-    parts.append(hit_area)
+    if hit_area is not None:
+        parts.append(hit_area)
 
     return "\n".join(parts)
 
@@ -1383,8 +1395,9 @@ def _svg_edge_curved(
     opacity: float,
     directed: bool,
     edge_id: str,
-    attrs_json: str,
+    attrs_json: Optional[str],
     bow: float = 0.2,
+    tag: str = "",
 ) -> str:
     """Render a curved edge (quadratic Bezier) with optional arrowhead."""
     dx = x2 - x1
@@ -1448,7 +1461,7 @@ def _svg_edge_curved(
                 f'fill="{color}"/>'
             )
         parts.append(
-            f'<g opacity="{opacity}">'
+            f'<g{tag} opacity="{opacity}">'
             f'<path id="{path_id}" d="M {sx:.1f} {sy:.1f} Q {mx:.1f} {my:.1f} {ex:.1f} {ey:.1f}" '
             f'fill="none" stroke="{color}" stroke-width="{width}" '
             f'stroke-linecap="round"/>'
@@ -1456,18 +1469,20 @@ def _svg_edge_curved(
         )
     else:
         parts.append(
-            f'<path id="{path_id}" d="M {sx:.1f} {sy:.1f} Q {mx:.1f} {my:.1f} {ex:.1f} {ey:.1f}" '
+            f'<path{tag} id="{path_id}" '
+            f'd="M {sx:.1f} {sy:.1f} Q {mx:.1f} {my:.1f} {ex:.1f} {ey:.1f}" '
             f'fill="none" stroke="{color}" stroke-width="{width}" stroke-opacity="{opacity}" '
             f'stroke-linecap="round"/>'
         )
-    parts.append(
-        _svg_edge_hit_area(
-            f'path d="M {sx:.1f} {sy:.1f} Q {mx:.1f} {my:.1f} {ex:.1f} {ey:.1f}"',
-            width,
-            edge_id,
-            attrs_json,
+    if attrs_json is not None:
+        parts.append(
+            _svg_edge_hit_area(
+                f'path d="M {sx:.1f} {sy:.1f} Q {mx:.1f} {my:.1f} {ex:.1f} {ey:.1f}"',
+                width,
+                edge_id,
+                attrs_json,
+            )
         )
-    )
 
     return "\n".join(parts)
 
@@ -1481,8 +1496,9 @@ def _svg_edge_loop(
     opacity: float,
     directed: bool,
     edge_id: str,
-    attrs_json: str,
+    attrs_json: Optional[str],
     loop_size: float = 1.0,
+    tag: str = "",
 ) -> str:
     """Render a self-loop as a circular arc above the node."""
     lr = r * 1.2 * loop_size
@@ -1537,7 +1553,7 @@ def _svg_edge_loop(
                 f'fill="{color}"/>'
             )
         parts.append(
-            f'<g opacity="{opacity}">'
+            f'<g{tag} opacity="{opacity}">'
             f'<path id="{path_id}" d="{path_d}" '
             f'fill="none" stroke="{color}" stroke-width="{width}" '
             f'stroke-linecap="round"/>'
@@ -1545,11 +1561,12 @@ def _svg_edge_loop(
         )
     else:
         parts.append(
-            f'<path id="{path_id}" d="{path_d}" '
+            f'<path{tag} id="{path_id}" d="{path_d}" '
             f'fill="none" stroke="{color}" stroke-width="{width}" stroke-opacity="{opacity}" '
             f'stroke-linecap="round"/>'
         )
-    parts.append(_svg_edge_hit_area(f'path d="{path_d}"', width, edge_id, attrs_json))
+    if attrs_json is not None:
+        parts.append(_svg_edge_hit_area(f'path d="{path_d}"', width, edge_id, attrs_json))
     return "\n".join(parts)
 
 
@@ -1845,6 +1862,39 @@ def _attrs_json(attrs: Dict[str, Any]) -> str:
         .replace("'", "&#39;")
         .replace("<", "&lt;")
     )
+
+
+def _tooltip_table(rows: List[Dict[str, Any]]) -> str:
+    """`rows` (the edges' tooltips) as one JSON table for a `<script type="application/json">`.
+
+    It has the keys in the order first seen, and a column of values for each. A column that every
+    row has a value in is a list, and any other an object from row number to value, so that
+    either is read as `column[i]`. Numbers that JSON can't hold (NaN, infinities) are written as
+    text, since one would keep the whole table from being read.
+    """
+
+    def jsonable(v):
+        if isinstance(v, float) and not math.isfinite(v):
+            return str(v)
+        if isinstance(v, (list, tuple)):
+            return [jsonable(c) for c in v]
+        return v
+
+    keys = list(dict.fromkeys(k for row in rows for k in row))
+    columns = []
+    for key in keys:
+        if all(key in row for row in rows):
+            columns.append([jsonable(row[key]) for row in rows])
+        else:
+            columns.append({str(i): jsonable(row[key]) for i, row in enumerate(rows) if key in row})
+    # "<" written as an escape, so that no "</script>" in a value can end the script
+    return json.dumps({"k": keys, "c": columns}, default=str).replace("<", "\\u003c")
+
+
+# Above this many edges, edges are hovered as drawn, with no wider invisible copy, and their
+# tooltips come from one table rather than each edge's markup. The copies would be about half of
+# the output, and that many of them make hovering slow
+EDGE_HIT_AREAS_MAX = 2000
 
 
 def render_plot(
@@ -2280,6 +2330,7 @@ def render_plot(
     edge_tips = _tooltip_rows(
         [{**head, **e_attrs} for head, e_attrs in zip(edge_tip_heads, edge_attrs_list)]
     )
+    edge_tip_table = _tooltip_table(edge_tips) if len(edges) > EDGE_HIT_AREAS_MAX else None
 
     # Highlighted elements are drawn over the muted ones, and accent over soft
     level_rank = {None: 0, "soft": 1, "accent": 2}
@@ -2337,7 +2388,11 @@ def render_plot(
                     e_width = max(e_width * 1.3, 1.0)
                     e_opacity = max(edge_opacity, 0.5)
 
-        attrs_j = _attrs_json(edge_tips[i])
+        if edge_tip_table is None:
+            attrs_j, tag = _attrs_json(edge_tips[i]), ""
+        else:
+            # The edge's row in the table
+            attrs_j, tag = None, f' data-e="{i}"'
         eid = f"{src}-{tgt}-{i}"
 
         bow = edge_bows[i]
@@ -2356,6 +2411,7 @@ def render_plot(
                     eid,
                     attrs_j,
                     loop_size=edge_loop_sizes[i],
+                    tag=tag,
                 )
             )
             continue
@@ -2377,6 +2433,7 @@ def render_plot(
                     eid,
                     attrs_j,
                     bow=0.2 + bow,
+                    tag=tag,
                 )
             )
         elif abs(bow) > 1e-6:
@@ -2395,6 +2452,7 @@ def render_plot(
                     eid,
                     attrs_j,
                     bow=bow,
+                    tag=tag,
                 )
             )
         elif route is not None:
@@ -2409,6 +2467,7 @@ def render_plot(
                     is_directed,
                     eid,
                     attrs_j,
+                    tag=tag,
                 )
             )
         else:
@@ -2426,6 +2485,7 @@ def render_plot(
                     is_directed,
                     eid,
                     attrs_j,
+                    tag=tag,
                 )
             )
 
@@ -2624,7 +2684,7 @@ def render_plot(
     svg_str = "\n".join(svg_parts)
 
     # --- HTML wrapper with hover tooltips ---
-    html_str = _generate_html_wrapper(svg_str, th, width, height)
+    html_str = _generate_html_wrapper(svg_str, th, width, height, edge_tip_table)
 
     return colors.finish(svg_str, html_str, output)
 
@@ -2641,10 +2701,19 @@ def _generate_html_wrapper(
     theme: Theme,
     width: int,
     height: int,
+    edge_tip_table: Optional[str] = None,
 ) -> str:
+    """The SVG in a page fragment that shows tooltips on hover. Elements carry theirs in
+    `data-attrs`, or for edges with a `data-e` row number, in `edge_tip_table` (see
+    `_tooltip_table()`)."""
     global _tooltip_counter
     _tooltip_counter += 1
     tip_id = f"ec-tooltip-{_tooltip_counter}"
+    table_script = (
+        f'<script type="application/json" class="ec-edge-tips">{edge_tip_table}</script>\n'
+        if edge_tip_table is not None
+        else ""
+    )
     # Centered in the page or cell, and scaled down (keeping its shape) where it is wider than that.
     # Quarto puts no space around cell outputs, so the margin keeps the plot off the code and text
     # around it (margin rather than padding, since the tooltip is placed from the SVG's corner)
@@ -2658,11 +2727,14 @@ def _generate_html_wrapper(
   box-shadow:0 2px 8px rgba(0,0,0,0.18);max-width:min(260px,100%);box-sizing:border-box;
   z-index:999;line-height:1.4;overflow-wrap:anywhere;
 "></div>
-<script>
+{table_script}<script>
 (function(){{
-  var tip=document.currentScript.parentElement.querySelector('#{tip_id}');
-  var svg=document.currentScript.parentElement.querySelector('svg');
+  var cell=document.currentScript.parentElement;
+  var tip=cell.querySelector('#{tip_id}');
+  var svg=cell.querySelector('svg');
   if(!svg||!tip) return;
+  var table=cell.querySelector('script.ec-edge-tips');
+  try{{table=table&&JSON.parse(table.textContent)}}catch(e){{table=null}}
   // Next to the pointer but inside the plot (flipped to the pointer's left near the right edge),
   // since anything past its edges is clipped, and scrolls, in a notebook or Quarto cell
   function place(ev){{
@@ -2672,10 +2744,25 @@ def _generate_html_wrapper(
     tip.style.left=Math.max(0,Math.min(x,r.width-tip.offsetWidth))+'px';
     tip.style.top=Math.max(0,Math.min(y,r.height-tip.offsetHeight))+'px';
   }}
-  function show(el,ev){{
+  // An edge's row of the table, a column a key, or else the element's own data-attrs
+  function attrsOf(el){{
+    var i=el.getAttribute('data-e');
+    if(i!==null){{
+      if(!table) return null;
+      var d={{}};
+      for(var j=0;j<table.k.length;j++){{
+        var v=table.c[j][i];
+        if(v!==undefined) d[table.k[j]]=v;
+      }}
+      return d;
+    }}
     var raw=el.getAttribute('data-attrs');
-    if(!raw) return;
-    try{{var d=JSON.parse(raw)}}catch(e){{return}}
+    if(!raw) return null;
+    try{{return JSON.parse(raw)}}catch(e){{return null}}
+  }}
+  function show(el,ev){{
+    var d=attrsOf(el);
+    if(!d) return;
     var h='';
     for(var k in d){{
       var v=d[k];
@@ -2686,17 +2773,20 @@ def _generate_html_wrapper(
     tip.innerHTML=h;tip.style.display='block';
     place(ev);
   }}
+  // The element with a tooltip under the pointer: a node, an edge's hit area, or an edge drawn
+  // (whose arrowhead is a part of it)
+  function hovered(ev){{
+    return ev.target.closest('[data-node],[data-edge],[data-e]');
+  }}
   svg.addEventListener('mouseover',function(ev){{
-    var t=ev.target;
-    if(t.hasAttribute('data-node')||t.hasAttribute('data-edge')) show(t,ev);
+    var t=hovered(ev);
+    if(t) show(t,ev);
   }});
   svg.addEventListener('mousemove',function(ev){{
     if(tip.style.display==='block') place(ev);
   }});
   svg.addEventListener('mouseout',function(ev){{
-    var t=ev.target;
-    if(t.hasAttribute('data-node')||t.hasAttribute('data-edge'))
-      tip.style.display='none';
+    if(hovered(ev)) tip.style.display='none';
   }});
 }})();
 </script>
