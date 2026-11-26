@@ -4513,7 +4513,7 @@ class Graph:
         highlight=None,
         highlight_edges=None,
         legend: bool = True,
-        backend: str = "svg",
+        backend: str = "auto",
     ):
         """
         Render the graph as a static SVG image.
@@ -4532,9 +4532,10 @@ class Graph:
         shows its attributes. Each edge takes the hover a few pixels either side of it, except
         above 2,000 nodes or edges, where the output is lean: an edge takes the hover only where
         it's drawn, and nodes and edges of the same style share their styling, which keeps a
-        graph with tens of thousands of edges to a few megabytes. With `backend="png"`, the edges
-        and nodes are drawn as images instead, which stay small however many there are, under
-        labels and a legend that remain text.
+        graph with tens of thousands of edges to a few megabytes. Where the SVG would pass 10 MB,
+        more than a notebook should hold, the edges and nodes are drawn as images instead, which
+        stay small however many there are, under labels and a legend that remain text;
+        `backend=` makes either choice for any graph.
 
         Aesthetics can be mapped from attributes: `color_by=` for node colors (a palette for
         groups, a color scale for numbers), `size_by=` for numeric node sizes, `label_by=` for the
@@ -4554,11 +4555,10 @@ class Graph:
         (the node label, or the ID for unlabelled nodes), `"degree"` and `"id"` when no node
         has a stored attribute of that name; any other name that no node has raises a
         `ValueError`. The force and random layouts start from random positions, so pass
-        `seed=` for a reproducible picture. An output of more than 10 MB, past what a notebook
-        should hold, comes with a warning, and a graph whose SVG would pass 200 MB raises an
-        error; `backend="png"`, or plotting a part of the graph, such as what `k_core()` or
-        `ego_graph()` returns, avoids both. For much larger graphs consider `plot_cosmo()`
-        instead.
+        `seed=` for a reproducible picture. An output of more than 10 MB comes with a warning,
+        which with the images can still happen when there are many labels, and plotting a part of
+        the graph, such as what `k_core()` or `ego_graph()` returns, makes it smaller. For much
+        larger graphs consider `plot_cosmo()` instead.
 
         Parameters
         ----------
@@ -4628,8 +4628,8 @@ class Graph:
         node_size
             Base node circle radius in pixels. The default value, `16.0`, acts as "automatic": the
             radius is then derived from the canvas area and the number of nodes (between `3.5` and
-            `16` pixels, or from `1` with `backend="png"`) so that nodes don't crowd each other.
-            Any other value is used as given.
+            `16` pixels, or from `1` when they are drawn as images, see `backend=`) so that nodes
+            don't crowd each other. Any other value is used as given.
         edge_width
             Edge stroke width in pixels. The default value, `1.2`, acts as "automatic": small
             graphs get thicker edges (up to about 3 pixels) and large graphs thinner ones. Any
@@ -4709,12 +4709,14 @@ class Graph:
             more groups than the palette has colors (or more than 12) is left out, since its
             colors would repeat. Default is `True`.
         backend
-            What the edges and nodes are drawn as: `"svg"` (default), an SVG element each, or
-            `"png"`, an image of the edges and one of the nodes in the SVG, with the edges drawn
-            by their density, so that where many cross reads darker than where a few do. The
-            labels and the legend are SVG text either way. The images keep the output to a few
-            megabytes whatever the size of the graph, and there's no limit of 200 MB, but nodes
-            and edges have no tooltips. Any other value raises `ValueError`.
+            What the edges and nodes are drawn as: `"svg"`, an SVG element each, or `"png"`, an
+            image of the edges and one of the nodes in the SVG, with the edges drawn by their
+            density, so that where many cross reads darker than where a few do. `"auto"`, the
+            default, is `"svg"` while the output stays within 10 MB, and `"png"` for graphs
+            whose SVG would pass that. The labels and the legend are SVG text either way. The
+            images keep the output to a few megabytes whatever the size of the graph, but nodes
+            and edges have no tooltips. A graph whose SVG would pass 200 MB can only be plotted
+            as images. Any other value raises `ValueError`.
 
         Returns
         -------
@@ -4722,7 +4724,9 @@ class Graph:
             Interactive visualization that auto-renders in Jupyter notebooks (via `_repr_html_`,
             with a PNG image for where HTML doesn't show) and can be saved with `.save(path)`,
             as `.html`, `.svg` or `.png` like `output=`. The raw SVG markup is available as its
-            `.svg` property.
+            `.svg` property. When `backend="auto"` drew images, the SVG and a `.svg` file hold
+            the edges and nodes as SVG elements, drawn when they are first wanted, with a
+            warning when they pass 10 MB.
 
         Raises
         ------
@@ -4735,12 +4739,14 @@ class Graph:
             `edge_color_by=` is set, `highlight=` or `highlight_edges=` names a node, edge or
             attribute the graph doesn't have, `edge_routing=` or `backend=` is unknown,
             `output=` has an extension other than `.html`, `.svg` or `.png`, or the graph is so
-            large that its SVG would pass 200 MB (with `backend="svg"`).
+            large that its SVG would pass 200 MB (with `backend="svg"`, or for the `.svg` of a
+            plot that `backend="auto"` drew as images).
 
         Warns
         -----
         UserWarning
-            If the output is more than 10 MB, past what a notebook output should stay within.
+            If the output is more than 10 MB, past what a notebook output should stay within,
+            or the SVG of a plot that `backend="auto"` drew as images is.
 
         See Also
         --------
