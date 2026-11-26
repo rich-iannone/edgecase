@@ -2,7 +2,7 @@
 name = "edgecase-core"
 version = "0.1.0"
 edition = "2021"
-rust-version = "1.82"
+rust-version = "1.85"
 authors = ["Rich Iannone <riannone@me.com>"]
 license = "MIT"
 description = "High-performance Rust core for edgecase graph library"
@@ -28,6 +28,8 @@ rand = "0.8"  # Random number generation
 rand_chacha = "0.3"  # ChaCha RNG for reproducibility
 nalgebra = "0.33"  # Linear algebra with eigensolvers
 png = "0.18"  # PNG encoding for raster plots
+# The labels and legend of raster plots, drawn from their SVG, with the system's fonts
+resvg = { version = "0.49", default-features = false, features = ["text", "system-fonts", "memmap-fonts"] }
 
 [dev-dependencies]
 # Rust unit tests run without a host Python process, so let pyo3 start an
