@@ -1,6 +1,7 @@
 // Routing drawn edges around the nodes they would pass through
 use pyo3::prelude::*;
 use rayon::prelude::*;
+use std::sync::atomic::{AtomicUsize, Ordering};
 
 /// A grid of square cells over the node centers, holding each cell's nodes in index order
 struct Grid {
@@ -198,12 +199,15 @@ fn route_edge(
 /// * `radii` - Node radii, by node index
 /// * `edges` - Edges as (source, target) node indices
 /// * `margin` - Space to keep between an edge and a node's circle
+/// * `max_waypoints` - A budget for the waypoints of all the routes. Routing stops once they
+///   pass it, so that a drawing too crowded to route costs little to find out about
 ///
 /// # Returns
 /// For each edge, its waypoints `[source, wp1, ..., target]`, or `None` when the straight line
-/// between its ends doesn't pass within `margin` of another node's circle
+/// between its ends doesn't pass within `margin` of another node's circle. `None` in place of
+/// the list when the routes have more waypoints than `max_waypoints`
 #[pyfunction]
-#[pyo3(signature = (xs, ys, radii, edges, margin=4.0))]
+#[pyo3(signature = (xs, ys, radii, edges, margin=4.0, max_waypoints=None))]
 pub fn route_edges(
     py: Python<'_>,
     xs: Vec<f64>,
@@ -211,7 +215,8 @@ pub fn route_edges(
     radii: Vec<f64>,
     edges: Vec<(usize, usize)>,
     margin: f64,
-) -> PyResult<Vec<Option<Vec<(f64, f64)>>>> {
+    max_waypoints: Option<usize>,
+) -> PyResult<Option<Vec<Option<Vec<(f64, f64)>>>>> {
     let n = xs.len();
     if ys.len() != n || radii.len() != n {
         return Err(pyo3::exceptions::PyValueError::new_err(
@@ -230,15 +235,27 @@ pub fn route_edges(
         )));
     }
     if n == 0 {
-        return Ok(vec![None; edges.len()]);
+        return Ok(Some(vec![None; edges.len()]));
     }
+    let budget = max_waypoints.unwrap_or(usize::MAX);
     Ok(py.allow_threads(|| {
         let reach = radii.iter().fold(0.0f64, |acc, &r| acc.max(r + margin));
         let grid = Grid::new(&xs, &ys, reach);
-        edges
+        let spent = AtomicUsize::new(0);
+        let routes: Vec<_> = edges
             .par_iter()
-            .map(|&edge| route_edge(&grid, &xs, &ys, &radii, edge, margin))
-            .collect()
+            .map(|&edge| {
+                if spent.load(Ordering::Relaxed) > budget {
+                    return None;
+                }
+                let route = route_edge(&grid, &xs, &ys, &radii, edge, margin);
+                if let Some(points) = &route {
+                    spent.fetch_add(points.len(), Ordering::Relaxed);
+                }
+                route
+            })
+            .collect();
+        (spent.into_inner() <= budget).then_some(routes)
     }))
 }
 
