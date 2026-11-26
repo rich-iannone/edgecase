@@ -317,7 +317,7 @@ class TestPlotNodeValues:
 
         monkeypatch.setattr(svg_renderer, "PLOT_BYTES_MAX", 1000)
         with pytest.raises(ValueError, match=r"at least 0 MB for 34 nodes and 78 edges.*k_core"):
-            ec.karate_club().plot()
+            ec.karate_club().plot(backend="svg")
         _abc_path().plot()
 
     def test_plot_notes_output_past_the_notebook_budget(self, monkeypatch):
