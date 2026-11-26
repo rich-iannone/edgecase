@@ -46,7 +46,8 @@ overlap are pushed apart, and straight edges that would pass through a node are 
 
 The image is not entirely static: in a notebook or a web page, hovering over a node or an edge shows
 a tooltip with its attributes, which makes it easy to identify a node of interest without labelling
-every one.
+every one. Above 2,000 edges, an edge shows its tooltip only when the pointer is right on it, with no
+wider margin around it to catch the pointer, as that margin would double the size of the output.
 
 ## Displaying and saving plots
 
