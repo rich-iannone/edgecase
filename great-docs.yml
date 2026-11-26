@@ -1206,6 +1206,8 @@ reference:
         - to_node_link
         - from_cytoscape
         - to_cytoscape
+        - from_parquet
+        - to_parquet
         - from_pajek
         - to_pajek
         - from_leda
