@@ -158,33 +158,70 @@ class TestPlotNodeValues:
         g.add_edges([("d", "e"), ("a", "e"), ("b", "d")], since=2020)
         return g
 
-    def test_large_plots_hover_edges_as_drawn(self, monkeypatch):
-        """Above `EDGE_HIT_AREAS_MAX` edges, an edge has no hit area; it is hovered as drawn,
-        and its tooltip is its row of one table. The edges and tooltips are otherwise the same."""
+    @staticmethod
+    def _shapes(svg: str) -> list[float]:
+        """Every number giving the shape of an edge drawn (not a hit area), sorted."""
+        drawn = re.sub(r"<(?:line|path) [^>]*stroke=\"transparent\"[^>]*>", "", svg)
+        values = re.findall(r' (?:d|points|x1|y1|x2|y2)="([^"]*)"', drawn)
+        return sorted(float(v) for value in values for v in re.findall(r"-?\d+\.?\d*", value))
+
+    @pytest.mark.parametrize("opts", [{}, {"curved_edges": True}, {"edge_width_by": "weight"}])
+    def test_large_plots_are_lean(self, monkeypatch, opts):
+        """Above `LEAN_MIN` nodes or edges, an edge has no hit area; it is hovered as drawn, and
+        its tooltip is its row of one table. Edges and nodes sharing a style are gathered into a
+        group carrying it. The shapes, the nodes and the tooltips are otherwise the same."""
         import edgecase.svg_renderer as svg_renderer
 
         g = self._tooltip_graph()
-        full = g.plot(seed=1, label_by="label")
-        monkeypatch.setattr(svg_renderer, "EDGE_HIT_AREAS_MAX", 3)
-        lean = g.plot(seed=1, label_by="label")
+        full = g.plot(seed=1, label_by="label", **opts)
+        monkeypatch.setattr(svg_renderer, "LEAN_MIN", 3)
+        lean = g.plot(seed=1, label_by="label", **opts)
 
         assert 'stroke="transparent"' not in lean.svg
         assert "data-edge=" not in lean.svg
         assert 'class="ec-edge-tips"' not in full._repr_html_()
-        # Each edge drawn is tagged with its row
+        # Each edge drawn is tagged with its row, its arrowhead too
         tagged = [int(i) for i in re.findall(r' data-e="(\d+)"', lean.svg)]
-        assert sorted(tagged) == list(range(7))
+        assert sorted(set(tagged)) == list(range(7))
+        assert len(tagged) == 14
 
-        # On a line of their own
-        hit_area = r"\n<(?:line|path) [^\n]*stroke=\"transparent\"[^\n]*"
-        assert re.sub(r' data-e="\d+"', "", lean.svg) == re.sub(hit_area, "", full.svg)
+        # The elements inherit their style from their groups
+        elements = re.findall(r"<(?:path|circle) [^>]*>", lean.svg)
+        assert not any(" stroke=" in e or " fill=" in e for e in elements)
+        assert lean.svg.count('<g fill="none" stroke=') >= 1
+        assert self._shapes(lean.svg) == self._shapes(full.svg)
+        node = r'<circle cx="[^"]*" cy="[^"]*" r="[^"]*"'
+        assert re.findall(node, lean.svg) == re.findall(node, full.svg)
+        assert lean.svg.count("data-node=") == 5
 
         rows = self._tip_table(lean._repr_html_())
-        assert sorted(rows) == sorted(tagged)
+        assert sorted(rows) == list(range(7))
         tips = sorted(rows.values(), key=lambda tip: tip["id"])
         assert tips == sorted(self._edge_tooltips(full.svg), key=lambda tip: tip["id"])
         # A key that some rows lack is left out of theirs
         assert sum("since" in tip for tip in rows.values()) == 3
+
+    def test_lean_curved_edges_keep_their_labels(self, monkeypatch):
+        import edgecase.svg_renderer as svg_renderer
+
+        monkeypatch.setattr(svg_renderer, "LEAN_MIN", 3)
+        svg = self._tooltip_graph().plot(seed=1, curved_edges=True, edge_label_by="rel").svg
+        for ref in re.findall(r'<textPath href="#([^"]+)"', svg):
+            assert f'id="{ref}"' in svg
+
+    def test_lean_plots_keep_their_order(self, monkeypatch):
+        """A group holds a run of elements in a row, so highlighted edges stay over the rest."""
+        import edgecase.svg_renderer as svg_renderer
+
+        monkeypatch.setattr(svg_renderer, "LEAN_MIN", 3)
+        g = ec.karate_club()
+        svg = g.plot(seed=1, highlight=["0", "1", "2"]).svg
+        groups = re.findall(
+            r'<g fill="none" stroke="[^"]*" stroke-width="[^"]*" stroke-opacity="([^"]*)"', svg
+        )
+        opacities = [float(o) for o in groups]
+        assert opacities == sorted(opacities)
+        assert len(set(opacities)) > 1
 
     def test_tooltip_table_survives_any_value(self):
         from edgecase.svg_renderer import _tooltip_table
@@ -213,6 +250,68 @@ class TestPlotNodeValues:
         opts = {"layout": "pos", "node_overlap": "allow"}
         assert curve.search(g.plot(**opts).svg)
         assert not curve.search(g.plot(**opts, edge_routing="straight").svg)
+
+    def test_auto_routing_keeps_to_a_budget(self, monkeypatch):
+        """`edge_routing="auto"` routes edges while their waypoints fit the budget, and draws
+        them straight past it. `"around"` routes them whatever it costs."""
+        import edgecase.svg_renderer as svg_renderer
+
+        g = ec.Graph().add_nodes(list("ABC"))
+        g.add_edges([("B", "C"), ("A", "B")])
+        g.set_node_attrs("pos", {"A": (0.0, 0.0), "B": (-1.0, 0.0), "C": (1.0, 0.0)})
+        curve = re.compile(r'<path d="M[^"]* C')
+        opts = {"layout": "pos", "node_overlap": "allow"}
+        assert g.plot(**opts).svg == g.plot(**opts, edge_routing="around").svg
+        assert curve.search(g.plot(**opts).svg)
+        # The one route has three waypoints
+        monkeypatch.setattr(svg_renderer, "ROUTE_WAYPOINTS_MAX", 2)
+        assert not curve.search(g.plot(**opts).svg)
+        assert g.plot(**opts).svg == g.plot(**opts, edge_routing="straight").svg
+        assert curve.search(g.plot(**opts, edge_routing="around").svg)
+        assert curve.search(g.plot(**opts, edge_routing=3).svg)
+
+    def test_unknown_edge_routing_raises(self):
+        with pytest.raises(ValueError, match="Unknown edge_routing 'none'"):
+            _abc_path().plot(edge_routing="none")
+
+    def test_route_edges_stops_past_its_budget(self):
+        from edgecase._core import route_edges
+
+        xs, ys, radii = [0.0, 100.0, 50.0, 50.0], [0.0, 0.0, 1.0, 80.0], [5.0] * 4
+        edges = [(0, 1), (2, 3)]
+        routes = route_edges(xs, ys, radii, edges, margin=4.0)
+        assert [None if r is None else len(r) for r in routes] == [3, None]
+        assert route_edges(xs, ys, radii, edges, margin=4.0, max_waypoints=3) == routes
+        assert route_edges(xs, ys, radii, edges, margin=4.0, max_waypoints=2) is None
+
+    def test_plot_refuses_what_would_be_too_large(self, monkeypatch):
+        import edgecase.svg_renderer as svg_renderer
+
+        monkeypatch.setattr(svg_renderer, "PLOT_BYTES_MAX", 1000)
+        with pytest.raises(ValueError, match=r"at least 0 MB for 34 nodes and 78 edges.*k_core"):
+            ec.karate_club().plot()
+        _abc_path().plot()
+
+    def test_plot_notes_output_past_the_notebook_budget(self, monkeypatch):
+        import warnings
+
+        import edgecase.svg_renderer as svg_renderer
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")
+            ec.karate_club().plot(seed=1)
+        monkeypatch.setattr(svg_renderer, "NOTEBOOK_BYTES_MAX", 1000)
+        with pytest.warns(UserWarning, match="past the 0 MB a notebook output") as caught:
+            ec.karate_club().plot(seed=1)
+        # Pointing at the call to plot()
+        assert caught[0].filename == __file__
+
+    def test_medium_graph_fits_the_notebook_budget(self):
+        """A graph of thousands of nodes and edges is drawn whole, straight and lean."""
+        player = ec.power_grid().plot(seed=1, show_labels=False)
+        assert len(player._repr_html_()) < 2_000_000
+        assert " C" not in player.svg
+        assert 'stroke="transparent"' not in player.svg
 
     def test_route_edges_finds_every_node_in_the_way(self):
         """The grid that finds the nodes near an edge misses none that checking them all finds."""
