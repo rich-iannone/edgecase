@@ -4527,7 +4527,9 @@ class Graph:
         overlapping nodes are pushed apart and straight edges are routed around nodes that sit
         in their way. Directed graphs get arrowheads, parallel and reciprocal edges are fanned out
         as separate curves, and self-loops are drawn as small loops. Hovering over a node or edge
-        in the HTML rendering shows its attributes.
+        in the HTML rendering shows its attributes. Each edge takes the hover a few pixels either
+        side of it, except above 2,000 edges, where it takes it only where it's drawn, which keeps
+        the output about half the size.
 
         Aesthetics can be mapped from attributes: `color_by=` for node colors (a palette for
         groups, a color scale for numbers), `size_by=` for numeric node sizes, `label_by=` for the
