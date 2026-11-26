@@ -4503,7 +4503,7 @@ class Graph:
         edge_opacity: float = 0.4,
         cross_community_color: Optional[str] = None,
         node_overlap: Union[str, float] = "remove",
-        edge_routing: Union[str, float] = "around",
+        edge_routing: Union[str, float] = "auto",
         show_labels: bool = True,
         output: Optional[str] = None,
         seed: Optional[int] = None,
@@ -4525,11 +4525,13 @@ class Graph:
         result is a self-contained SVG that can be embedded in notebooks, Quarto documents, and
         web pages, or saved to disk. Node positions come from the chosen `layout=`, after which
         overlapping nodes are pushed apart and straight edges are routed around nodes that sit
-        in their way. Directed graphs get arrowheads, parallel and reciprocal edges are fanned out
-        as separate curves, and self-loops are drawn as small loops. Hovering over a node or edge
-        in the HTML rendering shows its attributes. Each edge takes the hover a few pixels either
-        side of it, except above 2,000 edges, where it takes it only where it's drawn, which keeps
-        the output about half the size.
+        in their way, unless the drawing is too crowded for that to pay off. Directed graphs get
+        arrowheads, parallel and reciprocal edges are fanned out as separate curves, and
+        self-loops are drawn as small loops. Hovering over a node or edge in the HTML rendering
+        shows its attributes. Each edge takes the hover a few pixels either side of it, except
+        above 2,000 nodes or edges, where the output is lean: an edge takes the hover only where
+        it's drawn, and nodes and edges of the same style share their styling, which keeps a
+        graph with tens of thousands of edges to a few megabytes.
 
         Aesthetics can be mapped from attributes: `color_by=` for node colors (a palette for
         groups, a color scale for numbers), `size_by=` for numeric node sizes, `label_by=` for the
@@ -4549,8 +4551,10 @@ class Graph:
         (the node label, or the ID for unlabelled nodes), `"degree"` and `"id"` when no node
         has a stored attribute of that name; any other name that no node has raises a
         `ValueError`. The force and random layouts start from random positions, so pass
-        `seed=` for a reproducible picture. For large graphs (several thousand nodes and up)
-        consider `plot_cosmo()` instead.
+        `seed=` for a reproducible picture. An output of more than 10 MB, past what a notebook
+        should hold, comes with a warning, and a graph whose output would pass 200 MB raises an
+        error; plotting a part of it, such as what `k_core()` or `ego_graph()` returns, avoids
+        both. For much larger graphs consider `plot_cosmo()` instead.
 
         Parameters
         ----------
@@ -4639,10 +4643,12 @@ class Graph:
             padding of 2 pixels (every layout but `"circular"`), `"allow"` keeps raw layout
             positions, or a number specifying the minimum padding (in px) between node circles.
         edge_routing
-            Edge routing for straight edges: `"around"` (default) bends edges around intermediate
-            nodes with a 3 pixel clearance, `"straight"` draws direct lines, or a number specifying
-            the clearance margin (in px) around nodes that edges must avoid. Routing only applies
-            to graphs with at least 3 nodes and is skipped when `curved_edges=` is `True`.
+            Edge routing for straight edges: `"auto"` (default) bends edges around intermediate
+            nodes with a 3 pixel clearance while the bends stay few (50,000 points in all), and
+            draws direct lines in drawings too crowded for that; `"around"` always bends them,
+            `"straight"` draws direct lines, and a number always bends them with that clearance
+            margin (in px). Routing only applies to graphs with at least 3 nodes and is skipped
+            when `curved_edges=` is `True`. Any other string raises `ValueError`.
         show_labels
             Whether to display node labels (see `label_by=`). Default is `True`.
         output
@@ -4711,8 +4717,14 @@ class Graph:
             `edge_color_by=` an edge attribute), `edge_width_by=` names an attribute that no edge
             has, `layout=`, `theme=` or `color_scale=` is unknown, a numeric `color_scale=` meets
             values that aren't numbers, `palette=` is unknown while `color_by=` or
-            `edge_color_by=` is set, or `highlight=` or `highlight_edges=` names a node, edge or
-            attribute the graph doesn't have.
+            `edge_color_by=` is set, `highlight=` or `highlight_edges=` names a node, edge or
+            attribute the graph doesn't have, `edge_routing=` is an unknown string, or the graph
+            is so large that the output would pass 200 MB.
+
+        Warns
+        -----
+        UserWarning
+            If the output is more than 10 MB, past what a notebook output should stay within.
 
         See Also
         --------
