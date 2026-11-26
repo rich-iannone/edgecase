@@ -18,7 +18,7 @@ technology and suited to a different size of graph:
 
 | View | Built on | Interaction | Suits |
 |---|---|---|---|
-| `plot()` | SVG | hover tooltips | reports, documents, any size up to a few thousand edges |
+| `plot()` | SVG, with images for large graphs | hover tooltips | reports, documents, any size up to a few thousand edges |
 | `plot_vis()` | vis-network | live physics, dragging, zooming, a click panel | hands-on exploration of small and medium graphs |
 | [`graph_widget()`](../reference/graph_widget.qmd) | HTML canvas | dragging, panning, zooming, hover tooltips | notebook exploration with colors and sizes from the data |
 | `plot_cosmo()` | Cosmograph (WebGL) | GPU layout, zooming, selection | graphs of many thousands of nodes and more |
