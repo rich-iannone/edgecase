@@ -14,7 +14,7 @@ import polars as pl
 
 from edgecase import _core as rust
 from edgecase.cypher import _TokenParser, cypher_error, labels_of, parse_create
-from edgecase.graph import Graph
+from edgecase.graph import Graph, _exact_as_floats, _mixed_items, _value_kind
 from edgecase.steps import KIND_BUILD_NODES, StepDelta
 
 
@@ -195,13 +195,17 @@ _GEXF_VERSIONS = {
 }
 
 
-def _code(func: str, source: Any) -> str:
+def _code(func: str, *sources: Any) -> str:
     """The code string recorded in a reader's build step, e.g. `from_gml('net.gml')`."""
-    if isinstance(source, Path):
-        source = str(source)
-    if isinstance(source, (str, bytes)) and len(source) <= 60:
-        return f"{func}({source!r})"
-    return f"{func}(<{type(source).__name__}>)"
+    args = []
+    for source in sources:
+        if isinstance(source, Path):
+            source = str(source)
+        if source is None or (isinstance(source, (str, bytes)) and len(source) <= 60):
+            args.append(repr(source))
+        else:
+            args.append(f"<{type(source).__name__}>")
+    return f"{func}({', '.join(args)})"
 
 
 def _build_graph(
@@ -211,6 +215,8 @@ def _build_graph(
     weighted: bool,
     graph_name: Optional[str],
     code: str,
+    keys_are_ids: bool = False,
+    edge_ids: Optional[list[int]] = None,
 ) -> Graph:
     """
     Build a graph from parsed file contents, recording it as a single step.
@@ -221,6 +227,9 @@ def _build_graph(
     the labels aren't unique (common in Gephi and Cytoscape exports, where the label is only a
     display name), every node is labeled with its key instead and the file's label is kept in a
     `name` attribute (`file_label` if `name` is taken).
+
+    The nodes are numbered in order unless `keys_are_ids`, when the keys (all positive integers)
+    are the node IDs. `edge_ids`, if given, are the IDs of the edges.
     """
     index: dict[Any, int] = {}
     keys: list = []
@@ -262,16 +271,18 @@ def _build_graph(
     graph = Graph(directed=directed, weighted=weighted, graph_name=graph_name)
     add_node = graph._graph.add_node
     ids = [
-        add_node(rust.Node(id=0, label=label, attributes=_clean(node_attrs)))
-        for label, node_attrs in zip(resolved, attrs)
+        add_node(
+            rust.Node(id=key if keys_are_ids else 0, label=label, attributes=_clean(node_attrs))
+        )
+        for key, label, node_attrs in zip(keys, resolved, attrs)
     ]
     add_edge = graph._graph.add_edge
     pairs = []
-    for source, target, weight, edge_attrs in edges:
+    for i, (source, target, weight, edge_attrs) in enumerate(edges):
         s, t = index[source], index[target]
         add_edge(
             rust.Edge(
-                id=0,
+                id=0 if edge_ids is None else edge_ids[i],
                 source=ids[s],
                 target=ids[t],
                 weight=weight if weighted else None,
@@ -1883,6 +1894,382 @@ def to_cytoscape(
     if filepath is not None:
         _write_json(data, filepath)
     return data
+
+
+# =============================================================================
+# Parquet node and edge tables
+# =============================================================================
+
+# The key of the Parquet file metadata that holds the graph's settings
+_PARQUET_KEY = "edgecase"
+
+_LAYOUT_COLUMNS = ("layout_x", "layout_y", "layout_z")
+
+
+def to_parquet(
+    graph: Graph,
+    nodes_path: Union[str, Path],
+    edges_path: Union[str, Path],
+) -> None:
+    """
+    Write a graph as two Parquet files, a node table and an edge table.
+
+    Parquet is the compact, typed column format that Polars, pandas, DuckDB, Spark and most other
+    data tools read, so the files can be queried without EdgeCase. The node table has a row per
+    node: its `id`, its `label`, a column per attribute, and, when the nodes have positions from a
+    `layout_*()` method, `layout_x` and `layout_y` (and `layout_z` for a 3D layout) in place of the
+    `pos` attribute. The edge table has a row per edge: its `id`, the node IDs of its `source` and
+    `target`, its `weight` (when the edges have weights), and a column per attribute. The rows are
+    in ID order, and an attribute that a node or edge doesn't have is null.
+
+    A Parquet column has one type. Integers beside floats are written as floats, and attributes
+    holding dictionaries, or values of mixed types, are written as JSON strings, which
+    `from_parquet()` decodes again. The graph's direction, whether it's weighted, and its name are
+    kept in the files' metadata, so `from_parquet()` gives back the same graph, with the same node
+    and edge IDs.
+
+    Parameters
+    ----------
+    graph
+        The graph to write.
+    nodes_path
+        The file for the node table.
+    edges_path
+        The file for the edge table.
+
+    Examples
+    --------
+    ```python
+    import edgecase as ec
+    import polars as pl
+
+    graph = ec.karate_club()
+    graph.layout_spring(seed=1)
+    ec.to_parquet(graph, "karate-nodes.parquet", "karate-edges.parquet")
+
+    # Returns ['id', 'label', 'faction', 'role', 'layout_x', 'layout_y']
+    pl.read_parquet("karate-nodes.parquet").columns
+    ```
+
+    Notes
+    -----
+    Attributes named like the columns EdgeCase writes (`id` and `label` on nodes, `id`, `source`
+    and `target` on edges, and `weight` when the edges have weights) are left out, as in
+    `get_node_df()` and `get_edge_df()`, and so are node attributes named `layout_x`, `layout_y`
+    and `layout_z`. The metadata needs Polars 1.30 or later; with an earlier version the files are
+    written without it, with a warning.
+    """
+    nodes = _nodes_of(graph)
+    positions = [_position(attrs.get("pos")) for _, _, attrs in nodes]
+    node_attrs = []
+    for (_, _, attrs), position in zip(nodes, positions):
+        if position is not None:
+            del attrs["pos"]
+        node_attrs.append(attrs)
+    node_columns = [
+        pl.Series("id", [nid for nid, _, _ in nodes], dtype=pl.Int64),
+        pl.Series("label", [label for _, label, _ in nodes], dtype=pl.String),
+    ]
+    attr_columns, node_json = _parquet_columns(node_attrs, {"id", "label", *_LAYOUT_COLUMNS})
+    node_columns += attr_columns
+    if any(p is not None for p in positions):
+        dims = 3 if any(p is not None and len(p) == 3 for p in positions) else 2
+        for d in range(dims):
+            values = [p[d] if p is not None and len(p) > d else None for p in positions]
+            node_columns.append(pl.Series(_LAYOUT_COLUMNS[d], values, dtype=pl.Float64))
+
+    edge_ids = sorted(eid for eid, _, _ in graph._graph.edges())
+    edges = [graph.get_edge(eid) for eid in edge_ids]
+    weights = graph.is_weighted() or any(edge.weight is not None for edge in edges)
+    edge_columns = [
+        pl.Series("id", edge_ids, dtype=pl.Int64),
+        pl.Series("source", [edge.source for edge in edges], dtype=pl.Int64),
+        pl.Series("target", [edge.target for edge in edges], dtype=pl.Int64),
+    ]
+    if weights:
+        edge_columns.append(pl.Series("weight", [e.weight for e in edges], dtype=pl.Float64))
+    attr_columns, edge_json = _parquet_columns(
+        [dict(edge.attributes or {}) for edge in edges],
+        {"id", "source", "target", "weight"} if weights else {"id", "source", "target"},
+    )
+    edge_columns += attr_columns
+
+    settings = {
+        "directed": graph.is_directed(),
+        "weighted": graph.is_weighted(),
+        "graph_name": graph.get_graph_name(),
+    }
+    if not hasattr(pl, "read_parquet_metadata"):
+        warnings.warn(
+            f"Polars {pl.__version__} can't write Parquet metadata (that needs Polars 1.30 or "
+            "later), so the graph's direction, weighting and name aren't saved, and attributes "
+            "written as JSON will read back as strings",
+            stacklevel=2,
+        )
+    _write_parquet(pl.DataFrame(node_columns), nodes_path, {**settings, "json": node_json})
+    _write_parquet(pl.DataFrame(edge_columns), edges_path, {**settings, "json": edge_json})
+
+
+def _position(value: Any) -> Optional[tuple[float, ...]]:
+    """A `pos` attribute as `(x, y)` or `(x, y, z)`, if it is one (finite numbers), else `None`."""
+    if _xy(value) is None:
+        return None
+    position = tuple(float(v) for v in value)
+    return position if all(map(math.isfinite, position)) else None
+
+
+def _parquet_columns(rows: list[dict], reserved: set[str]) -> tuple[list[pl.Series], list[str]]:
+    """A column per attribute in `rows` (names sorted), and the names of those written as JSON."""
+    columns = []
+    as_json = []
+    for name in sorted(set().union(*rows) - reserved):
+        values = [row.get(name) for row in rows]
+        column = _typed_column(name, values)
+        if column is None:
+            encoded = [None if v is None else json.dumps(v, default=str) for v in values]
+            column = pl.Series(name, encoded, dtype=pl.String)
+            as_json.append(name)
+        columns.append(column)
+    return columns, as_json
+
+
+def _typed_column(name: str, values: list) -> Optional[pl.Series]:
+    """
+    `values` as a column of one Parquet type, or `None` if they don't share one.
+
+    Ints beside floats become floats (when that's exact), at any depth of lists. Dictionaries
+    don't count as sharing a type, since a struct column would add the keys each one is missing.
+    """
+    present = [v for v in values if v is not None]
+    kinds = {_value_kind(v) for v in present}
+    if (len(kinds) > 1 and kinds != {"int", "float"}) or "dict" in kinds:
+        return None
+    if kinds == {"list"} and _mixed_items(present):
+        return None
+    if {"int", "float"} <= _leaf_kinds(present):
+        if not _exact_items(present):
+            return None
+        values = [_floats(v) for v in values]
+    try:
+        column = pl.Series(name, values, strict=True)
+    except (TypeError, ValueError, OverflowError, pl.exceptions.PolarsError):
+        return None
+    dtype = column.dtype
+    while dtype.is_nested():
+        if dtype.base_type() == pl.Struct:
+            return None
+        dtype = dtype.inner
+    # other tools can't read a file with 128-bit integers in it at all
+    return None if dtype == pl.Object or str(dtype) in ("Int128", "UInt128") else column
+
+
+def _leaf_kinds(values: list) -> set[str]:
+    """The kinds of the values that aren't lists, at any depth of lists."""
+    kinds = set()
+    for value in values:
+        if isinstance(value, (list, tuple)):
+            kinds |= _leaf_kinds(value)
+        elif value is not None:
+            kinds.add(_value_kind(value))
+    return kinds
+
+
+def _exact_items(values: list) -> bool:
+    """Whether every int among `values` (at any depth of lists) converts to a float exactly."""
+    return all(
+        _exact_items(v) if isinstance(v, (list, tuple)) else _exact_as_floats([v])
+        for v in values
+        if v is not None
+    )
+
+
+def _floats(value: Any) -> Any:
+    """`value` with its numbers (at any depth of lists) as floats."""
+    if isinstance(value, (list, tuple)):
+        return [_floats(v) for v in value]
+    return None if value is None else float(value)
+
+
+def _write_parquet(frame: pl.DataFrame, filepath: Union[str, Path], settings: dict) -> None:
+    if hasattr(pl, "read_parquet_metadata"):
+        frame.write_parquet(filepath, metadata={_PARQUET_KEY: json.dumps(settings)})
+    else:
+        frame.write_parquet(filepath)
+
+
+def _parquet_settings(filepath: Union[str, Path, None]) -> dict:
+    """The settings `to_parquet()` keeps in a file's metadata (`{}` for other files)."""
+    if filepath is None or not hasattr(pl, "read_parquet_metadata"):
+        return {}
+    try:
+        settings = json.loads(pl.read_parquet_metadata(filepath).get(_PARQUET_KEY, ""))
+    except (ValueError, TypeError):
+        return {}
+    return settings if isinstance(settings, dict) else {}
+
+
+def from_parquet(
+    nodes_path: Union[str, Path, None],
+    edges_path: Union[str, Path, None],
+    directed: Optional[bool] = None,
+    weighted: Optional[bool] = None,
+    graph_name: Optional[str] = None,
+) -> Graph:
+    """
+    Create a graph from Parquet files of a node table and an edge table.
+
+    This reads the files `to_parquet()` writes, and gives back the graph that was written: the
+    same node and edge IDs, labels, weights, attributes and layout positions, and the same
+    direction and name. It also reads node and edge tables written by other tools, such as Polars,
+    pandas, DuckDB or Spark, when their columns are named as `to_parquet()` names them:
+
+    - the node table needs an `id` or a `label` column. The `id` values identify the nodes (the
+      `label` values do, if there's no `id`), and `label` gives the node labels; a node without a
+      label is labeled with its `id`. `layout_x` and `layout_y` (and `layout_z`) give each node a
+      `pos` attribute, and every other column an attribute.
+    - the edge table needs `source` and `target` columns, holding `id` values of the node table.
+      A numeric `weight` column gives the weights, an `id` column of distinct positive integers
+      the edge IDs, and every other column an attribute.
+
+    When the `id` values are positive integers, they become the node IDs, and otherwise the nodes
+    are numbered in table order. A null is an attribute that the node or edge doesn't have.
+
+    Parameters
+    ----------
+    nodes_path
+        The node table's file, or `None` to create the nodes from the edges, each labeled with its
+        `source` or `target` value.
+    edges_path
+        The edge table's file, or `None` for a graph without edges.
+    directed
+        Whether to create a directed graph. If `None`, taken from the files' metadata, as
+        `to_parquet()` writes it, and undirected for files without it.
+    weighted
+        Whether the graph has weights. If `None`, taken from the files' metadata, and for files
+        without it, weighted when the edge table has a numeric `weight` column.
+    graph_name
+        Name for the graph. If `None`, taken from the files' metadata.
+
+    Returns
+    -------
+    Graph
+        A graph constructed from the tables, built as a single step.
+
+    Examples
+    --------
+    Writing a graph with `to_parquet()` and reading it back gives the same graph:
+
+    ```python
+    import edgecase as ec
+
+    karate = ec.karate_club()
+    karate.layout_spring(seed=1)
+    ec.to_parquet(karate, "karate-nodes.parquet", "karate-edges.parquet")
+    restored = ec.from_parquet("karate-nodes.parquet", "karate-edges.parquet")
+
+    # Returns True
+    restored.get_node_df().equals(karate.get_node_df())
+    ```
+
+    An edge table from elsewhere needs only `source` and `target` columns:
+
+    ```python
+    import polars as pl
+
+    pl.DataFrame(
+        {"source": ["a", "a", "b"], "target": ["b", "c", "c"], "weight": [0.5, 2.0, 1.0]}
+    ).write_parquet("edges.parquet")
+    graph = ec.from_parquet(None, "edges.parquet")
+
+    # Returns (3, 3, True)
+    graph.count_nodes(), graph.count_edges(), graph.is_weighted()
+    ```
+    """
+    if nodes_path is None and edges_path is None:
+        raise ValueError("from_parquet() needs a node table, an edge table, or both")
+    node_settings = _parquet_settings(nodes_path)
+    edge_settings = _parquet_settings(edges_path)
+    settings = {**node_settings, **edge_settings}
+
+    nodes = []
+    if nodes_path is not None:
+        table = pl.read_parquet(nodes_path)
+        if "id" not in table.columns and "label" not in table.columns:
+            raise ValueError("A node table needs an 'id' or a 'label' column")
+        key_column = "id" if "id" in table.columns else "label"
+        has_layout = "layout_x" in table.columns and "layout_y" in table.columns
+        columns = _table_columns(table, node_settings.get("json", []))
+        keys = columns.pop("id", None)
+        labels = columns.pop("label", None)
+        layout = [columns.pop(name, None) for name in _LAYOUT_COLUMNS]
+        if keys is None:
+            keys = labels
+        for i in range(table.height):
+            if keys[i] is None:
+                raise ValueError(f"Every node needs a {key_column!r} value")
+            attrs = {name: values[i] for name, values in columns.items()}
+            if has_layout and layout[0][i] is not None and layout[1][i] is not None:
+                z = layout[2][i] if layout[2] is not None else None
+                attrs["pos"] = [layout[0][i], layout[1][i]] + ([] if z is None else [z])
+            label = None if labels is None or labels[i] is None else str(labels[i])
+            nodes.append((_hashable(keys[i]), label, attrs))
+
+    edges = []
+    edge_ids = None
+    if edges_path is not None:
+        table = pl.read_parquet(edges_path)
+        if "source" not in table.columns or "target" not in table.columns:
+            raise ValueError("An edge table needs 'source' and 'target' columns")
+        columns = _table_columns(table, edge_settings.get("json", []))
+        sources, targets = columns.pop("source"), columns.pop("target")
+        ids = columns.pop("id", None)
+        weights = None
+        if "weight" in columns and table.schema["weight"].is_numeric():
+            weights = columns.pop("weight")
+        for i in range(table.height):
+            if sources[i] is None or targets[i] is None:
+                raise ValueError("Every edge needs a 'source' and a 'target'")
+            weight = None if weights is None or weights[i] is None else float(weights[i])
+            attrs = {name: values[i] for name, values in columns.items()}
+            edges.append((_hashable(sources[i]), _hashable(targets[i]), weight, attrs))
+        if ids is not None and len(set(ids)) == len(ids) and all(map(_positive_int, ids)):
+            edge_ids = ids
+
+    if directed is None:
+        directed = bool(settings.get("directed", False))
+    if weighted is None:
+        if "weighted" in settings:
+            weighted = bool(settings["weighted"])
+        else:
+            weighted = any(weight is not None for _, _, weight, _ in edges)
+    if graph_name is None and isinstance(settings.get("graph_name"), str):
+        graph_name = settings["graph_name"]
+
+    keys_are_ids = all(_positive_int(key) for key, _, _ in nodes) and all(
+        _positive_int(source) and _positive_int(target) for source, target, _, _ in edges
+    )
+    code = _code("from_parquet", nodes_path, edges_path)
+    return _build_graph(nodes, edges, directed, weighted, graph_name, code, keys_are_ids, edge_ids)
+
+
+def _table_columns(table: pl.DataFrame, json_columns: list) -> dict[str, list]:
+    """The columns of a table as lists, with those `to_parquet()` wrote as JSON decoded."""
+    columns = {name: table[name].to_list() for name in table.columns}
+    for name in json_columns:
+        if name in columns and table.schema[name] == pl.String:
+            columns[name] = [None if v is None else _json_value(v) for v in columns[name]]
+    return columns
+
+
+def _json_value(text: str) -> Any:
+    try:
+        return json.loads(text)
+    except ValueError:
+        return text
+
+
+def _positive_int(value: Any) -> bool:
+    return isinstance(value, int) and not isinstance(value, bool) and value >= 1
 
 
 # =============================================================================
@@ -5841,6 +6228,8 @@ __all__ = [
     "to_node_link",
     "from_cytoscape",
     "to_cytoscape",
+    "from_parquet",
+    "to_parquet",
     "from_pajek",
     "to_pajek",
     "from_leda",
