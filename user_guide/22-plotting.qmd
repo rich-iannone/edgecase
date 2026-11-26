@@ -42,12 +42,15 @@ The layout treats the edges as springs that pull linked nodes together and the n
 that push each other apart, so closely knit groups end up near each other. The two halves of the
 club are already visible: the instructor, `"0"`, sits among one group on the right, and the
 administrator, `"33"`, among the other on the left. Before the drawing is rendered, nodes that would
-overlap are pushed apart, and straight edges that would pass through a node are bent around it.
+overlap are pushed apart, and straight edges that would pass through a node are bent around it,
+unless so many edges need it that the bends would crowd the drawing.
 
 The image is not entirely static: in a notebook or a web page, hovering over a node or an edge shows
 a tooltip with its attributes, which makes it easy to identify a node of interest without labelling
-every one. Above 2,000 edges, an edge shows its tooltip only when the pointer is right on it, with no
-wider margin around it to catch the pointer, as that margin would double the size of the output.
+every one. Above 2,000 nodes or edges, the output is made lean: an edge shows its tooltip only when
+the pointer is right on it, with no wider margin around it to catch the pointer, and nodes and edges
+of the same color and width share that styling rather than each carrying a copy. This keeps a graph
+of tens of thousands of edges to a few megabytes.
 
 ## Displaying and saving plots
 
@@ -251,9 +254,10 @@ are at least 2 pixels from each other, and a number sets a different minimum gap
 the positions exactly as the layout computed them. The adjustment applies to the force and random
 layouts, and not to positions given by a `"pos"` attribute, which are taken to be meaningful.
 
-`edge_routing=` controls edges that pass through nodes. The default, `"around"`, bends such an edge
-so that it clears the nodes in its way by 3 pixels, and a number sets the clearance. `"straight"`
-draws every edge as a direct line. Turning both adjustments off shows the raw layout of the dolphin
+`edge_routing=` controls edges that pass through nodes. The default, `"auto"`, bends such an edge
+so that it clears the nodes in its way by 3 pixels, as long as the bends in the whole drawing stay
+few, and draws direct lines otherwise. `"around"` always bends them, and a number always bends them
+with that clearance. `"straight"` draws every edge as a direct line. Turning both adjustments off shows the raw layout of the dolphin
 network:
 
 ```{python}
@@ -283,11 +287,11 @@ the text; the palettes for colored nodes are described in [Aesthetics](aesthetic
 
 ## Larger graphs
 
-`plot()` works well up to a few hundred nodes and a few thousand edges. Beyond that, two things go
-wrong. The drawing becomes a dense ball in which little can be seen, and the force-directed layout,
-which considers every pair of nodes, becomes slow: the 4,941 nodes of the power grid network take
-about twenty seconds. For the 198 bands and 2,742 links of the jazz network, small
-nodes, no labels, and faint edges are already needed:
+`plot()` draws graphs of tens of thousands of nodes and edges in a few seconds, into a few
+megabytes: the 4,941 nodes of the power grid network take about a second. The drawing is another
+matter, as beyond a few hundred nodes and a few thousand edges it becomes a dense ball in which
+little can be seen. For the 198 bands and 2,742 links of the jazz network, small nodes, no labels,
+and faint edges are already needed:
 
 ```{python}
 jazz = ec.jazz()
@@ -296,8 +300,12 @@ jazz.plot(show_labels=False, node_size=4, edge_opacity=0.15, edge_routing="strai
 
 A dense core of musicians who played with many others is surrounded by a sparser periphery. Edge
 routing is turned off here: in a dense graph almost every edge passes some node, and the detours
-make the drawing busier and the SVG several times larger without making it clearer. For graphs of
-this size and larger, several strategies help:
+make the drawing busier and the SVG several times larger without making it clearer. In still more
+crowded drawings, `"auto"` routing leaves the edges straight by itself.
+
+An output of more than 10 MB, more than a notebook should hold, comes with a warning, and a graph
+whose output would pass 200 MB raises an error rather than being drawn. For graphs the size of the
+jazz network and larger, several strategies help:
 
 - draw a meaningful part of the graph, such as a k-core, an ego network, or one community, with
   the methods of [Transforming graphs](transforming.qmd)
@@ -320,7 +328,7 @@ this size and larger, several strategies help:
 | `label_by=`, `show_labels=` | the node text | `None`, `True` |
 | `edge_label_by=` | an edge attribute to write along the edges | `None` |
 | `curved_edges=` | curved rather than straight edges | `False` |
-| `node_overlap=`, `edge_routing=` | overlap removal and routing around nodes | `"remove"`, `"around"` |
+| `node_overlap=`, `edge_routing=` | overlap removal and routing around nodes | `"remove"`, `"auto"` |
 | `theme=` | `"light"` or `"dark"` | `"light"` |
 | `output=` | a path to save to, as `.svg` or `.html` | `None` |
 
