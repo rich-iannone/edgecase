@@ -1,5 +1,5 @@
-"""Tests for `Scene.png()`, the scene drawn as a raster image, and for the layers that
-`_raster_layers()` makes of it for each theme.
+"""Tests for `Scene.png()`, the scene drawn as a raster image, in full color or in a palette, and
+for the layers that `_raster_layers()` makes of it for each theme.
 
 The images are read back with a small PNG decoder of the standard library's, so that the tests
 need nothing else installed.
@@ -25,19 +25,24 @@ LIGHTS = [light for light, _ in PAIRS]
 
 
 def _decode(png):
-    """The width, height, channels and rows of pixels of an 8-bit PNG without a palette."""
+    """The width, height, channels and rows of pixels of an 8-bit PNG. An indexed one comes out as
+    RGBA, its entries looked up."""
     assert png[:8] == b"\x89PNG\r\n\x1a\n"
-    pos, data = 8, b""
+    pos, data, palette, alphas = 8, b"", [], b""
     while pos < len(png):
         (length,) = struct.unpack(">I", png[pos : pos + 4])
         kind, body = png[pos + 4 : pos + 8], png[pos + 8 : pos + 8 + length]
         if kind == b"IHDR":
             width, height, depth, color = struct.unpack(">IIBB", body[:10])
-            assert depth == 8 and color in (0, 2, 4, 6)
+            assert depth == 8 and color in (0, 2, 3, 4, 6)
+        elif kind == b"PLTE":
+            palette = [tuple(body[i : i + 3]) for i in range(0, len(body), 3)]
+        elif kind == b"tRNS":
+            alphas = body
         elif kind == b"IDAT":
             data += body
         pos += 12 + length
-    channels = {0: 1, 2: 3, 4: 2, 6: 4}[color]
+    channels = {0: 1, 2: 3, 3: 1, 4: 2, 6: 4}[color]
     raw, stride = zlib.decompress(data), width * channels
     rows, prev = [], bytearray(stride)
     for y in range(height):
@@ -58,7 +63,15 @@ def _decode(png):
                 row[i] = (row[i] + (a if pa <= pb and pa <= pc else b if pb <= pc else c)) & 0xFF
         rows.append(row)
         prev = row
+    if color == 3:
+        entries = [(*rgb, alphas[i] if i < len(alphas) else 255) for i, rgb in enumerate(palette)]
+        rows = [bytearray(b"".join(bytes(entries[i]) for i in row)) for row in rows]
+        channels = 4
     return width, height, channels, rows
+
+
+def _color_type(png):
+    return png[25]
 
 
 def _pixel(image, x, y):
@@ -134,11 +147,12 @@ def test_the_layers_draw_apart():
 
 def test_the_mask_is_the_edges_opacity():
     scene = _scene()
-    mask = _decode(scene.edge_mask(scale=1.0))
-    assert mask[2] == 2
+    png = scene.edge_mask(scale=1.0)
+    assert _color_type(png) == 3
+    mask = _decode(png)
     edges = _decode(scene.png(LIGHTS, scale=1.0, nodes=False))
-    assert [px[1] for px in _pixels(mask)] == [px[3] for px in _pixels(edges)]
-    assert {px[0] for px in _pixels(mask)} == {255}
+    assert [px[3] for px in _pixels(mask)] == [px[3] for px in _pixels(edges)]
+    assert {px[:3] for px in _pixels(mask) if px[3]} == {(255, 255, 255)}
     # The same, whatever the colors
     other = _decode(scene.png([OTHER, OTHER, OTHER], scale=1.0, nodes=False))
     assert [px[3] for px in _pixels(other)] == [px[3] for px in _pixels(edges)]
@@ -163,6 +177,36 @@ def test_the_tint_is_the_one_color_of_every_edge():
                     [1.0] * 2, [0, 1], ["{}"] * 2)  # fmt: skip
     scene.set_edges([0], [1], [0], [1.0], [0.5], [0.0], [1.0], [None], [0], ["{}"])
     assert scene.edge_tint is None
+
+
+def test_a_palette_keeps_few_colors():
+    # The small scene has fewer than 256 colors, which the palette keeps as they are
+    for kwargs in ({}, {"bg": BG}, {"nodes": False}):
+        png = _scene((0, 2)).png(LIGHTS, scale=1.0, palette=True, **kwargs)
+        assert _color_type(png) == 3
+        full = _decode(_scene((0, 2)).png(LIGHTS, scale=1.0, **kwargs))
+        want = [px if len(px) == 4 else (*px, 255) for px in _pixels(full)]
+        assert _pixels(_decode(png)) == [px if px[3] else (0, 0, 0, 0) for px in want]
+
+
+def test_a_palette_comes_near_more_colors():
+    g = ec.karate_club()
+    scene = svg_renderer.build_scene(g, layout="circular", show_labels=False, color_by="degree")
+    hexes = [light for light, _ in scene.colors]
+    full = _decode(scene.png(hexes, scale=1.0, edges=False))
+    assert len(set(_pixels(full))) > 256
+    png = scene.png(hexes, scale=1.0, edges=False, palette=True)
+    assert png == scene.png(hexes, scale=1.0, edges=False, palette=True)
+    (length,) = struct.unpack(">I", png[33:37])
+    assert png[37:41] == b"PLTE" and length <= 3 * 256
+    # Over the light background, the mean difference is a fraction of a level
+    bg = _rgb(BG)
+    diffs = []
+    for p, q in zip(_pixels(full), _pixels(_decode(png))):
+        for c in range(3):
+            seen = [(px[c] * px[3] + bg[c] * (255 - px[3])) / 255 for px in (p, q)]
+            diffs.append(abs(seen[0] - seen[1]))
+    assert sum(diffs) / len(diffs) < 0.05 and max(diffs) < 24
 
 
 def test_the_box_is_the_frame_in_the_viewbox():
@@ -231,7 +275,9 @@ def _images(markup):
     """The images in `markup`, decoded, with what is in their tags apart from them."""
     found = []
     for tag, href in re.findall(r'(<image [^>]*?)href="data:image/png;base64,([^"]*)"', markup):
-        found.append((tag, _decode(base64.b64decode(href))))
+        png = base64.b64decode(href)
+        assert _color_type(png) == 3
+        found.append((tag, _decode(png)))
     return found
 
 
@@ -244,7 +290,8 @@ def test_edges_of_one_color_are_a_mask_in_it():
         assert f'fill="{fill}' in markup and f'mask="url(#{mask_id})"' in markup
         # The mask, then the nodes (which look the same in either theme)
         (mask_tag, mask), (_, nodes) = _images(markup)
-        assert mask[2] == 2 and nodes[2] == 4
+        assert {px[:3] for px in _pixels(mask) if px[3]} == {(255, 255, 255)}
+        assert _pixel(nodes, 20, 50) == (*_rgb(FILL), 255)
         assert 'x="0.000" y="0.000" width="200.000" height="100.000"' in mask_tag
         assert "display" not in markup
     assert "var(" not in svg_renderer._raster_layers(scene, svg_renderer._Colors("dark"))
