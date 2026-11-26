@@ -5,6 +5,7 @@ mod color;
 mod geometry;
 mod highlight;
 mod pyfmt;
+mod raster;
 mod svg;
 mod tips;
 
@@ -14,6 +15,7 @@ pub use tips::{tooltip_attrs, tooltip_table};
 
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
+use pyo3::types::PyBytes;
 
 #[derive(Default)]
 struct Nodes {
@@ -330,7 +332,56 @@ impl Scene {
         };
         Ok(py.allow_threads(|| svg::draw(self, &style)))
     }
+
+    /// The scene as a PNG image, with the edges drawn as density, in a theme: `colors` are the
+    /// color table's colors in it, as hex, and `bg` its background, or None for a transparent
+    /// one. The image is `scale` pixels to a pixel of the frame. `tone` is how the edges'
+    /// density shows: `"over"` as the SVG draws it, `"log"` by its logarithm and `"eq_hist"` by
+    /// its rank. Labels and the legend aren't drawn.
+    #[pyo3(signature = (colors, bg=None, scale=2.0, tone="log"))]
+    fn png<'py>(
+        &self,
+        py: Python<'py>,
+        colors: Vec<String>,
+        bg: Option<String>,
+        scale: f64,
+        tone: &str,
+    ) -> PyResult<Bound<'py, PyBytes>> {
+        check_len(
+            "colors",
+            colors.len(),
+            self.colors.len(),
+            "colors in the table",
+        )?;
+        if scale.is_nan() || scale <= 0.0 {
+            return Err(PyValueError::new_err(format!(
+                "scale must be greater than 0, not {scale}"
+            )));
+        }
+        let pixels = (self.width * scale).round() * (self.height * scale).round();
+        if !(pixels.is_finite() && pixels <= PIXELS_MAX) {
+            return Err(PyValueError::new_err(format!(
+                "scale {scale} makes an image of {}×{} pixels; the most is {PIXELS_MAX} pixels",
+                (self.width * scale).round(),
+                (self.height * scale).round(),
+            )));
+        }
+        let style = raster::Style {
+            colors: colors
+                .iter()
+                .map(|c| raster::parse_hex(c))
+                .collect::<PyResult<_>>()?,
+            bg: bg.as_deref().map(raster::parse_hex).transpose()?,
+            scale,
+            tone: raster::Tone::parse(tone)?,
+        };
+        let png = py.allow_threads(|| raster::draw(self, &style).png());
+        Ok(PyBytes::new(py, &png))
+    }
 }
+
+/// The most pixels a raster image may have, 16k × 16k
+const PIXELS_MAX: f64 = 268_435_456.0;
 
 /// The box `(min x, min y, width, height)` around nodes at `xs`, `ys` of radii `rs`, with
 /// `padding` around them and room under them for labels of `label_chars` characters. With
