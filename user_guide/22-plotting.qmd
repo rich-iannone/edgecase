@@ -50,7 +50,7 @@ a tooltip with its attributes, which makes it easy to identify a node of interes
 every one. Above 2,000 nodes or edges, the output is made lean: an edge shows its tooltip only when
 the pointer is right on it, with no wider margin around it to catch the pointer, and nodes and edges
 of the same color and width share that styling rather than each carrying a copy. This keeps a graph
-of tens of thousands of edges to a few megabytes.
+of ten thousand edges to a megabyte or two.
 
 ## Displaying and saving plots
 
@@ -306,21 +306,23 @@ routing is turned off here: in a dense graph almost every edge passes some node,
 make the drawing busier and the SVG several times larger without making it clearer. In still more
 crowded drawings, `"auto"` routing leaves the edges straight by itself.
 
-A graph whose SVG would pass 10 MB, more than a notebook should hold, is drawn differently: its
-edges and nodes become images, which stay within a few megabytes however large the graph is, and
-show where many edges cross by how dark they get. The labels and the legend stay text, but the
-nodes and edges have no tooltips. The wiki-vote network, with 103,689 edges, is drawn this way:
+A graph whose SVG would pass 10 MB or 20,000 elements, more than a notebook or a web page should
+hold, is drawn differently: its edges and nodes become images, which stay within a few megabytes
+however large the graph is, and show where many edges cross by how dark they get. The labels and the
+legend stay text, but the nodes and edges have no tooltips. The wiki-vote network, with 103,689
+edges, is drawn this way:
 
 ```{python}
 ec.wiki_vote().plot(show_labels=False, seed=1)
 ```
 
-At this size, the drawing shows the graph's overall shape rather than its nodes: a dense core,
-a fringe of users with few votes whose edges fan in toward it, and, below and to the right, the
-23 pairs and triples of users whose votes link them to no one else. `backend="png"` draws any graph this way, and `backend="svg"` keeps the SVG elements,
-up to 200 MB, past which a plot raises an error rather than being drawn. An output that passes
-10 MB even as images, with thousands of labels, comes with a warning. For graphs the size of the
-jazz network and larger, several strategies help:
+At this size, the drawing shows the graph's overall shape rather than its nodes: a dense core, a
+fringe of users with few votes whose edges fan in toward it, and, below and to the right, the 23
+pairs and triples of users whose votes link them to no one else. `backend="png"` draws any graph
+this way, and `backend="svg"` keeps the SVG elements, however many there are, up to 200 MB, past
+which a plot raises an error rather than being drawn. An output that passes 10 MB even as images,
+with thousands of labels, comes with a warning. For graphs the size of the jazz network and larger,
+several strategies help:
 
 - draw a meaningful part of the graph, such as a k-core, an ego network, or one community, with
   the methods of [Transforming graphs](transforming.qmd)
