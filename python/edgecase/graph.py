@@ -4532,10 +4532,10 @@ class Graph:
         shows its attributes. Each edge takes the hover a few pixels either side of it, except
         above 2,000 nodes or edges, where the output is lean: an edge takes the hover only where
         it's drawn, and nodes and edges of the same style share their styling, which keeps a
-        graph with tens of thousands of edges to a few megabytes. Where the SVG would pass 10 MB,
-        more than a notebook should hold, the edges and nodes are drawn as images instead, which
-        stay small however many there are, under labels and a legend that remain text;
-        `backend=` makes either choice for any graph.
+        graph with ten thousand edges to a megabyte or two. Where the SVG would pass 10 MB or
+        20,000 elements, more than a notebook or a web page should hold, the edges and nodes
+        are drawn as images instead, which stay small however many there are, under labels and
+        a legend that remain text; `backend=` makes either choice for any graph.
 
         Aesthetics can be mapped from attributes: `color_by=` for node colors (a palette for
         groups, a color scale for numbers), `size_by=` for numeric node sizes, `label_by=` for the
@@ -4712,11 +4712,11 @@ class Graph:
             What the edges and nodes are drawn as: `"svg"`, an SVG element each, or `"png"`, an
             image of the edges and one of the nodes in the SVG, with the edges drawn by their
             density, so that where many cross reads darker than where a few do. `"auto"`, the
-            default, is `"svg"` while the output stays within 10 MB, and `"png"` for graphs
-            whose SVG would pass that. The labels and the legend are SVG text either way. The
-            images keep the output to a few megabytes whatever the size of the graph, but nodes
-            and edges have no tooltips. A graph whose SVG would pass 200 MB can only be plotted
-            as images. Any other value raises `ValueError`.
+            default, is `"svg"` while the output stays within 10 MB and 20,000 SVG elements,
+            and `"png"` for graphs whose SVG would pass either. The labels and the legend are
+            SVG text either way. The images keep the output to a few megabytes whatever the size
+            of the graph, but nodes and edges have no tooltips. A graph whose SVG would pass
+            200 MB can only be plotted as images. Any other value raises `ValueError`.
 
         Returns
         -------
