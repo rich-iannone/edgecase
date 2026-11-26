@@ -2,6 +2,7 @@
 // Python once it has read the attributes and worked out the encodings, and the SVG they make
 mod builder;
 mod color;
+mod css;
 mod geometry;
 mod highlight;
 mod pyfmt;
@@ -337,8 +338,10 @@ impl Scene {
     /// color table's colors in it, as hex, and `bg` its background, or None for a transparent
     /// one. The image is `scale` pixels to a pixel of the frame. `tone` is how the edges'
     /// density shows: `"over"` as the SVG draws it, `"log"` by its logarithm and `"eq_hist"` by
-    /// its rank. Labels and the legend aren't drawn.
-    #[pyo3(signature = (colors, bg=None, scale=2.0, tone="log"))]
+    /// its rank. `edges` and `nodes` say which are drawn, so that each can be a layer of its
+    /// own. Labels and the legend aren't drawn.
+    #[allow(clippy::too_many_arguments)]
+    #[pyo3(signature = (colors, bg=None, scale=2.0, tone="log", edges=true, nodes=true))]
     fn png<'py>(
         &self,
         py: Python<'py>,
@@ -346,6 +349,8 @@ impl Scene {
         bg: Option<String>,
         scale: f64,
         tone: &str,
+        edges: bool,
+        nodes: bool,
     ) -> PyResult<Bound<'py, PyBytes>> {
         check_len(
             "colors",
@@ -353,29 +358,101 @@ impl Scene {
             self.colors.len(),
             "colors in the table",
         )?;
+        let colors = colors
+            .iter()
+            .map(|c| css::parse(c))
+            .collect::<PyResult<Vec<_>>>()?;
+        let output = match bg {
+            Some(bg) => match css::parse(&bg)? {
+                [r, g, b, a] if a >= 1.0 => raster::Output::Over([r, g, b]),
+                _ => {
+                    return Err(PyValueError::new_err(format!(
+                        "bg must be opaque, not '{bg}'"
+                    )))
+                }
+            },
+            None => raster::Output::Rgba,
+        };
+        let style = raster::Style {
+            colors: colors.iter().map(|&[r, g, b, _]| [r, g, b]).collect(),
+            alphas: colors.iter().map(|c| c[3]).collect(),
+            output,
+            scale,
+            tone: raster::Tone::parse(tone)?,
+            edges,
+            nodes,
+        };
+        self.raster(py, &style)
+    }
+
+    /// The edges as a PNG mask: white, with the opacity at which `png()` draws them, to be
+    /// tinted with any color, the edges' own in either theme when `edge_tint` is one.
+    #[pyo3(signature = (scale=2.0, tone="log"))]
+    fn edge_mask<'py>(
+        &self,
+        py: Python<'py>,
+        scale: f64,
+        tone: &str,
+    ) -> PyResult<Bound<'py, PyBytes>> {
+        let style = raster::Style {
+            colors: vec![[1.0; 3]; self.colors.len()],
+            alphas: vec![1.0; self.colors.len()],
+            output: raster::Output::Mask,
+            scale,
+            tone: raster::Tone::parse(tone)?,
+            edges: true,
+            nodes: false,
+        };
+        self.raster(py, &style)
+    }
+
+    /// The index in the color table of the color that every edge has, opaque in both themes,
+    /// or None if their colors differ (or there are no edges). A color with an alpha of its own
+    /// is left out, since its alpha would go on the edges' density rather than on each edge
+    #[getter]
+    fn edge_tint(&self) -> Option<usize> {
+        let first = *self.edges.color.first()?;
+        let tint = &self.colors[first];
+        let opaque = |c: &str| css::parse(c).is_ok_and(|c| c[3] >= 1.0);
+        (opaque(&tint.0)
+            && opaque(&tint.1)
+            && self.edges.color.iter().all(|&c| self.colors[c] == *tint))
+        .then_some(first)
+    }
+
+    /// The box `(x, y, width, height)` that the images of `png()` and `edge_mask()` at `scale`
+    /// cover, in the viewBox's units: the frame, give or take the rounding of the pixels.
+    #[pyo3(signature = (scale=2.0))]
+    fn raster_box(&self, scale: f64) -> PyResult<(f64, f64, f64, f64)> {
+        let (width, height) = self.raster_size(scale)?;
+        Ok(raster::View::new(self.viewbox, width, height).frame(width, height))
+    }
+}
+
+impl Scene {
+    /// The size in pixels of an image of the frame at `scale`
+    fn raster_size(&self, scale: f64) -> PyResult<(u32, u32)> {
         if scale.is_nan() || scale <= 0.0 {
             return Err(PyValueError::new_err(format!(
                 "scale must be greater than 0, not {scale}"
             )));
         }
-        let pixels = (self.width * scale).round() * (self.height * scale).round();
-        if !(pixels.is_finite() && pixels <= PIXELS_MAX) {
+        let (width, height) = (
+            (self.width * scale).round().max(1.0),
+            (self.height * scale).round().max(1.0),
+        );
+        if width * height > PIXELS_MAX {
             return Err(PyValueError::new_err(format!(
-                "scale {scale} makes an image of {}×{} pixels; the most is {PIXELS_MAX} pixels",
-                (self.width * scale).round(),
-                (self.height * scale).round(),
+                "scale {scale} makes an image of {width}×{height} pixels; the most is \
+                 {PIXELS_MAX} pixels"
             )));
         }
-        let style = raster::Style {
-            colors: colors
-                .iter()
-                .map(|c| raster::parse_hex(c))
-                .collect::<PyResult<_>>()?,
-            bg: bg.as_deref().map(raster::parse_hex).transpose()?,
-            scale,
-            tone: raster::Tone::parse(tone)?,
-        };
-        let png = py.allow_threads(|| raster::draw(self, &style).png());
+        Ok((width as u32, height as u32))
+    }
+
+    fn raster<'py>(&self, py: Python<'py>, style: &raster::Style) -> PyResult<Bound<'py, PyBytes>> {
+        self.raster_size(style.scale)?;
+        let png = py.allow_threads(|| raster::draw(self, style).png());
         Ok(PyBytes::new(py, &png))
     }
 }
