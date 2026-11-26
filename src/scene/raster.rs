@@ -39,42 +39,38 @@ impl Tone {
 /// A color as red, green and blue from 0 to 1
 pub type Rgb = [f32; 3];
 
-/// Hex `#rrggbb` or `#rgb` as a color
-pub fn parse_hex(color: &str) -> PyResult<Rgb> {
-    let bad = || PyValueError::new_err(format!("not a hex color: '{color}'"));
-    let digits = color.strip_prefix('#').ok_or_else(bad)?;
-    let channel = |s: &str| u8::from_str_radix(s, 16).map_err(|_| bad());
-    let rgb = match digits.len() {
-        6 => [
-            channel(&digits[0..2])?,
-            channel(&digits[2..4])?,
-            channel(&digits[4..6])?,
-        ],
-        3 => {
-            let one = |k: usize| channel(&digits[k..k + 1]).map(|v| v * 17);
-            [one(0)?, one(1)?, one(2)?]
-        }
-        _ => return Err(bad()),
-    };
-    Ok(rgb.map(|v| v as f32 / 255.0))
+/// The pixels a raster is written as
+#[derive(Clone, Copy)]
+pub enum Output {
+    /// RGB, over a background
+    Over(Rgb),
+    /// RGBA, over nothing
+    Rgba,
+    /// Gray and alpha, white everywhere, its alpha that of the RGBA: a mask that shows the
+    /// drawing in any one color, read by its alpha or by its luminance
+    Mask,
 }
 
-/// What the raster is drawn in: the color table's colors in the theme, and the background, or
-/// None for a transparent one
+/// What the raster is drawn in: the color table's colors in the theme, and what of the scene
 pub struct Style {
     pub colors: Vec<Rgb>,
-    pub bg: Option<Rgb>,
+    /// The colors' alphas, which multiply the opacities of what they color
+    pub alphas: Vec<f32>,
+    pub output: Output,
     /// Pixels to a pixel of the frame
     pub scale: f64,
     pub tone: Tone,
+    /// Whether the edges are drawn, and the nodes
+    pub edges: bool,
+    pub nodes: bool,
 }
 
-/// A drawn raster: its size, and its pixels as RGB (on a background) or RGBA, row by row
+/// A drawn raster: its size, and its pixels, row by row
 pub struct Image {
     pub width: u32,
     pub height: u32,
     pub pixels: Vec<u8>,
-    pub alpha: bool,
+    pub color: png::ColorType,
 }
 
 impl Image {
@@ -82,11 +78,7 @@ impl Image {
     pub fn png(&self) -> Vec<u8> {
         let mut out = Vec::new();
         let mut encoder = png::Encoder::new(&mut out, self.width, self.height);
-        encoder.set_color(if self.alpha {
-            png::ColorType::Rgba
-        } else {
-            png::ColorType::Rgb
-        });
+        encoder.set_color(self.color);
         encoder.set_depth(png::BitDepth::Eight);
         encoder.set_compression(png::Compression::Balanced);
         let mut writer = encoder
@@ -138,6 +130,7 @@ struct Disc {
     y: f32,
     r: f32,
     fill: u32,
+    fill_opacity: f32,
     /// Half the border's width, centered on the node's edge as the SVG's stroke is
     bw: f32,
     border: u32,
@@ -146,14 +139,14 @@ struct Disc {
 
 /// From the scene's frame to pixels: the viewBox fitted into the image and centered, as the
 /// SVG's default `preserveAspectRatio` places it
-struct View {
+pub struct View {
     s: f64,
     ox: f64,
     oy: f64,
 }
 
 impl View {
-    fn new(viewbox: (f64, f64, f64, f64), width: u32, height: u32) -> View {
+    pub fn new(viewbox: (f64, f64, f64, f64), width: u32, height: u32) -> View {
         let (vx, vy, vw, vh) = viewbox;
         let (w, h) = (width as f64, height as f64);
         let s = (w / vw).min(h / vh);
@@ -166,6 +159,18 @@ impl View {
 
     fn pt(&self, (x, y): (f64, f64)) -> [f32; 2] {
         [(x * self.s + self.ox) as f32, (y * self.s + self.oy) as f32]
+    }
+
+    /// The box `(x, y, width, height)` that an image of `width` × `height` pixels covers, in the
+    /// viewBox's units (with 0 rather than -0 at an origin, for the markup)
+    pub fn frame(&self, width: u32, height: u32) -> (f64, f64, f64, f64) {
+        let s = self.s;
+        (
+            -self.ox / s + 0.0,
+            -self.oy / s + 0.0,
+            width as f64 / s,
+            height as f64 / s,
+        )
     }
 }
 
@@ -254,23 +259,30 @@ fn push_edge(
     }
 }
 
-fn shapes(scene: &Scene, view: &View) -> Shapes {
+/// The shapes of the edges and of the nodes that `style` draws
+fn shapes(scene: &Scene, view: &View, style: &Style) -> Shapes {
     let (nodes, edges) = (&scene.nodes, &scene.edges);
+    let edge_order: &[usize] = if style.edges { &edges.order } else { &[] };
+    let node_order: &[usize] = if style.nodes { &nodes.order } else { &[] };
     let directed = scene.directed;
     let s = view.s as f32;
     let mut shapes = Shapes {
-        segs: Vec::with_capacity(edges.src.len()),
-        tris: Vec::with_capacity(if directed { edges.src.len() } else { 0 }),
-        discs: Vec::with_capacity(nodes.order.len()),
+        segs: Vec::with_capacity(edge_order.len()),
+        tris: Vec::with_capacity(if directed { edge_order.len() } else { 0 }),
+        discs: Vec::with_capacity(node_order.len()),
         lone: 0.0,
     };
-    let mut lone = Vec::with_capacity(edges.src.len());
+    let mut lone = Vec::with_capacity(edge_order.len());
     let mut pts: Vec<[f32; 2]> = Vec::new();
-    for &i in &edges.order {
+    for &i in edge_order {
         let (a, b) = (edges.src[i], edges.tgt[i]);
         let (x1, y1, x2, y2) = (nodes.x[a], nodes.y[a], nodes.x[b], nodes.y[b]);
         let (r_src, r_dst) = (nodes.r[a], nodes.r[b]);
-        let (width, opacity) = (edges.width[i], edges.opacity[i] as f32);
+        let color = edges.color[i];
+        let (width, opacity) = (
+            edges.width[i],
+            edges.opacity[i] as f32 * style.alphas[color],
+        );
         let bow = edges.bow[i];
         pts.clear();
         // As `svg::draw_edges()` picks the shape
@@ -335,7 +347,7 @@ fn shapes(scene: &Scene, view: &View) -> Shapes {
             hw,
             gain,
             opacity,
-            edges.color[i] as u32,
+            color as u32,
         );
     }
     // The median edge's density
@@ -344,7 +356,7 @@ fn shapes(scene: &Scene, view: &View) -> Shapes {
         let (_, m, _) = lone.select_nth_unstable_by(mid, f32::total_cmp);
         shapes.lone = *m;
     }
-    for &k in &nodes.order {
+    for &k in node_order {
         let [x, y] = view.pt((nodes.x[k], nodes.y[k]));
         let r = nodes.r[k] as f32 * s;
         if !(x.is_finite() && y.is_finite() && r.is_finite()) {
@@ -355,9 +367,10 @@ fn shapes(scene: &Scene, view: &View) -> Shapes {
             y,
             r,
             fill: nodes.fill[k] as u32,
+            fill_opacity: style.alphas[nodes.fill[k]],
             bw: (nodes.border_width[k] as f32 * s / 2.0).max(0.0),
             border: nodes.border[k] as u32,
-            border_opacity: nodes.border_opacity[k] as f32,
+            border_opacity: nodes.border_opacity[k] as f32 * style.alphas[nodes.border[k]],
         });
     }
     shapes
@@ -502,9 +515,9 @@ fn draw_discs(band: &mut [[f32; 4]], y0: usize, width: usize, discs: &[Disc], co
     for disc in discs {
         // A node or border thinner than a pixel is drawn a pixel across, as faint as it is small
         let (r, fill_gain) = if disc.r < 0.5 {
-            (0.5, (disc.r / 0.5).powi(2))
+            (0.5, (disc.r / 0.5).powi(2) * disc.fill_opacity)
         } else {
-            (disc.r, 1.0)
+            (disc.r, disc.fill_opacity)
         };
         let (bw, border_gain) = if disc.bw <= 0.0 || disc.border_opacity <= 0.0 {
             (0.0, 0.0)
@@ -632,7 +645,7 @@ pub fn draw(scene: &Scene, style: &Style) -> Image {
     let height = (scene.height * style.scale).round().max(1.0) as u32;
     let (w, h) = (width as usize, height as usize);
     let view = View::new(scene.viewbox, width, height);
-    let shapes = shapes(scene, &view);
+    let shapes = shapes(scene, &view, style);
     let colors = &style.colors;
 
     let mut ink: Vec<Ink> = vec![[0.0; 4]; w * h];
@@ -661,32 +674,45 @@ pub fn draw(scene: &Scene, style: &Style) -> Image {
         });
 
     let to_byte = |v: f32| (v.clamp(0.0, 1.0) * 255.0 + 0.5) as u8;
-    let pixels: Vec<u8> = match style.bg {
-        Some(bg) => pixels
-            .par_iter()
-            .flat_map_iter(|px| {
-                let keep = 1.0 - px[3];
-                [0, 1, 2].map(|c| to_byte(px[c] + bg[c] * keep))
-            })
-            .collect(),
-        None => pixels
-            .par_iter()
-            .flat_map_iter(|px| {
-                let a = px[3];
-                if a <= 0.0 {
-                    [0; 4]
-                } else {
-                    let [r, g, b] = [0, 1, 2].map(|c| to_byte(px[c] / a));
-                    [r, g, b, to_byte(a)]
-                }
-            })
-            .collect(),
+    let (pixels, color): (Vec<u8>, _) = match style.output {
+        Output::Over(bg) => (
+            pixels
+                .par_iter()
+                .flat_map_iter(|px| {
+                    let keep = 1.0 - px[3];
+                    [0, 1, 2].map(|c| to_byte(px[c] + bg[c] * keep))
+                })
+                .collect(),
+            png::ColorType::Rgb,
+        ),
+        Output::Rgba => (
+            pixels
+                .par_iter()
+                .flat_map_iter(|px| {
+                    let a = px[3];
+                    if a <= 0.0 {
+                        [0; 4]
+                    } else {
+                        let [r, g, b] = [0, 1, 2].map(|c| to_byte(px[c] / a));
+                        [r, g, b, to_byte(a)]
+                    }
+                })
+                .collect(),
+            png::ColorType::Rgba,
+        ),
+        Output::Mask => (
+            pixels
+                .par_iter()
+                .flat_map_iter(|px| [255, to_byte(px[3])])
+                .collect(),
+            png::ColorType::GrayscaleAlpha,
+        ),
     };
     Image {
         width,
         height,
         pixels,
-        alpha: style.bg.is_none(),
+        color,
     }
 }
 
@@ -803,16 +829,5 @@ mod tests {
                 assert!(map.alpha(4.0) < 0.9, "{tone:?}");
             }
         }
-    }
-
-    #[test]
-    fn hex_colors_parse() {
-        assert_eq!(parse_hex("#ff0080").unwrap(), [1.0, 0.0, 128.0 / 255.0]);
-        assert_eq!(parse_hex("#f08").unwrap(), [1.0, 0.0, 136.0 / 255.0]);
-        Python::with_gil(|_| {
-            for bad in ["ff0080", "#ff008", "#gg0000", "var(--ect-1)"] {
-                assert!(parse_hex(bad).is_err(), "{bad}");
-            }
-        });
     }
 }
