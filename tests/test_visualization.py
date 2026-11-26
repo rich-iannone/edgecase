@@ -99,11 +99,11 @@ class TestPlotNodeValues:
         assert [tips[n]["score"] for n in "123"] == [0.1235, 1235.0, 2]
 
     def test_tooltip_vector_precision_follows_point_spacing(self):
-        from edgecase.svg_renderer import _tooltip_rows
+        from edgecase._core import tooltip_attrs
 
         def first_x(n, spread):
             rows = [{"pos": (1 / 3 + spread * i / (n - 1), 0.0)} for i in range(n)]
-            return _tooltip_rows(rows)[0]["pos"][0]
+            return json.loads(html.unescape(tooltip_attrs(rows)[0]))["pos"][0]
 
         # To a hundredth of the typical spacing: finer for more points or a smaller range
         assert first_x(4, 2.0) == 0.33
@@ -224,16 +224,44 @@ class TestPlotNodeValues:
         assert len(set(opacities)) > 1
 
     def test_tooltip_table_survives_any_value(self):
-        from edgecase.svg_renderer import _tooltip_table
+        from edgecase._core import tooltip_table
 
         rows = [{"id": 1, "rel": "</script>", "score": math.nan}, {"id": 2, "pos": [math.inf, 1]}]
-        text = _tooltip_table(rows)
+        text = tooltip_table(rows)
         assert "<" not in text
         table = json.loads(text)
         assert table == {
             "k": ["id", "rel", "score", "pos"],
             "c": [[1, 2], {"0": "</script>"}, {"0": "nan"}, {"1": ["inf", 1]}],
         }
+
+    def test_tooltip_json_is_what_python_writes(self):
+        # The tooltips are written in Rust as json.dumps(..., default=str) wrote them in Python:
+        # these are its output, from before the move
+        from edgecase._core import tooltip_attrs, tooltip_table
+
+        rows = [
+            {"id": "1", "x": 0.123456789, "pos": (0.1, 1e-17), "s": "é</script>&'", "n": None},
+            {"id": "2", "x": math.nan, "pos": [3, 4.56789], "inf": math.inf, "b": True},
+            {"id": 3, "nested": {"a": [1.5, math.nan], 2: "two", None: 1, True: 0}, "set": {1}},
+            {"big": 10**30},
+        ]
+        assert tooltip_attrs(rows) == [
+            '{"id": "1", "x": 0.1235, "pos": [0.1, 0.0], "s": "\\u00e9&lt;/script>&amp;&#39;", '
+            '"n": null}',
+            '{"id": "2", "x": NaN, "pos": [3, 4.57], "inf": Infinity, "b": true}',
+            '{"id": 3, "nested": {"a": [1.5, NaN], "2": "two", "null": 1, "true": 0}, '
+            '"set": "{1}"}',
+            '{"big": 1000000000000000000000000000000}',
+        ]
+        assert tooltip_table(rows) == (
+            '{"k": ["id", "x", "pos", "s", "n", "inf", "b", "nested", "set", "big"], "c": '
+            '[{"0": "1", "1": "2", "2": 3}, {"0": 0.1235, "1": "nan"}, '
+            '{"0": [0.1, 0.0], "1": [3, 4.57]}, {"0": "\\u00e9\\u003c/script>&\'"}, '
+            '{"0": null}, {"1": "inf"}, {"1": true}, '
+            '{"2": {"a": [1.5, NaN], "2": "two", "null": 1, "true": 0}}, {"2": "{1}"}, '
+            '{"3": 1000000000000000000000000000000}]}'
+        )
 
     @pytest.mark.parametrize("opts", [{"curved_edges": True}, {"edge_routing": "around"}])
     def test_edge_tooltips_on_curved_and_routed_edges(self, opts):
