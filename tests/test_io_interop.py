@@ -7,6 +7,7 @@ import warnings
 
 import edgecase as ec
 import networkx as nx
+import polars as pl
 import pytest
 from edgecase import _core as rust
 from edgecase.steps import KIND_BUILD_NODES
@@ -1029,6 +1030,231 @@ class TestTSVDetails:
         (tmp / "n.tsv").write_text("x\ty\na\tb\n")
         with pytest.raises(ValueError, match="isn't in the header row"):
             ec.from_tsv_edge_list(tmp / "n.tsv", source_col="from", has_header=True)
+
+
+class TestParquet:
+    def write(self, g, tmp):
+        ec.to_parquet(g, tmp / "nodes.parquet", tmp / "edges.parquet")
+        return tmp / "nodes.parquet", tmp / "edges.parquet"
+
+    def read(self, tmp, **kwargs):
+        return ec.from_parquet(tmp / "nodes.parquet", tmp / "edges.parquet", **kwargs)
+
+    @staticmethod
+    def ids(g):
+        return sorted(g.get_node_ids(limit=None)), sorted(e for e, _, _ in g._graph.edges())
+
+    @pytest.mark.parametrize("directed", [False, True])
+    def test_round_trip_keeps_everything(self, tmp, directed):
+        g = rich_graph(directed)
+        self.write(g, tmp)
+        h = self.read(tmp)
+        assert_same(h, g)
+        assert self.ids(h) == self.ids(g)
+        assert h.get_node_df().equals(g.get_node_df())
+        assert h.get_edge_df().equals(g.get_edge_df())
+
+    def test_ids_with_gaps_are_kept(self, tmp):
+        g = ec.Graph(weighted=True).add_path_graph(8)
+        g.delete_node("3")
+        g.delete_node("6")
+        g.add_edge("1", "8", weight=4.0)
+        g.delete_edge("1", "2")
+        self.write(g, tmp)
+        h = self.read(tmp)
+        assert self.ids(h) == self.ids(g)
+        assert edges_of(h) == edges_of(g)
+        # new nodes and edges get IDs beyond the ones read
+        h.add_node("new").add_edge("new", "1")
+        assert self.ids(h)[0][-1] > max(self.ids(g)[0])
+        assert self.ids(h)[1][-1] > max(self.ids(g)[1])
+
+    def test_columns_are_plain(self, tmp):
+        g = ec.Graph(weighted=True, graph_name="g")
+        g.add_node("a", kind="x", pos=[1.0, 2.0])
+        g.add_node("b", pos=[3.0, 4.0])
+        g.add_node("c")
+        g.add_edge("a", "b", weight=2.0, rel="r")
+        g.add_edge("b", "c", weight=1.0)
+        nodes_path, edges_path = self.write(g, tmp)
+        nodes = pl.read_parquet(nodes_path)
+        assert nodes.columns == ["id", "label", "kind", "layout_x", "layout_y"]
+        assert nodes.rows() == [
+            (1, "a", "x", 1.0, 2.0),
+            (2, "b", None, 3.0, 4.0),
+            (3, "c", None, None, None),
+        ]
+        edges = pl.read_parquet(edges_path)
+        assert edges.columns == ["id", "source", "target", "weight", "rel"]
+        assert edges.rows() == [(1, 1, 2, 2.0, "r"), (2, 2, 3, 1.0, None)]
+        assert ec.from_parquet(nodes_path, edges_path).get_node("c").attributes is None
+
+    def test_3d_positions(self, tmp):
+        g = ec.Graph()
+        g.add_node("a", pos=[1.0, 2.0, 3.0])
+        g.add_node("b", pos=[4.0, 5.0])
+        g.add_node("c", pos="not a position")
+        nodes_path, _ = self.write(g, tmp)
+        nodes = pl.read_parquet(nodes_path)
+        assert nodes.columns == ["id", "label", "pos", "layout_x", "layout_y", "layout_z"]
+        assert nodes["layout_z"].to_list() == [3.0, None, None]
+        assert nodes_of(self.read(tmp)) == nodes_of(g)
+
+    def test_layout_draws_from_the_file(self, tmp):
+        g = ec.karate_club().layout_spring(seed=1)
+        self.write(g, tmp)
+        h = self.read(tmp)
+        assert h.get_node_attrs("pos") == g.get_node_attrs("pos")
+        assert h.plot(layout="pos").svg == g.plot(layout="pos").svg
+
+    def test_other_tools_read_the_files(self, tmp):
+        pd = pytest.importorskip("pandas")
+        duckdb = pytest.importorskip("duckdb")
+        nodes_path, edges_path = self.write(rich_graph(), tmp)
+        frame = pd.read_parquet(nodes_path)
+        assert list(frame["label"]) == ["A", "B", 'C & "quoted" é', "Lonely"]
+        assert frame["layout_x"].notna().all()
+        query = (
+            f"SELECT n.label, count(*) FROM '{edges_path}' e "
+            f"JOIN '{nodes_path}' n ON e.source = n.id GROUP BY n.label ORDER BY n.label"
+        )
+        assert duckdb.sql(query).fetchall() == [("A", 3), ("B", 1)]
+
+    def test_attribute_types(self, tmp):
+        g = ec.Graph()
+        values = {
+            "mixed_numbers": [1, 2.5],
+            "number_lists": [[1, 2], [3.5]],
+            "mixed": [1, "one"],
+            "dicts": [{"a": 1}, {"b": [2]}],
+            "bools_and_ints": [True, 2],
+            "big": [2**70, 1],
+            "nested": [[[1], [2, 3]], []],
+            "mixed_items": [[1, "a"], None],
+        }
+        g.add_node("a", **{k: v[0] for k, v in values.items()})
+        g.add_node("b", **{k: v[1] for k, v in values.items() if v[1] is not None})
+        nodes_path, _ = self.write(g, tmp)
+        schema = pl.read_parquet(nodes_path).schema
+        assert schema["mixed_numbers"] == pl.Float64
+        assert schema["number_lists"] == pl.List(pl.Float64)
+        assert schema["nested"] == pl.List(pl.List(pl.Int64))
+        for name in ("mixed", "dicts", "bools_and_ints", "big", "mixed_items"):
+            assert schema[name] == pl.String, name
+        h = self.read(tmp)
+        assert nodes_of(h) == [
+            ("a", {k: v[0] for k, v in values.items()}),
+            (
+                "b",
+                {
+                    **{k: v[1] for k, v in values.items() if v[1] is not None},
+                    "mixed_numbers": 2.5,
+                    "number_lists": [3.5],
+                },
+            ),
+        ]
+        assert h.get_node("a").attributes["mixed_numbers"] == 1.0
+
+    def test_empty_graphs(self, tmp):
+        for g in (ec.Graph(), ec.Graph(directed=True, weighted=True).add_node("a")):
+            self.write(g, tmp)
+            assert_same(self.read(tmp), g)
+        assert pl.read_parquet(tmp / "edges.parquet").columns == [
+            "id",
+            "source",
+            "target",
+            "weight",
+        ]
+
+    def test_arguments_override_the_metadata(self, tmp):
+        self.write(rich_graph(directed=True), tmp)
+        h = self.read(tmp, directed=False, weighted=False, graph_name="other")
+        assert (h.is_directed(), h.is_weighted(), h.get_graph_name()) == (False, False, "other")
+        assert all(w is None for _, _, w, _ in edges_of(h))
+
+    def test_read_is_a_single_step(self, tmp, monkeypatch):
+        monkeypatch.chdir(tmp)
+        ec.to_parquet(ec.karate_club(), "n.parquet", "e.parquet")
+        h = ec.from_parquet("n.parquet", "e.parquet")
+        assert len(h.steps) == 1
+        step = h.steps[-1]
+        assert step.kind == KIND_BUILD_NODES and step.method == "from_parquet"
+        assert step.code == "from_parquet('n.parquet', 'e.parquet')"
+        assert len(step.delta.nodes_added) == 34 and len(step.delta.edges_added) == 78
+        assert (
+            ec.from_parquet(None, "e.parquet").steps[-1].code == "from_parquet(None, 'e.parquet')"
+        )
+
+    def test_foreign_tables(self, tmp):
+        pl.DataFrame({"id": ["x", "y", "z"], "size": [1, 2, 3]}).write_parquet(tmp / "n.parquet")
+        pl.DataFrame(
+            {"source": ["x", "y"], "target": ["y", "w"], "weight": [1.5, None], "id": ["e", "f"]}
+        ).write_parquet(tmp / "e.parquet")
+        h = ec.from_parquet(tmp / "n.parquet", tmp / "e.parquet")
+        assert not h.is_directed() and h.is_weighted() and h.get_graph_name() is None
+        assert nodes_of(h) == [
+            ("x", {"size": 1}),
+            ("y", {"size": 2}),
+            ("z", {"size": 3}),
+            ("w", {}),
+        ]
+        assert edges_of(h) == [("x", "y", 1.5, {}), ("y", "w", None, {})]
+        assert ec.from_parquet(None, tmp / "e.parquet", directed=True).is_directed()
+
+    def test_foreign_ids(self, tmp):
+        # IDs from 0 can't be node IDs, so the nodes are numbered in order
+        pl.DataFrame({"id": [0, 1, 2], "label": ["a", None, "c"]}).write_parquet(tmp / "n.parquet")
+        pl.DataFrame({"source": [0, 2], "target": [1, 1]}).write_parquet(tmp / "e.parquet")
+        h = ec.from_parquet(tmp / "n.parquet", tmp / "e.parquet")
+        assert [label for label, _ in nodes_of(h)] == ["a", "1", "c"]
+        assert pairs(h) == [("1", "a"), ("1", "c")]
+        assert not h.is_weighted()
+
+        # positive integer IDs are kept, also for nodes that only the edges name; edge IDs are
+        # kept only when they're distinct
+        pl.DataFrame({"id": [10, 20], "label": ["a", "b"]}).write_parquet(tmp / "n.parquet")
+        pl.DataFrame({"source": [10, 20], "target": [20, 30], "id": [5, 5]}).write_parquet(
+            tmp / "e.parquet"
+        )
+        h = ec.from_parquet(tmp / "n.parquet", tmp / "e.parquet")
+        assert sorted(h.get_node_ids(limit=None)) == [10, 20, 30]
+        assert h.get_label_from_id(30) == "30"
+        assert self.ids(h)[1] == [1, 2]
+
+    def test_reads_the_data_frames(self, tmp):
+        g = rich_graph()
+        g.get_node_df().write_parquet(tmp / "n.parquet")
+        g.get_edge_df().write_parquet(tmp / "e.parquet")
+        h = ec.from_parquet(tmp / "n.parquet", tmp / "e.parquet")
+        assert self.ids(h) == self.ids(g)
+        assert edges_of(h) == edges_of(g)
+        # `degree` comes back as an attribute, which the node table leaves out
+        assert h.get_node_df().equals(g.get_node_df())
+
+    def test_bad_tables(self, tmp):
+        with pytest.raises(ValueError, match="node table, an edge table, or both"):
+            ec.from_parquet(None, None)
+        pl.DataFrame({"name": ["a"]}).write_parquet(tmp / "n.parquet")
+        with pytest.raises(ValueError, match="'id' or a 'label' column"):
+            ec.from_parquet(tmp / "n.parquet", None)
+        pl.DataFrame({"id": [1, None]}).write_parquet(tmp / "n.parquet")
+        with pytest.raises(ValueError, match="needs a 'id' value"):
+            ec.from_parquet(tmp / "n.parquet", None)
+        pl.DataFrame({"from": ["a"], "to": ["b"]}).write_parquet(tmp / "e.parquet")
+        with pytest.raises(ValueError, match="'source' and 'target' columns"):
+            ec.from_parquet(None, tmp / "e.parquet")
+        pl.DataFrame({"source": ["a"], "target": [None]}).write_parquet(tmp / "e.parquet")
+        with pytest.raises(ValueError, match="needs a 'source' and a 'target'"):
+            ec.from_parquet(None, tmp / "e.parquet")
+
+    def test_polars_without_metadata(self, tmp, monkeypatch):
+        g = rich_graph(directed=True)
+        monkeypatch.delattr(pl, "read_parquet_metadata")
+        with pytest.warns(UserWarning, match="can't write Parquet metadata"):
+            self.write(g, tmp)
+        h = self.read(tmp)
+        assert not h.is_directed() and h.is_weighted() and h.get_graph_name() is None
+        assert isinstance(h.get_node("B").attributes["meta"], str)
 
 
 def test_exports():
