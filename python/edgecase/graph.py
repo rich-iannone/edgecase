@@ -4513,6 +4513,7 @@ class Graph:
         highlight=None,
         highlight_edges=None,
         legend: bool = True,
+        backend: str = "svg",
     ):
         """
         Render the graph as a static SVG image.
@@ -4531,7 +4532,9 @@ class Graph:
         shows its attributes. Each edge takes the hover a few pixels either side of it, except
         above 2,000 nodes or edges, where the output is lean: an edge takes the hover only where
         it's drawn, and nodes and edges of the same style share their styling, which keeps a
-        graph with tens of thousands of edges to a few megabytes.
+        graph with tens of thousands of edges to a few megabytes. With `backend="png"`, the edges
+        and nodes are drawn as images instead, which stay small however many there are, under
+        labels and a legend that remain text.
 
         Aesthetics can be mapped from attributes: `color_by=` for node colors (a palette for
         groups, a color scale for numbers), `size_by=` for numeric node sizes, `label_by=` for the
@@ -4552,9 +4555,10 @@ class Graph:
         has a stored attribute of that name; any other name that no node has raises a
         `ValueError`. The force and random layouts start from random positions, so pass
         `seed=` for a reproducible picture. An output of more than 10 MB, past what a notebook
-        should hold, comes with a warning, and a graph whose output would pass 200 MB raises an
-        error; plotting a part of it, such as what `k_core()` or `ego_graph()` returns, avoids
-        both. For much larger graphs consider `plot_cosmo()` instead.
+        should hold, comes with a warning, and a graph whose SVG would pass 200 MB raises an
+        error; `backend="png"`, or plotting a part of the graph, such as what `k_core()` or
+        `ego_graph()` returns, avoids both. For much larger graphs consider `plot_cosmo()`
+        instead.
 
         Parameters
         ----------
@@ -4624,7 +4628,8 @@ class Graph:
         node_size
             Base node circle radius in pixels. The default value, `16.0`, acts as "automatic": the
             radius is then derived from the canvas area and the number of nodes (between `3.5` and
-            `16` pixels) so that nodes don't crowd each other. Any other value is used as given.
+            `16` pixels, or from `1` with `backend="png"`) so that nodes don't crowd each other.
+            Any other value is used as given.
         edge_width
             Edge stroke width in pixels. The default value, `1.2`, acts as "automatic": small
             graphs get thicker edges (up to about 3 pixels) and large graphs thinner ones. Any
@@ -4652,9 +4657,11 @@ class Graph:
         show_labels
             Whether to display node labels (see `label_by=`). Default is `True`.
         output
-            Optional file path to save the output to. A path ending in `.html` saves the HTML
-            version with hover tooltips; any other extension (typically `.svg`) saves the raw SVG.
-            The rendered object is returned either way. Default is `None` (nothing is saved).
+            Optional file path to save the output to, in the format of its extension: `.html`
+            for the HTML version with hover tooltips, `.svg` for the raw SVG, and `.png` for a PNG
+            image (at twice the plot's size, for high-density screens). Any other extension
+            raises `ValueError`. The rendered object is returned either way. Default is `None`
+            (nothing is saved).
         seed
             Integer seed for the `"force"` and `"random"` layouts. The same seed on the same graph
             gives the same positions. If `None` (default), positions differ between calls.
@@ -4701,13 +4708,21 @@ class Graph:
             `edge_color_by=`: swatches for groups, or a color bar for a color scale. A legend for
             more groups than the palette has colors (or more than 12) is left out, since its
             colors would repeat. Default is `True`.
+        backend
+            What the edges and nodes are drawn as: `"svg"` (default), an SVG element each, or
+            `"png"`, an image of the edges and one of the nodes in the SVG, with the edges drawn
+            by their density, so that where many cross reads darker than where a few do. The
+            labels and the legend are SVG text either way. The images keep the output to a few
+            megabytes whatever the size of the graph, and there's no limit of 200 MB, but nodes
+            and edges have no tooltips. Any other value raises `ValueError`.
 
         Returns
         -------
         StepPlayer
-            Interactive visualization that auto-renders in Jupyter notebooks (via `_repr_html_`) and
-            can be saved with `.save(path)`. The raw SVG markup is available as its `.svg`
-            property.
+            Interactive visualization that auto-renders in Jupyter notebooks (via `_repr_html_`,
+            with a PNG image for where HTML doesn't show) and can be saved with `.save(path)`,
+            as `.html`, `.svg` or `.png` like `output=`. The raw SVG markup is available as its
+            `.svg` property.
 
         Raises
         ------
@@ -4718,8 +4733,9 @@ class Graph:
             has, `layout=`, `theme=` or `color_scale=` is unknown, a numeric `color_scale=` meets
             values that aren't numbers, `palette=` is unknown while `color_by=` or
             `edge_color_by=` is set, `highlight=` or `highlight_edges=` names a node, edge or
-            attribute the graph doesn't have, `edge_routing=` is an unknown string, or the graph
-            is so large that the output would pass 200 MB.
+            attribute the graph doesn't have, `edge_routing=` or `backend=` is unknown,
+            `output=` has an extension other than `.html`, `.svg` or `.png`, or the graph is so
+            large that its SVG would pass 200 MB (with `backend="svg"`).
 
         Warns
         -----
@@ -4860,6 +4876,7 @@ class Graph:
             highlight=highlight,
             highlight_edges=highlight_edges,
             legend=legend,
+            backend=backend,
         )
 
     def play(
@@ -4961,9 +4978,9 @@ class Graph:
             `"circular"` layouts (stored positions are always stable); graphs with more than 300 nodes fall back to `"stable"`. Any
             other value raises `ValueError`.
         output
-            File path to save. A path ending in `.html` saves the full interactive player; any
-            other extension saves only the static SVG. The `StepPlayer` is returned either way. If
-            `None` (default), nothing is saved.
+            File path to save. A path ending in `.html` saves the full interactive player, and
+            one ending in `.svg` only the static SVG; any other extension raises `ValueError`.
+            The `StepPlayer` is returned either way. If `None` (default), nothing is saved.
         seed
             Integer seed for the `"force"` and `"random"` layouts. The same seed on the same steps
             gives the same positions. If `None` (default), the `"random"` layout and the stable
@@ -4992,8 +5009,8 @@ class Graph:
         ------
         ValueError
             If `layout=`, `theme=` or `layout_mode=` is unknown, `speed=` isn't a positive number,
-            or `highlight=` or `highlight_edges=` names a node, edge or attribute the graph
-            doesn't have.
+            `highlight=` or `highlight_edges=` names a node, edge or attribute the graph doesn't
+            have, or `output=` has an extension other than `.html` or `.svg`.
 
         See Also
         --------
@@ -5182,8 +5199,9 @@ class Graph:
         show_labels
             Whether to display node labels. Default is `True`.
         output
-            Optional file path to save to. A path ending in `.html` saves the interactive widget;
-            any other extension saves only the static SVG. Default is `None` (nothing is saved).
+            Optional file path to save to. A path ending in `.html` saves the interactive widget,
+            and one ending in `.svg` only the static SVG; any other extension raises
+            `ValueError`. Default is `None` (nothing is saved).
         seed
             Integer seed for the `"force"` and `"random"` layouts. The same seed on the same graph
             gives the same positions. If `None` (default), positions differ between calls.
@@ -5197,7 +5215,8 @@ class Graph:
         Raises
         ------
         ValueError
-            If neither `visit_order=` nor `source=` is provided.
+            If neither `visit_order=` nor `source=` is provided, or `output=` has an extension
+            other than `.html` or `.svg`.
 
         See Also
         --------
