@@ -1307,8 +1307,13 @@ NOTEBOOK_BYTES_MAX = 10_000_000
 PLOT_BYTES_MAX = 200_000_000
 _LEAN_NODE_BYTES = 60
 _LEAN_EDGE_BYTES = 40
+# The most elements that `backend="auto"` draws as SVG, a page's worth: past it, the page that
+# holds the plot is slow to draw and to hover over. Each node and each edge takes one at least
+SVG_ELEMENTS_MAX = 20_000
+_TAG_RE = re.compile(r"<[A-Za-z]")
 # What `plot()` draws the edges and nodes as: SVG elements, images (see `_raster_layers()`), or
-# by default SVG while its HTML fits `NOTEBOOK_BYTES_MAX` and images past that
+# by default SVG while its HTML fits `NOTEBOOK_BYTES_MAX` and its elements `SVG_ELEMENTS_MAX`,
+# and images past that
 BACKENDS = ("auto", "svg", "png")
 # The images' pixels to a pixel of the plot, so that they stay sharp on high-density screens
 RASTER_SCALE = 2.0
@@ -1387,7 +1392,8 @@ def render_plot(
     """Render a graph as a static SVG wrapped in a StepPlayer: the scene that `build_scene()`
     makes of it with `options`, drawn in `theme`, its edges and nodes as SVG elements or, with
     `backend="png"`, as images. With `backend="auto"`, they are images where their SVG would
-    pass `NOTEBOOK_BYTES_MAX`, and the player's SVG is then drawn when it is first wanted."""
+    pass `NOTEBOOK_BYTES_MAX` or `SVG_ELEMENTS_MAX`, and the player's SVG is then drawn when it
+    is first wanted."""
     _check_style(options.get("layout", "force"), theme, stored_ok=True)
     if backend not in BACKENDS:
         raise ValueError(
@@ -1399,7 +1405,7 @@ def render_plot(
 
     def fits(scene: Scene) -> bool:
         svg_str, html_str = emit_svg(scene, colors)
-        if len(html_str) > NOTEBOOK_BYTES_MAX:
+        if len(html_str) > NOTEBOOK_BYTES_MAX or len(_TAG_RE.findall(svg_str)) > SVG_ELEMENTS_MAX:
             return False
         fitting.append((svg_str, html_str))
         return True
@@ -1479,7 +1485,8 @@ def build_scene(
     With `backend="png"`, the automatic node size can be smaller, and there's no limit to the
     output's size, which an SVG's elements would pass. With `backend="auto"`, it is the scene
     for SVG if `fits()` is true of that, and the one for images otherwise, or straight away when
-    even the fewest bytes the SVG could take would pass `NOTEBOOK_BYTES_MAX`.
+    even the fewest bytes or elements the SVG could take would pass `NOTEBOOK_BYTES_MAX` or
+    `SVG_ELEMENTS_MAX`.
 
     `edgecase._core.SceneBuilder` reads the graph and works these out, and makes the scene
     (`edgecase._core.Scene`), which holds them as columns, an entry for each node (in the order
@@ -1511,7 +1518,9 @@ def build_scene(
     n_edges = graph.count_edges()
     if backend == "svg":
         _check_svg_size(n, n_edges)
-    elif backend == "auto" and _least_svg_bytes(n, n_edges) > NOTEBOOK_BYTES_MAX:
+    elif backend == "auto" and (
+        _least_svg_bytes(n, n_edges) > NOTEBOOK_BYTES_MAX or n + n_edges > SVG_ELEMENTS_MAX
+    ):
         # Without drawing the SVG to find out
         backend = "png"
     if edge_width == 1.2:
