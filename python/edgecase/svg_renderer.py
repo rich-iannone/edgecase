@@ -14,11 +14,12 @@ import json
 import math
 import random
 import re
+import struct
 import sys
 import warnings
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, Union
+from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Tuple, Union
 
 if TYPE_CHECKING:
     from edgecase._core import Scene
@@ -92,6 +93,9 @@ _DARK_PAGES = (
     'html[theme="dark"]'
 )
 _VAR_RE = re.compile(r"var\((--ect-[0-9a-f]{8})\)")
+# An image of the other theme's, which a file in the light theme doesn't show (see
+# `_raster_layers()`)
+_HIDDEN_IMAGE_RE = re.compile(r'\n?<image [^>]*style="display:none"[^>]*/>')
 
 
 class _Colors:
@@ -160,13 +164,20 @@ class _Colors:
             f":is({_DARK_PAGES}) .ec-theme{{{dark}}}"
         )
 
-    def finish(self, svg_str: str, html_str: str, output: Optional[str]) -> "StepPlayer":
-        """The `StepPlayer` for the rendering, saved to `output=` when that is given."""
+    def finish(
+        self,
+        svg_str: str,
+        html_str: str,
+        output: Optional[str],
+        png: Optional[Callable[[], bytes]] = None,
+    ) -> "StepPlayer":
+        """The `StepPlayer` for the rendering, saved to `output=` when that is given. `png` makes
+        its PNG image, if it has one."""
         for_files = None
         if self.save_light:
             values = {name: lt for (lt, _), name in self._vars.items()}
             for_files = tuple(
-                _VAR_RE.sub(lambda m: str(values[m.group(1)]), markup)
+                _HIDDEN_IMAGE_RE.sub("", _VAR_RE.sub(lambda m: str(values[m.group(1)]), markup))
                 for markup in (svg_str, html_str)
             )
         if self.auto and self._vars:
@@ -180,7 +191,7 @@ class _Colors:
                 head = head.replace("<svg", '<svg class="ec-theme"', 1)
             svg_str = head + style + svg_str[head_end:]
             html_str = f'<div class="ec-theme" style="display:contents">{style}{html_str}</div>'
-        result = StepPlayer(svg_str, html_str, for_files)
+        result = StepPlayer(svg_str, html_str, for_files, png)
         if output:
             result.save(output)
         return result
@@ -204,32 +215,69 @@ class StepPlayer:
     """Interactive graph visualization result.
 
     Returned by `Graph.play()`, `Graph.plot()`, and `Graph.plot_traversal()`. Renders inline in
-    Jupyter via `_repr_html_` and can be saved with `.save()`.
+    Jupyter via `_repr_html_`, with a PNG image of a plot (`_repr_png_`) for where HTML doesn't
+    show, and can be saved with `.save()`.
     """
 
     def __init__(
-        self, svg_str: str, html_str: str, for_files: Optional[Tuple[str, str]] = None
+        self,
+        svg_str: str,
+        html_str: str,
+        for_files: Optional[Tuple[str, str]] = None,
+        png: Optional[Callable[[], bytes]] = None,
     ) -> None:
         self._svg = svg_str
         self._html = html_str
         # The SVG and HTML that `save()` writes instead, if they differ (for the default theme)
         self._for_files = for_files
+        # What makes the PNG image, when it's first wanted, and the image
+        self._make_png = png
+        self._png: Optional[bytes] = None
 
     @property
     def svg(self) -> str:
         return self._svg
 
-    def _repr_svg_(self) -> str:
-        return self._svg
+    def _png_bytes(self) -> Optional[bytes]:
+        if self._png is None and self._make_png is not None:
+            self._png = self._make_png()
+        return self._png
 
+    # A notebook keeps every output: the HTML, and the PNG image for where HTML doesn't show.
+    # Not the SVG, which would double what the HTML takes
     def _repr_html_(self) -> str:
         return self._html
 
+    def _repr_png_(self) -> Optional[Tuple[bytes, Dict[str, int]]]:
+        # The image has more pixels than the plot, for high-density screens, and shows at its size
+        png = self._png_bytes()
+        if png is None:
+            return None
+        width, height = struct.unpack(">II", png[16:24])
+        return png, {"width": round(width / RASTER_SCALE), "height": round(height / RASTER_SCALE)}
+
     def save(self, path: str) -> None:
+        """Write the rendering to `path`, in the format of its extension: `.html` (or `.htm`) for
+        the HTML with its tooltips and controls, `.svg` for the SVG, and `.png` for the PNG image
+        of a plot."""
         p = Path(path)
+        suffix = p.suffix.lower()
         svg_str, html_str = self._for_files or (self._svg, self._html)
-        content = html_str if p.suffix == ".html" else svg_str
-        p.write_text(content, encoding="utf-8")
+        if suffix in (".html", ".htm"):
+            p.write_text(html_str, encoding="utf-8")
+        elif suffix == ".svg":
+            p.write_text(svg_str, encoding="utf-8")
+        elif suffix == ".png":
+            png = self._png_bytes()
+            if png is None:
+                raise ValueError(
+                    "Only a plot() can be saved as .png; save this one as .html or .svg"
+                )
+            p.write_bytes(png)
+        else:
+            raise ValueError(
+                f"Can't save to {str(path)!r}: the extension must be .html, .svg or .png"
+            )
 
     def __repr__(self) -> str:
         return f"StepPlayer({len(self._svg)} chars)"
@@ -1227,6 +1275,13 @@ NOTEBOOK_BYTES_MAX = 10_000_000
 PLOT_BYTES_MAX = 200_000_000
 _LEAN_NODE_BYTES = 60
 _LEAN_EDGE_BYTES = 40
+# What `plot()` draws the edges and nodes as: SVG elements, or images (see `_raster_layers()`)
+BACKENDS = ("svg", "png")
+# The images' pixels to a pixel of the plot, so that they stay sharp on high-density screens
+RASTER_SCALE = 2.0
+# The least radius of the automatic node size, as SVG and as an image, whose nodes can be
+# smaller since they don't each take an element
+_NODE_SIZE_MIN = {"svg": 3.5, "png": 1.0}
 
 
 # The theme's colors, as (light, dark) pairs for a scene's color table
@@ -1252,22 +1307,38 @@ _SCENE_COLORS = {
 
 
 def render_plot(
-    graph, theme: Optional[str] = None, output: Optional[str] = None, **options
+    graph,
+    theme: Optional[str] = None,
+    output: Optional[str] = None,
+    backend: str = "svg",
+    **options,
 ) -> "StepPlayer":
     """Render a graph as a static SVG wrapped in a StepPlayer: the scene that `build_scene()`
-    makes of it with `options`, drawn in `theme`."""
+    makes of it with `options`, drawn in `theme`, its edges and nodes as SVG elements or, with
+    `backend="png"`, as images."""
     _check_style(options.get("layout", "force"), theme, stored_ok=True)
+    if backend not in BACKENDS:
+        raise ValueError(
+            f"Unknown backend {backend!r}; use one of {', '.join(map(repr, BACKENDS))}"
+        )
     colors = _Colors(theme)
-    scene = build_scene(graph, **options)
-    svg_str, html_str = emit_svg(scene, colors)
+    scene = build_scene(graph, backend=backend, **options)
+    svg_str, html_str = emit_svg(scene, colors, raster=backend == "png")
     if len(html_str) > NOTEBOOK_BYTES_MAX:
+        smaller = (
+            "backend='png' makes it smaller, as does plotting a part of the graph"
+            if backend == "svg"
+            else "Plotting a part of the graph makes it smaller"
+        )
         warnings.warn(
             f"The plot is {len(html_str) / 1e6:,.0f} MB, past the "
-            f"{NOTEBOOK_BYTES_MAX / 1e6:.0f} MB a notebook output should stay within. Plotting a "
-            "part of the graph, such as what k_core() or ego_graph() returns, makes it smaller",
+            f"{NOTEBOOK_BYTES_MAX / 1e6:.0f} MB a notebook output should stay within. "
+            f"{smaller}, such as what k_core() or ego_graph() returns",
             stacklevel=3,
         )
-    return colors.finish(svg_str, html_str, output)
+    # The edges as the SVG draws them, or as its images do
+    tone = "over" if backend == "svg" else "log"
+    return colors.finish(svg_str, html_str, output, png=lambda: plot_png(scene, theme, tone))
 
 
 def build_scene(
@@ -1296,9 +1367,12 @@ def build_scene(
     highlight=None,
     highlight_edges=None,
     legend: bool = True,
+    backend: str = "svg",
 ) -> Scene:
     """The scene for `plot()` of `graph`, which takes the same arguments: the layout, and the
     colors, sizes, highlighting, shapes, labels, tooltips and legend that the arguments give.
+    With `backend="png"`, the automatic node size can be smaller, and there's no limit to the
+    output's size, which an SVG's elements would pass.
 
     `edgecase._core.SceneBuilder` reads the graph and works these out, and makes the scene
     (`edgecase._core.Scene`), which holds them as columns, an entry for each node (in the order
@@ -1329,11 +1403,12 @@ def build_scene(
     n = len(node_ids)
     n_edges = graph.count_edges()
     least = n * _LEAN_NODE_BYTES + n_edges * _LEAN_EDGE_BYTES
-    if least > PLOT_BYTES_MAX:
+    if backend == "svg" and least > PLOT_BYTES_MAX:
         raise ValueError(
             f"plot() would write at least {least / 1e6:,.0f} MB for {n:,} nodes and "
-            f"{n_edges:,} edges, past its limit of {PLOT_BYTES_MAX / 1e6:.0f} MB. Plot a part "
-            "of the graph instead, such as what k_core(), ego_graph() or subgraph() returns"
+            f"{n_edges:,} edges, past its limit of {PLOT_BYTES_MAX / 1e6:.0f} MB. Plot it with "
+            "backend='png' instead, or a part of the graph, such as what k_core(), ego_graph() "
+            "or subgraph() returns"
         )
     if edge_width == 1.2:
         edge_width = max(0.5, 3.0 - n * 0.06) if n < 40 else max(0.5, 1.2 - (n - 40) * 0.002)
@@ -1342,7 +1417,7 @@ def build_scene(
     # Adaptive node size: radius ≈ 15% of avg node spacing so nodes don't overlap
     if node_size == 16.0:
         avg_spacing = math.sqrt(float(width * height) / max(n, 1))
-        node_size = max(3.5, min(16.0, avg_spacing * 0.15))
+        node_size = max(_NODE_SIZE_MIN[backend], min(16.0, avg_spacing * 0.15))
 
     # The nodes and edges, and the values of the attributes that the arguments name, read once
     builder = SceneBuilder(
@@ -1431,35 +1506,61 @@ def build_scene(
     )
 
 
-def emit_svg(scene: Scene, colors: "_Colors") -> Tuple[str, str]:
+def emit_svg(scene: Scene, colors: "_Colors", raster: bool = False) -> Tuple[str, str]:
     """`scene` drawn in the colors of `colors`'s theme: the SVG, and the HTML that shows it with
-    tooltips."""
+    tooltips. With `raster`, the edges and the nodes are images (see `_raster_layers()`), under
+    the labels and the legend, and have no tooltips."""
     th = colors.theme
-    legend = None
-    if scene.legend:
-        vb = scene.viewbox
-        # Viewbox units per pixel
-        unit = vb[3] / scene.height
-        legend = (
-            f'<g class="ec-legend" transform="translate('
-            f"{vb[0] + vb[2] - (scene.legend_w - _LEGEND_PAD) * unit:.1f} "
-            f'{vb[1]:.1f}) scale({unit:.4f})">{_svg_legend(scene.legend, colors, th)}</g>'
-        )
+    legend = _legend_markup(scene, colors)
     picked = [colors.pick(*pair) for pair in scene.colors]
-    svg_str = scene.svg(picked, th.bg, th.label_color, FONT_FAMILY, legend)
+    layers = _raster_layers(scene, colors, RASTER_SCALE) if raster and scene.node_count else None
+    svg_str = scene.svg(picked, th.bg, th.label_color, FONT_FAMILY, legend, layers)
     if not scene.node_count:
         return svg_str, svg_str
+    if layers:
+        return svg_str, _generate_html_wrapper(svg_str, th, scene.width, scene.height, tips=False)
     html_str = _generate_html_wrapper(svg_str, th, scene.width, scene.height, scene.edge_tip_table)
     return svg_str, html_str
+
+
+def _legend_markup(scene: Scene, colors: "_Colors") -> Optional[str]:
+    """`scene`'s legend in the colors of `colors`'s theme, placed at the right of its viewBox."""
+    if not scene.legend:
+        return None
+    vb = scene.viewbox
+    # Viewbox units per pixel
+    unit = vb[3] / scene.height
+    return (
+        f'<g class="ec-legend" transform="translate('
+        f"{vb[0] + vb[2] - (scene.legend_w - _LEGEND_PAD) * unit:.1f} "
+        f'{vb[1]:.1f}) scale({unit:.4f})">{_svg_legend(scene.legend, colors, colors.theme)}</g>'
+    )
+
+
+def plot_png(scene: Scene, theme: Optional[str] = None, tone: str = "log") -> bytes:
+    """`scene` as a PNG image, in `theme`, or the light one for the automatic theme (an image
+    can't follow the page). The edges and nodes are drawn as `Scene.png()` draws them, with the
+    edges' density in `tone`, and the labels and the legend over them from their SVG. It is
+    `RASTER_SCALE` pixels to a pixel of the plot, and indexed."""
+    colors = _Colors(theme if theme in ("light", "dark") else "light")
+    th = colors.theme
+    picked = [colors.pick(*pair) for pair in scene.colors]
+    legend = _legend_markup(scene, colors)
+    overlay = scene.svg(picked, th.bg, th.label_color, FONT_FAMILY, legend, ("", ""))
+    # The background is the image's own, under the edges; the first fill of it is its rectangle
+    overlay = overlay.replace(f'fill="{th.bg}"/>', 'fill="none"/>', 1)
+    return scene.png(picked, th.bg, RASTER_SCALE, tone, palette=True, overlay=overlay)
 
 
 def _png_href(png: bytes) -> str:
     return "data:image/png;base64," + base64.b64encode(png).decode("ascii")
 
 
-def _raster_layers(scene: Scene, colors: "_Colors", scale: float = 2.0, tone: str = "log") -> str:
+def _raster_layers(
+    scene: Scene, colors: "_Colors", scale: float = 2.0, tone: str = "log"
+) -> Tuple[str, str]:
     """`scene`'s edges and nodes drawn as images (see `Scene.png()`), in the colors of `colors`'s
-    theme: SVG elements to draw in their place, the edges' layer and then the nodes'.
+    theme: SVG elements to draw in their place, the edges' layer and the nodes'.
 
     Edges of one color are a mask, filled with that color, so that one image serves both themes
     of the automatic one. Edges of more colors, and the nodes, are an image in the theme's
@@ -1486,20 +1587,19 @@ def _raster_layers(scene: Scene, colors: "_Colors", scale: float = 2.0, tone: st
             image(dark, f' style="display:{colors.pick("none", "inline")}"'),
         ]
 
-    parts = []
+    edges = []
     tint = scene.edge_tint
     if tint is not None:
         mask = scene.edge_mask(scale, tone)
         # Named after its pixels, so that two plots on a page can't take each other's
         mask_id = "ec-edges-" + hashlib.sha1(mask).hexdigest()[:10]
-        parts.append(f'<mask id="{mask_id}">{image(mask)}</mask>')
-        parts.append(
+        edges.append(f'<mask id="{mask_id}">{image(mask)}</mask>')
+        edges.append(
             f'<rect {box} fill="{colors.pick(*scene.colors[tint])}" mask="url(#{mask_id})"/>'
         )
     elif scene.edge_count:
-        parts += themed(edges=True)
-    parts += themed(edges=False)
-    return "\n".join(parts)
+        edges = themed(edges=True)
+    return "\n".join(edges), "\n".join(themed(edges=False))
 
 
 # ---------------------------------------------------------------------------
@@ -1515,10 +1615,20 @@ def _generate_html_wrapper(
     width: int,
     height: int,
     edge_tip_table: Optional[str] = None,
+    tips: bool = True,
 ) -> str:
     """The SVG in a page fragment that shows tooltips on hover. Elements carry theirs in
     `data-attrs`, or for edges with a `data-e` row number, in `edge_tip_table` (see
-    `edgecase._core.tooltip_table()`)."""
+    `edgecase._core.tooltip_table()`). Without `tips`, the fragment only places the SVG."""
+    # Centered in the page or cell, and scaled down (keeping its shape) where it is wider than that.
+    # Quarto puts no space around cell outputs, so the margin keeps the plot off the code and text
+    # around it (margin rather than padding, since the tooltip is placed from the SVG's corner)
+    placed = f"""<div class="ec-plot" style="position:relative;width:fit-content;max-width:100%;margin:1em auto">
+<style>.ec-plot > svg {{ display:block; max-width:100%; height:auto; }}</style>
+{svg_str}
+"""
+    if not tips:
+        return placed + "</div>"
     global _tooltip_counter
     _tooltip_counter += 1
     tip_id = f"ec-tooltip-{_tooltip_counter}"
@@ -1527,13 +1637,7 @@ def _generate_html_wrapper(
         if edge_tip_table is not None
         else ""
     )
-    # Centered in the page or cell, and scaled down (keeping its shape) where it is wider than that.
-    # Quarto puts no space around cell outputs, so the margin keeps the plot off the code and text
-    # around it (margin rather than padding, since the tooltip is placed from the SVG's corner)
-    return f"""<div class="ec-plot" style="position:relative;width:fit-content;max-width:100%;margin:1em auto">
-<style>.ec-plot > svg {{ display:block; max-width:100%; height:auto; }}</style>
-{svg_str}
-<div id="{tip_id}" style="
+    return f"""{placed}<div id="{tip_id}" style="
   display:none;position:absolute;padding:6px 10px;border-radius:6px;
   font-family:{FONT_FAMILY};font-size:12px;pointer-events:none;
   background:{theme.tooltip_bg};color:{theme.tooltip_fg};
