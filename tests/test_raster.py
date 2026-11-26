@@ -448,10 +448,14 @@ def test_auto_picks_the_scene_by_its_svg(monkeypatch):
     # It is asked about the SVG's scene, and gives that or the images' (with smaller nodes)
     assert given == [{3.5}, {3.5}]
     assert radii[True] == {3.5} and max(radii[False]) < 2.5
-    # It isn't asked when the SVG would surely be too large
-    monkeypatch.setattr(svg_renderer, "NOTEBOOK_BYTES_MAX", 1000)
-    scene = svg_renderer.build_scene(g, layout="random", seed=1, backend="auto", fits=pytest.fail)
-    assert _radii(draw(scene)) == radii[False]
+    # It isn't asked when the SVG would surely be too large, in bytes or in elements
+    for limit, value in [("NOTEBOOK_BYTES_MAX", 1000), ("SVG_ELEMENTS_MAX", 2999)]:
+        with monkeypatch.context() as patch:
+            patch.setattr(svg_renderer, limit, value)
+            scene = svg_renderer.build_scene(
+                g, layout="random", seed=1, backend="auto", fits=pytest.fail
+            )
+        assert _radii(draw(scene)) == radii[False]
 
 
 def _unnumbered(html):
@@ -459,16 +463,21 @@ def _unnumbered(html):
 
 
 def _parallel_edges():
-    # 20,000 edges between 50 nodes, whose SVG takes at least 0.8 MB, and is about 1.8 MB
-    pairs = [(k % 50, (k * 7 + 1) % 50) for k in range(20000)]
+    # 19,000 edges between 50 nodes, whose SVG takes at least 0.76 MB, and is about 1.7 MB, in
+    # a few more elements than its 19,050 nodes and edges
+    pairs = [(k % 50, (k * 7 + 1) % 50) for k in range(19000)]
     return ec.Graph.from_edges([(a, b) for a, b in pairs if a != b])
 
 
-@pytest.mark.parametrize("budget", [None, 1_000_000])
+# The budget that the SVG passes, if any: its HTML's bytes, or its elements, which the nodes and
+# edges alone don't pass
+@pytest.mark.parametrize(
+    "budget", [None, ("NOTEBOOK_BYTES_MAX", 1_000_000), ("SVG_ELEMENTS_MAX", 19_050)]
+)
 def test_auto_is_svg_within_the_budget_and_images_past_it(monkeypatch, budget):
     g = _parallel_edges()
     if budget:
-        monkeypatch.setattr(svg_renderer, "NOTEBOOK_BYTES_MAX", budget)
+        monkeypatch.setattr(svg_renderer, *budget)
     opts = {"seed": 1, "show_labels": False}
     auto = g.plot(**opts)
     picked = g.plot(backend="png" if budget else "svg", **opts)
@@ -483,7 +492,8 @@ def test_the_svg_of_images_is_drawn_when_wanted(monkeypatch, tmp_path):
     g = _parallel_edges()
     for theme in ("light", None):
         auto = g.plot(seed=1, show_labels=False, theme=theme)
-        vector = g.plot(seed=1, show_labels=False, theme=theme, backend="svg")
+        with pytest.warns(UserWarning, match="backend='png' makes it smaller"):
+            vector = g.plot(seed=1, show_labels=False, theme=theme, backend="svg")
         html = auto._repr_html_()
         # The SVG that the images stand in for, with a note on its size
         with pytest.warns(UserWarning, match=r"The SVG is \d MB, which is why") as caught:
