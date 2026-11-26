@@ -64,6 +64,9 @@ pub struct Style {
     /// Whether the edges are drawn, and the nodes
     pub edges: bool,
     pub nodes: bool,
+    /// What goes over them, as premultiplied RGBA from 0 to 255 (see `overlay::draw()`), of the
+    /// image's size
+    pub overlay: Option<Vec<u8>>,
 }
 
 /// A drawn raster: its size, and its pixels, row by row
@@ -728,7 +731,7 @@ pub fn draw(scene: &Scene, style: &Style) -> Image {
         });
     let tone = ToneMap::new(style.tone, shapes.lone, &ink);
 
-    // The ink becomes premultiplied color, then the nodes go over it
+    // The ink becomes premultiplied color, then the nodes go over it, and the overlay over them
     let mut pixels = ink;
     pixels
         .par_chunks_mut(w * BAND)
@@ -742,6 +745,17 @@ pub fn draw(scene: &Scene, style: &Style) -> Image {
                 }
             }
             draw_discs(band, k * BAND, w, &shapes.discs, colors);
+            if let Some(overlay) = &style.overlay {
+                let start = k * BAND * w * 4;
+                for (px, o) in band.iter_mut().zip(overlay[start..].chunks_exact(4)) {
+                    if o[3] > 0 {
+                        let keep = 1.0 - o[3] as f32 / 255.0;
+                        for (p, &v) in px.iter_mut().zip(o) {
+                            *p = v as f32 / 255.0 + *p * keep;
+                        }
+                    }
+                }
+            }
         });
 
     let to_byte = |v: f32| (v.clamp(0.0, 1.0) * 255.0 + 0.5) as u8;
