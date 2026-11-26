@@ -1,8 +1,10 @@
 import ast
 import contextlib
 import importlib.util
+import os
 import re
 import sys
+import tempfile
 import traceback
 import webbrowser
 from pathlib import Path
@@ -94,6 +96,19 @@ def extract_docstrings_from_file(filepath: Path) -> List[Tuple[str, str, str]]:
             visit_node(node, [filepath.stem, node.name])
 
     return results
+
+
+@contextlib.contextmanager
+def _in_temp_dir():
+    """Run the examples in a temporary directory, so the files they write don't land in the
+    working directory (the examples of `to_parquet()` and `from_parquet()` write some)."""
+    before = os.getcwd()
+    with tempfile.TemporaryDirectory() as tmp:
+        os.chdir(tmp)
+        try:
+            yield
+        finally:
+            os.chdir(before)
 
 
 @contextlib.contextmanager
@@ -201,7 +216,7 @@ def test_all_docstring_examples():
     shared_ns: dict = {}  # namespace shared within a (filepath, context) group
     current_group: tuple = ()
 
-    with _no_browser():
+    with _no_browser(), _in_temp_dir():
         for i, (filepath, context, code) in enumerate(all_examples, 1):
             location = f"{filepath.relative_to(project_root)}: {context}"
             print(f"\n[{i}/{len(all_examples)}] Testing: {location}")
