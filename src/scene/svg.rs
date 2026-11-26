@@ -13,6 +13,9 @@ pub struct Style<'a> {
     pub font_family: &'a str,
     /// The legend's markup, drawn over the rest
     pub legend: Option<&'a str>,
+    /// The markup of the edges' layer and of the nodes' as images, drawn in place of the edges
+    /// and of the nodes
+    pub raster: Option<(&'a str, &'a str)>,
 }
 
 /// The SVG's parts, a line each
@@ -129,9 +132,15 @@ pub fn draw(scene: &Scene, style: &Style<'_>) -> String {
         style.bg
     );
     // The painter's algorithm: edges first, nodes over them and labels over those
-    draw_edges(scene, style, &mut out);
+    match style.raster {
+        Some((edges, _)) => out.push(edges),
+        None => draw_edges(scene, style, &mut out),
+    }
     draw_edge_labels(scene, style, &mut out);
-    draw_nodes(scene, style, &mut out);
+    match style.raster {
+        Some((_, nodes)) => out.push(nodes),
+        None => draw_nodes(scene, style, &mut out),
+    }
     draw_labels(scene, style, &mut out);
     if let Some(legend) = style.legend {
         out.push(legend);
@@ -442,6 +451,7 @@ fn draw_edge_labels(scene: &Scene, style: &Style<'_>, out: &mut Parts) {
             // A label follows its edge's path, and reads from left to right along it, so an
             // edge that runs from right to left gets a reversed copy of its path to follow
             let mut path_ref = format!("path-{edge_id}");
+            let mut reversed = false;
             if x1 > x2 {
                 let dx_e = x2 - x1;
                 let dy_e = y2 - y1;
@@ -470,6 +480,7 @@ fn draw_edge_labels(scene: &Scene, style: &Style<'_>, out: &mut Parts) {
                         (x1, y1)
                     };
                     path_ref = format!("path-{edge_id}-rev");
+                    reversed = true;
                     let _ = write!(
                         out.part(),
                         "<path id=\"{path_ref}\" d=\"M {} {} Q {} {} {} {}\" fill=\"none\" \
@@ -480,6 +491,25 @@ fn draw_edge_labels(scene: &Scene, style: &Style<'_>, out: &mut Parts) {
                         F1(cmy),
                         F1(ex2),
                         F1(ey2)
+                    );
+                }
+            }
+            if style.raster.is_some() && !reversed {
+                // The edge is in the image, so the label has a path of its own, drawn as
+                // `draw_edges()` draws the edge's
+                let (r_src, r_dst, width) = (nodes.r[s], nodes.r[t], edges.width[i]);
+                let directed = scene.directed;
+                let shape = if s == t {
+                    let size = edges.loop_size[i];
+                    Some(geometry::self_loop(x1, y1, r_src, width, directed, size))
+                } else {
+                    let bow = 0.2 + edges.bow[i];
+                    geometry::curved(x1, y1, x2, y2, r_src, r_dst, width, directed, bow)
+                };
+                if let Some((d, _)) = shape {
+                    let _ = write!(
+                        out.part(),
+                        "<path id=\"{path_ref}\" d=\"{d}\" fill=\"none\" stroke=\"none\"/>"
                     );
                 }
             }
