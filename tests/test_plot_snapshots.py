@@ -297,6 +297,22 @@ def test_svg_is_the_html_drawing(case, monkeypatch):
     assert svg in p._repr_html_()
 
 
+@pytest.mark.parametrize("case", ["karate_two_levels", "multi_kinds", "multi_lean_curved"])
+def test_one_scene_draws_every_theme(case, monkeypatch):
+    # The scene doesn't depend on the theme: drawn in each one, it's what plot() draws in it
+    build, kwargs, lean = CASES[case]
+    if lean:
+        monkeypatch.setattr(svg_renderer, "LEAN_MIN", 3)
+    options = {k: v for k, v in kwargs.items() if k != "theme"}
+    scene = svg_renderer.build_scene(build(), **options)
+    for theme in (None, "light", "dark"):
+        colors = svg_renderer._Colors(theme)
+        drawn = colors.finish(*svg_renderer.emit_svg(scene, colors), None)
+        p = build().plot(**options, theme=theme)
+        assert drawn.svg == p.svg
+        assert _normalized(drawn._repr_html_()) == _normalized(p._repr_html_())
+
+
 def test_saved_default_theme_is_the_light_one(tmp_path):
     # Saved files take the light colors of the automatic theme, so they match the light theme
     p = _florentine().plot(layout="pos")
