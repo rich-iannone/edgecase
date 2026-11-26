@@ -27,6 +27,7 @@ itertools = "0.14"
 rand = "0.8"  # Random number generation
 rand_chacha = "0.3"  # ChaCha RNG for reproducibility
 nalgebra = "0.33"  # Linear algebra with eigensolvers
+png = "0.18"  # PNG encoding for raster plots
 
 [dev-dependencies]
 # Rust unit tests run without a host Python process, so let pyo3 start an
