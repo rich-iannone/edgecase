@@ -17,7 +17,10 @@ import sys
 import warnings
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, Union
+
+if TYPE_CHECKING:
+    from edgecase._core import Scene
 
 # ---------------------------------------------------------------------------
 # Theme
@@ -480,55 +483,6 @@ def _fruchterman_reingold_python(
         temp -= cool
 
     return {i: (pos_x[i], pos_y[i]) for i in range(n)}
-
-
-def _waypoints_to_svg_path(
-    waypoints: List[Tuple[float, float]],
-    r_src: float,
-    r_dst: float,
-) -> str:
-    """Convert waypoints to a smooth SVG cubic bezier path string, trimmed to stop at node circle
-    edges."""
-    if len(waypoints) < 2:
-        return ""
-
-    pts = list(waypoints)
-
-    # Trim start: move first point along direction to second point
-    dx = pts[1][0] - pts[0][0]
-    dy = pts[1][1] - pts[0][1]
-    d = math.sqrt(dx * dx + dy * dy)
-    if d > r_src + 1:
-        pts[0] = (pts[0][0] + dx / d * r_src, pts[0][1] + dy / d * r_src)
-
-    # Trim end: move last point along direction from second-to-last
-    dx = pts[-1][0] - pts[-2][0]
-    dy = pts[-1][1] - pts[-2][1]
-    d = math.sqrt(dx * dx + dy * dy)
-    if d > r_dst + 1:
-        pts[-1] = (pts[-1][0] - dx / d * r_dst, pts[-1][1] - dy / d * r_dst)
-
-    if len(pts) == 2:
-        return f"M{pts[0][0]:.1f},{pts[0][1]:.1f} L{pts[1][0]:.1f},{pts[1][1]:.1f}"
-
-    # Catmull-Rom to cubic bezier for smooth curves through waypoints
-    path = f"M{pts[0][0]:.1f},{pts[0][1]:.1f}"
-    n = len(pts)
-    for i in range(n - 1):
-        p0 = pts[max(i - 1, 0)]
-        p1 = pts[i]
-        p2 = pts[min(i + 1, n - 1)]
-        p3 = pts[min(i + 2, n - 1)]
-
-        # Catmull-Rom to cubic bezier control points (alpha=0.5 centripetal)
-        c1x = p1[0] + (p2[0] - p0[0]) / 6.0
-        c1y = p1[1] + (p2[1] - p0[1]) / 6.0
-        c2x = p2[0] - (p3[0] - p1[0]) / 6.0
-        c2y = p2[1] - (p3[1] - p1[1]) / 6.0
-
-        path += f" C{c1x:.1f},{c1y:.1f} {c2x:.1f},{c2y:.1f} {p2[0]:.1f},{p2[1]:.1f}"
-
-    return path
 
 
 def _remove_overlaps(
@@ -1216,473 +1170,6 @@ def _compute_edge_fans(
 
 
 # ---------------------------------------------------------------------------
-# SVG drawing primitives
-# ---------------------------------------------------------------------------
-
-
-def _svg_edge_hit_area(geometry: str, width: float, edge_id: str, attrs_json: str) -> str:
-    """An invisible, wider copy of an edge's stroke, which takes the hover for its tooltip, since
-    the edge itself can be thinner than a pixel. `geometry` is the element's tag and shape, e.g.,
-    `'path d="M 0 0 L 9 9"'`."""
-    return (
-        f'<{geometry} fill="none" stroke="transparent" stroke-width="{max(8.0, width + 4):.1f}" '
-        f"pointer-events=\"stroke\" data-edge=\"{edge_id}\" data-attrs='{attrs_json}'/>"
-    )
-
-
-def _straight_geometry(
-    x1: float,
-    y1: float,
-    x2: float,
-    y2: float,
-    r_src: float,
-    r_dst: float,
-    width: float,
-    directed: bool,
-) -> Optional[Tuple[float, float, float, float, float, float, Optional[Tuple[float, ...]]]]:
-    """A straight edge's line, trimmed to the node borders and short of its arrowhead, as
-    `(sx, sy, ex_line, ey_line, ex, ey, head)`. `(ex, ey)` is where the edge meets the target, and
-    `head` the arrowhead's other two corners `(p1x, p1y, p2x, p2y)`, or `None` for an undirected
-    edge. `None` for an edge whose ends are at one point."""
-    dx = x2 - x1
-    dy = y2 - y1
-    dist = math.sqrt(dx * dx + dy * dy)
-    if dist < 1e-6:
-        return None
-
-    ux, uy = dx / dist, dy / dist
-
-    # Trim endpoints to node borders
-    sx = x1 + ux * r_src
-    sy = y1 + uy * r_src
-    ex = x2 - ux * r_dst
-    ey = y2 - uy * r_dst
-
-    if not directed:
-        return sx, sy, ex, ey, ex, ey, None
-
-    # Arrowhead scales with edge width
-    arrow_scale = max(width / 1.2, 0.6)
-    head_len = 8.0 * arrow_scale
-    head_wid = 5.0 * arrow_scale
-    bx = ex - ux * head_len
-    by = ey - uy * head_len
-    ppx, ppy = -uy, ux
-    p1x = bx + ppx * head_wid / 2
-    p1y = by + ppy * head_wid / 2
-    p2x = bx - ppx * head_wid / 2
-    p2y = by - ppy * head_wid / 2
-    return sx, sy, bx, by, ex, ey, (p1x, p1y, p2x, p2y)
-
-
-def _svg_edge_straight(
-    x1: float,
-    y1: float,
-    x2: float,
-    y2: float,
-    r_src: float,
-    r_dst: float,
-    color: str,
-    width: float,
-    opacity: float,
-    directed: bool,
-    edge_id: str,
-    attrs_json: Optional[str],
-    tag: str = "",
-) -> str:
-    """Render a straight edge with endpoint trimming and optional arrowhead.
-
-    With `attrs_json`, the edge gets a hit area carrying it (see `_svg_edge_hit_area()`). `tag`
-    is attributes for the element drawn (e.g., `' data-e="3"'`), the same for each primitive.
-    """
-    geometry = _straight_geometry(x1, y1, x2, y2, r_src, r_dst, width, directed)
-    if geometry is None:
-        return ""
-    sx, sy, ex_line, ey_line, ex, ey, head = geometry
-
-    parts = []
-    if head is not None:
-        p1x, p1y, p2x, p2y = head
-        parts.append(
-            f'<g{tag} opacity="{opacity}">'
-            f'<line x1="{sx:.1f}" y1="{sy:.1f}" x2="{ex_line:.1f}" y2="{ey_line:.1f}" '
-            f'stroke="{color}" stroke-width="{width}" '
-            f'stroke-linecap="round"/>'
-            f'<polygon points="{ex:.1f},{ey:.1f} {p1x:.1f},{p1y:.1f} {p2x:.1f},{p2y:.1f}" '
-            f'fill="{color}"/>'
-            f"</g>"
-        )
-    else:
-        parts.append(
-            f'<line{tag} x1="{sx:.1f}" y1="{sy:.1f}" x2="{ex_line:.1f}" y2="{ey_line:.1f}" '
-            f'stroke="{color}" stroke-width="{width}" stroke-opacity="{opacity}" '
-            f'stroke-linecap="round"/>'
-        )
-    if attrs_json is not None:
-        parts.append(
-            _svg_edge_hit_area(
-                f'line x1="{sx:.1f}" y1="{sy:.1f}" x2="{ex:.1f}" y2="{ey:.1f}"',
-                width,
-                edge_id,
-                attrs_json,
-            )
-        )
-
-    return "\n".join(parts)
-
-
-def _routed_head(
-    waypoints: List[Tuple[float, float]], r_dst: float, width: float
-) -> Optional[Tuple[float, ...]]:
-    """The arrowhead of a routed edge, as `(ex, ey, bx, by, p1x, p1y, p2x, p2y)`: its tip at the
-    target's border, the middle of its base (where the path stops) and the other two corners.
-    `None` when the last leg of the route has no length."""
-    arrow_scale = max(width / 1.2, 0.6)
-    head_len = 8.0 * arrow_scale
-    head_wid = 5.0 * arrow_scale
-    dx = waypoints[-1][0] - waypoints[-2][0]
-    dy = waypoints[-1][1] - waypoints[-2][1]
-    d = math.sqrt(dx * dx + dy * dy)
-    if d <= 1e-6:
-        return None
-    ux, uy = dx / d, dy / d
-    ex = waypoints[-1][0] - ux * r_dst
-    ey = waypoints[-1][1] - uy * r_dst
-    bx = ex - ux * head_len
-    by = ey - uy * head_len
-    ppx, ppy = -uy, ux
-    p1x = bx + ppx * head_wid / 2
-    p1y = by + ppy * head_wid / 2
-    p2x = bx - ppx * head_wid / 2
-    p2y = by - ppy * head_wid / 2
-    return ex, ey, bx, by, p1x, p1y, p2x, p2y
-
-
-def _svg_edge_routed(
-    waypoints: List[Tuple[float, float]],
-    r_src: float,
-    r_dst: float,
-    color: str,
-    width: float,
-    opacity: float,
-    directed: bool,
-    edge_id: str,
-    attrs_json: Optional[str],
-    tag: str = "",
-) -> str:
-    """Render a routed edge as a smooth bezier path through waypoints."""
-    path_d = _waypoints_to_svg_path(waypoints, r_src, r_dst)
-    if not path_d:
-        return ""
-
-    parts = []
-    hit_area = (
-        _svg_edge_hit_area(f'path d="{path_d}"', width, edge_id, attrs_json)
-        if attrs_json is not None
-        else None
-    )
-
-    if directed:
-        head = _routed_head(waypoints, r_dst, width)
-        if head is not None:
-            ex, ey, bx, by, p1x, p1y, p2x, p2y = head
-            # Trim path to stop before arrowhead
-            trim_pts = list(waypoints)
-            trim_pts[-1] = (bx, by)
-            path_d = _waypoints_to_svg_path(trim_pts, r_src, 0)
-            parts.append(
-                f'<g{tag} opacity="{opacity}">'
-                f'<path d="{path_d}" fill="none" stroke="{color}" '
-                f'stroke-width="{width}" stroke-linecap="round"/>'
-                f'<polygon points="{ex:.1f},{ey:.1f} {p1x:.1f},{p1y:.1f} {p2x:.1f},{p2y:.1f}" '
-                f'fill="{color}"/>'
-                f"</g>"
-            )
-        else:
-            parts.append(
-                f'<path{tag} d="{path_d}" fill="none" stroke="{color}" '
-                f'stroke-width="{width}" stroke-opacity="{opacity}" '
-                f'stroke-linecap="round"/>'
-            )
-    else:
-        parts.append(
-            f'<path{tag} d="{path_d}" fill="none" stroke="{color}" '
-            f'stroke-width="{width}" stroke-opacity="{opacity}" '
-            f'stroke-linecap="round"/>'
-        )
-    if hit_area is not None:
-        parts.append(hit_area)
-
-    return "\n".join(parts)
-
-
-def _svg_edge_curved(
-    x1: float,
-    y1: float,
-    x2: float,
-    y2: float,
-    r_src: float,
-    r_dst: float,
-    color: str,
-    width: float,
-    opacity: float,
-    directed: bool,
-    edge_id: str,
-    attrs_json: Optional[str],
-    bow: float = 0.2,
-    tag: str = "",
-) -> str:
-    """Render a curved edge (quadratic Bezier) with optional arrowhead."""
-    geometry = _curved_geometry(x1, y1, x2, y2, r_src, r_dst, width, directed, bow)
-    if geometry is None:
-        return ""
-    path_d, head = geometry
-
-    parts = []
-    path_id = f"path-{edge_id}"
-
-    if directed:
-        arrow_svg = ""
-        if head is not None:
-            ex, ey, p1x, p1y, p2x, p2y = head
-            arrow_svg = (
-                f'<polygon points="{ex:.1f},{ey:.1f} {p1x:.1f},{p1y:.1f} {p2x:.1f},{p2y:.1f}" '
-                f'fill="{color}"/>'
-            )
-        parts.append(
-            f'<g{tag} opacity="{opacity}">'
-            f'<path id="{path_id}" d="{path_d}" '
-            f'fill="none" stroke="{color}" stroke-width="{width}" '
-            f'stroke-linecap="round"/>'
-            f"{arrow_svg}</g>"
-        )
-    else:
-        parts.append(
-            f'<path{tag} id="{path_id}" '
-            f'd="{path_d}" '
-            f'fill="none" stroke="{color}" stroke-width="{width}" stroke-opacity="{opacity}" '
-            f'stroke-linecap="round"/>'
-        )
-    if attrs_json is not None:
-        parts.append(_svg_edge_hit_area(f'path d="{path_d}"', width, edge_id, attrs_json))
-
-    return "\n".join(parts)
-
-
-def _curved_geometry(
-    x1: float,
-    y1: float,
-    x2: float,
-    y2: float,
-    r_src: float,
-    r_dst: float,
-    width: float,
-    directed: bool,
-    bow: float,
-) -> Optional[Tuple[str, Optional[Tuple[float, ...]]]]:
-    """A curved edge (a quadratic Bezier bowed by `bow` of its length), trimmed to the node
-    borders, as `(d, head)`: the path's `d`, and the arrowhead as `(ex, ey, p1x, p1y, p2x, p2y)`,
-    its tip and other two corners, or `None` for none. `None` for an edge whose ends are at one
-    point."""
-    dx = x2 - x1
-    dy = y2 - y1
-    dist = math.sqrt(dx * dx + dy * dy)
-    if dist < 1e-6:
-        return None
-
-    ux, uy = dx / dist, dy / dist
-    # Perpendicular
-    px, py = -uy, ux
-
-    # Control point bowed perpendicular to the edge midpoint
-    mx = (x1 + x2) / 2 + px * dist * bow
-    my = (y1 + y2) / 2 + py * dist * bow
-
-    # Trim start: move along direction from src to control point
-    cdx_s = mx - x1
-    cdy_s = my - y1
-    cd_s = math.sqrt(cdx_s * cdx_s + cdy_s * cdy_s)
-    if cd_s > 1e-6:
-        sx = x1 + (cdx_s / cd_s) * r_src
-        sy = y1 + (cdy_s / cd_s) * r_src
-    else:
-        sx, sy = x1, y1
-
-    # Trim end: use the tangent at t=1 (from control point toward dst)
-    # so the trim aligns with the curve's actual approach angle
-    tan_ex = x2 - mx
-    tan_ey = y2 - my
-    tan_e_len = math.sqrt(tan_ex * tan_ex + tan_ey * tan_ey)
-    if tan_e_len > 1e-6:
-        tex, tey = tan_ex / tan_e_len, tan_ey / tan_e_len
-        ex = x2 - tex * r_dst
-        ey = y2 - tey * r_dst
-    else:
-        ex, ey = x2, y2
-    path_d = f"M {sx:.1f} {sy:.1f} Q {mx:.1f} {my:.1f} {ex:.1f} {ey:.1f}"
-    if not directed:
-        return path_d, None
-
-    # Arrowhead pointing along curve tangent at t=1
-    tx = 2 * (ex - mx)
-    ty = 2 * (ey - my)
-    t_len = math.sqrt(tx * tx + ty * ty)
-    if t_len <= 1e-6:
-        return path_d, None
-    tux, tuy = tx / t_len, ty / t_len
-    arrow_scale = max(width / 1.2, 0.6)
-    head_len, head_wid = 8.0 * arrow_scale, 5.0 * arrow_scale
-    bx = ex - tux * head_len
-    by = ey - tuy * head_len
-    ppx, ppy = -tuy, tux
-    p1x = bx + ppx * head_wid / 2
-    p1y = by + ppy * head_wid / 2
-    p2x = bx - ppx * head_wid / 2
-    p2y = by - ppy * head_wid / 2
-    return path_d, (ex, ey, p1x, p1y, p2x, p2y)
-
-
-def _svg_edge_loop(
-    x: float,
-    y: float,
-    r: float,
-    color: str,
-    width: float,
-    opacity: float,
-    directed: bool,
-    edge_id: str,
-    attrs_json: Optional[str],
-    loop_size: float = 1.0,
-    tag: str = "",
-) -> str:
-    """Render a self-loop as a circular arc above the node."""
-    path_d, head = _loop_geometry(x, y, r, width, directed, loop_size)
-
-    parts = []
-    path_id = f"path-{edge_id}"
-    if directed:
-        arrow_svg = ""
-        if head is not None:
-            ex, ey, p1x, p1y, p2x, p2y = head
-            arrow_svg = (
-                f'<polygon points="{ex:.1f},{ey:.1f} {p1x:.1f},{p1y:.1f} {p2x:.1f},{p2y:.1f}" '
-                f'fill="{color}"/>'
-            )
-        parts.append(
-            f'<g{tag} opacity="{opacity}">'
-            f'<path id="{path_id}" d="{path_d}" '
-            f'fill="none" stroke="{color}" stroke-width="{width}" '
-            f'stroke-linecap="round"/>'
-            f"{arrow_svg}</g>"
-        )
-    else:
-        parts.append(
-            f'<path{tag} id="{path_id}" d="{path_d}" '
-            f'fill="none" stroke="{color}" stroke-width="{width}" stroke-opacity="{opacity}" '
-            f'stroke-linecap="round"/>'
-        )
-    if attrs_json is not None:
-        parts.append(_svg_edge_hit_area(f'path d="{path_d}"', width, edge_id, attrs_json))
-    return "\n".join(parts)
-
-
-def _loop_geometry(
-    x: float, y: float, r: float, width: float, directed: bool, loop_size: float
-) -> Tuple[str, Optional[Tuple[float, ...]]]:
-    """A self-loop above its node, as `(d, head)`, as `_curved_geometry()` gives them."""
-    lr = r * 1.2 * loop_size
-    # Arc center above the node
-    cx_arc = x
-    cy_arc = y - r - lr
-    # Start and end points on the node border
-    angle = 0.45
-    sx = x + r * math.sin(-angle)
-    sy = y - r * math.cos(-angle)
-    ex = x + r * math.sin(angle)
-    ey = y - r * math.cos(angle)
-
-    # Use two cubic bezier curves for a smooth loop
-    cp_h = lr * 1.6
-    c1x = sx - cp_h * 0.3
-    c1y = sy - cp_h
-    c2x = cx_arc - lr
-    c2y = cy_arc
-    c3x = cx_arc + lr
-    c3y = cy_arc
-    c4x = ex + cp_h * 0.3
-    c4y = ey - cp_h
-
-    path_d = (
-        f"M {sx:.1f} {sy:.1f} "
-        f"C {c1x:.1f} {c1y:.1f} {c2x:.1f} {c2y:.1f} {cx_arc:.1f} {cy_arc - lr * 0.2:.1f} "
-        f"C {c3x:.1f} {c3y:.1f} {c4x:.1f} {c4y:.1f} {ex:.1f} {ey:.1f}"
-    )
-    if not directed:
-        return path_d, None
-
-    # Arrowhead tangent at the end of the curve
-    tan_x = ex - c4x
-    tan_y = ey - c4y
-    t_len = math.sqrt(tan_x * tan_x + tan_y * tan_y)
-    if t_len <= 1e-6:
-        return path_d, None
-    tux, tuy = tan_x / t_len, tan_y / t_len
-    arrow_scale = max(width / 1.2, 0.6)
-    head_len, head_wid = 8.0 * arrow_scale, 5.0 * arrow_scale
-    bx = ex - tux * head_len
-    by = ey - tuy * head_len
-    ppx, ppy = -tuy, tux
-    p1x = bx + ppx * head_wid / 2
-    p1y = by + ppy * head_wid / 2
-    p2x = bx - ppx * head_wid / 2
-    p2y = by - ppy * head_wid / 2
-    return path_d, (ex, ey, p1x, p1y, p2x, p2y)
-
-
-def _svg_node(
-    x: float,
-    y: float,
-    r: float,
-    fill: str,
-    node_id: str,
-    attrs_json: str,
-    border_opacity: float = 0.3,
-    border: Optional[str] = None,
-    border_width: float = 1.5,
-) -> str:
-    """A node's circle. `border` defaults to a darker `fill`, which must then be a hex color."""
-    if border is None:
-        border = _darken(fill, 0.3)
-    return (
-        f'<circle cx="{x:.1f}" cy="{y:.1f}" r="{r:.1f}" '
-        f'fill="{fill}" stroke="{border}" stroke-width="{border_width:g}" '
-        f'stroke-opacity="{border_opacity}" '
-        f"data-node=\"{html_mod.escape(str(node_id))}\" data-attrs='{attrs_json}' "
-        f'/>'
-    )
-
-
-def _svg_label(
-    x: float,
-    y: float,
-    r: float,
-    text: str,
-    color: str,
-    font_size: float,
-) -> str:
-    # Position label below and slightly right of node
-    lx = x
-    ly = y + r + font_size + 2
-    escaped = html_mod.escape(str(text))
-    return (
-        f'<text x="{lx:.1f}" y="{ly:.1f}" '
-        f'text-anchor="middle" '
-        f'font-family="{FONT_FAMILY}" font-size="{font_size:.1f}" '
-        f'fill="{color}" pointer-events="none">{escaped}</text>'
-    )
-
-
-# ---------------------------------------------------------------------------
 # Legend
 # ---------------------------------------------------------------------------
 
@@ -1828,36 +1315,19 @@ def _compute_viewbox(
     """
     if not positions:
         return (0, 0, 100, 100)
+    from edgecase._core import fit_viewbox
 
-    min_x = float("inf")
-    min_y = float("inf")
-    max_x = float("-inf")
-    max_y = float("-inf")
-
-    for nid, (x, y) in positions.items():
-        r = radii.get(nid, 16)
-        # Estimate label width: ~7px per character
-        label_w = 0.0
-        if labels and nid in labels:
-            label_w = len(str(labels[nid])) * 7.0 / 2.0
-        horiz_extra = max(r, label_w) + padding
-        vert_extra = r + padding
-        min_x = min(min_x, x - horiz_extra)
-        min_y = min(min_y, y - vert_extra)
-        max_x = max(max_x, x + horiz_extra)
-        max_y = max(max_y, y + vert_extra + label_space)
-
-    w = max(max_x - min_x, 1)
-    h = max(max_y - min_y, 1)
-    if frame is not None:
-        aspect = frame[0] / frame[1]
-        if w / h < aspect:
-            min_x -= (h * aspect - w) / 2
-            w = h * aspect
-        else:
-            min_y -= (w / aspect - h) / 2
-            h = w / aspect
-    return (min_x, min_y, w, h)
+    nids = list(positions)
+    return fit_viewbox(
+        [positions[nid][0] for nid in nids],
+        [positions[nid][1] for nid in nids],
+        [radii.get(nid, 16) for nid in nids],
+        # Labels about 7 pixels a character
+        [len(str(labels[nid])) if nid in labels else 0 for nid in nids] if labels else None,
+        label_space=label_space,
+        padding=padding,
+        frame=frame,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -1976,7 +1446,7 @@ def _tooltip_table(rows: List[Dict[str, Any]]) -> str:
 
 # Above this many nodes or edges, `plot()` writes lean SVG: no hit areas around the edges, the
 # edges' tooltips in one table (see `_tooltip_table()`), and elements gathered into groups that
-# carry their style (see `_StyleRuns`)
+# carry their style
 LEAN_MIN = 2000
 # With `edge_routing="auto"`, edges are routed while all the routes have no more waypoints than
 # this, about 2 MB of paths. A crowded drawing bends each edge around many nodes, which reads
@@ -1991,134 +1461,10 @@ _LEAN_NODE_BYTES = 60
 _LEAN_EDGE_BYTES = 40
 
 
-class _StyleRuns:
-    """Elements of lean SVG, gathered into groups that carry their style. Each run of consecutive
-    elements with the same style is one group, or one group per layer (an edge's line and its
-    arrowhead), and its elements inherit the style from it."""
-
-    def __init__(self, out: List[str]) -> None:
-        self.out = out
-        self.groups: Tuple[str, ...] = ()
-        self.layers: List[List[str]] = []
-
-    def add(self, groups: Tuple[str, ...], *elements: Optional[str]) -> None:
-        """Add an element to each layer (`None` for none), `groups` being the layers' opening
-        tags."""
-        if groups != self.groups:
-            self.flush()
-            self.groups = groups
-            self.layers = [[] for _ in groups]
-        for layer, element in zip(self.layers, elements):
-            if element is not None:
-                layer.append(element)
-
-    def flush(self) -> None:
-        """Write out the run so far, so that what follows is drawn over it."""
-        for group, layer in zip(self.groups, self.layers):
-            if layer:
-                self.out.append(group)
-                self.out.extend(layer)
-                self.out.append("</g>")
-        self.groups, self.layers = (), []
-
-
-def _head_d(head: Tuple[float, ...]) -> str:
-    """The `d` of an arrowhead in lean SVG, from its tip and other two corners."""
-    ex, ey, p1x, p1y, p2x, p2y = head
-    return f"M{ex:.1f} {ey:.1f}L{p1x:.1f} {p1y:.1f}L{p2x:.1f} {p2y:.1f}Z"
-
-
-def _lean_line(
-    route: Optional[List[Tuple[float, float]]],
-    x1: float,
-    y1: float,
-    x2: float,
-    y2: float,
-    r_src: float,
-    r_dst: float,
-    width: float,
-    directed: bool,
-) -> Optional[Tuple[str, Optional[Tuple[float, ...]]]]:
-    """A straight or routed edge, drawn as `_svg_edge_straight()` and `_svg_edge_routed()` draw
-    it, as `(d, head)`, as `_curved_geometry()` gives them."""
-    if route is not None:
-        head = _routed_head(route, r_dst, width) if directed else None
-        if head is None:
-            return _waypoints_to_svg_path(route, r_src, r_dst), None
-        ex, ey, bx, by, p1x, p1y, p2x, p2y = head
-        trim_pts = list(route)
-        trim_pts[-1] = (bx, by)
-        return _waypoints_to_svg_path(trim_pts, r_src, 0), (ex, ey, p1x, p1y, p2x, p2y)
-    geometry = _straight_geometry(x1, y1, x2, y2, r_src, r_dst, width, directed)
-    if geometry is None:
-        return None
-    sx, sy, lx, ly, ex, ey, corners = geometry
-    line = f"M{sx:.1f} {sy:.1f}L{lx:.1f} {ly:.1f}"
-    return line, None if corners is None else (ex, ey, *corners)
-
-
 # The theme's colors, as (light, dark) pairs for a scene's color table
 _BG_COLORS = (LIGHT.bg, DARK.bg)
 _EDGE_COLORS = (LIGHT.edge_color, DARK.edge_color)
 _LABEL_COLORS = (LIGHT.label_color, DARK.label_color)
-
-
-@dataclass
-class Scene:
-    """What `plot()` draws, worked out apart from the theme and the markup, for `emit_svg()`.
-
-    The nodes and the edges are columns, lists with an entry for each node (in the order of the
-    graph's node IDs) or each edge (in the order of `build_scene()`'s edges). The color columns
-    index `colors`, a table of (light, dark) pairs, which the emitter turns into the colors of the
-    theme. An empty graph has no nodes and no edges.
-    """
-
-    width: int
-    height: int
-    directed: bool = False
-    # Every edge drawn as a curve
-    curved: bool = False
-    # (min x, min y, width, height), legend included
-    viewbox: Tuple[float, float, float, float] = (0, 0, 100, 100)
-    colors: List[Tuple[str, str]] = dataclasses.field(default_factory=list)
-
-    node_ids: List[str] = dataclasses.field(default_factory=list)
-    node_x: List[float] = dataclasses.field(default_factory=list)
-    node_y: List[float] = dataclasses.field(default_factory=list)
-    node_r: List[float] = dataclasses.field(default_factory=list)
-    node_fill: List[int] = dataclasses.field(default_factory=list)
-    node_border: List[int] = dataclasses.field(default_factory=list)
-    node_border_width: List[float] = dataclasses.field(default_factory=list)
-    node_border_opacity: List[float] = dataclasses.field(default_factory=list)
-    # The nodes as drawn, the highlighted ones last
-    node_order: List[int] = dataclasses.field(default_factory=list)
-    node_tips: List[Dict[str, Any]] = dataclasses.field(default_factory=list)
-    # The text under each node, or None without labels
-    labels: Optional[List[str]] = None
-    label_color: List[int] = dataclasses.field(default_factory=list)
-    font_size: float = 0.0
-
-    # The ends of each edge, as node indexes
-    edge_src: List[int] = dataclasses.field(default_factory=list)
-    edge_tgt: List[int] = dataclasses.field(default_factory=list)
-    edge_color: List[int] = dataclasses.field(default_factory=list)
-    edge_width: List[float] = dataclasses.field(default_factory=list)
-    edge_opacity: List[float] = dataclasses.field(default_factory=list)
-    # How far parallel and reciprocal edges bow out, and the size of self-loops (see
-    # `_compute_edge_fans()`)
-    edge_bow: List[float] = dataclasses.field(default_factory=list)
-    edge_loop: List[float] = dataclasses.field(default_factory=list)
-    # The waypoints of an edge routed around nodes, or None for a direct one
-    edge_route: List[Optional[List[Tuple[float, float]]]] = dataclasses.field(default_factory=list)
-    # The edges as drawn, the highlighted ones last
-    edge_order: List[int] = dataclasses.field(default_factory=list)
-    edge_tips: List[Dict[str, Any]] = dataclasses.field(default_factory=list)
-    # The text along each edge (None for none), or None without `edge_label_by=`
-    edge_labels: Optional[List[Optional[str]]] = None
-
-    # The legend's marks (see `_legend_layout()`), and its width in pixels, at the right
-    legend: List[Tuple[Any, ...]] = dataclasses.field(default_factory=list)
-    legend_w: float = 0.0
 
 
 def render_plot(
@@ -2168,7 +1514,11 @@ def build_scene(
     legend: bool = True,
 ) -> Scene:
     """The scene for `plot()` of `graph`, which takes the same arguments: the layout, and the
-    colors, sizes, highlighting, shapes, labels, tooltips and legend that the arguments give."""
+    colors, sizes, highlighting, shapes, labels, tooltips and legend that the arguments give.
+
+    The scene (`edgecase._core.Scene`) holds them as columns, an entry for each node (in the
+    order of the graph's node IDs) or each edge, and draws itself with `emit_svg()`."""
+    from edgecase._core import Scene
 
     _check_style(layout, None, stored_ok=True)
     if isinstance(edge_routing, str) and edge_routing not in ("auto", "around", "straight"):
@@ -2189,7 +1539,7 @@ def build_scene(
     # --- Extract graph data ---
     node_ids = list(graph.get_node_ids(limit=None))
     if not node_ids:
-        return Scene(width=width, height=height)
+        return Scene(width, height)
 
     n = len(node_ids)
     n_edges = graph.count_edges()
@@ -2663,402 +2013,77 @@ def build_scene(
         for nid in str_ids
     ]
 
-    index = {nid: k for k, nid in enumerate(str_ids)}
-    return Scene(
-        width=width,
-        height=height,
+    lean = n > LEAN_MIN or len(edges) > LEAN_MIN
+    edge_tips = _tooltip_rows(
+        [{**head, **e_attrs} for head, e_attrs in zip(edge_tip_heads, edge_attrs_list)]
+    )
+    scene = Scene(
+        width,
+        height,
         directed=is_directed,
         curved=curved_edges,
+        lean=lean,
         viewbox=vb,
         colors=list(color_index),
-        node_ids=str_ids,
-        node_x=[positions[nid][0] for nid in str_ids],
-        node_y=[positions[nid][1] for nid in str_ids],
-        node_r=[radii.get(nid, node_size) for nid in str_ids],
-        node_fill=node_fill,
-        node_border=node_border,
-        node_border_width=node_border_width,
-        node_border_opacity=node_border_opacity,
-        node_order=node_order,
-        node_tips=_tooltip_rows(node_tips),
-        labels=[label_map[nid] for nid in str_ids] if show_labels else None,
-        label_color=label_color,
-        font_size=max(8, min(13, node_size * 0.7)),
-        edge_src=[index[src] for src, _ in edges],
-        edge_tgt=[index[tgt] for _, tgt in edges],
-        edge_color=edge_color_col,
-        edge_width=edge_width_col,
-        edge_opacity=edge_opacity_col,
-        edge_bow=edge_bows,
-        edge_loop=edge_loop_sizes,
-        edge_route=[edge_routes.get(e) for e in edges],
-        edge_order=edge_order,
-        edge_tips=_tooltip_rows(
-            [{**head, **e_attrs} for head, e_attrs in zip(edge_tip_heads, edge_attrs_list)]
-        ),
-        edge_labels=edge_labels,
         legend=legend_marks,
         legend_w=legend_w,
+        # In lean SVG, an edge's tooltip is its row in one table of them
+        edge_tip_table=_tooltip_table(edge_tips) if lean else None,
     )
+    scene.set_nodes(
+        str_ids,
+        [positions[nid][0] for nid in str_ids],
+        [positions[nid][1] for nid in str_ids],
+        [radii.get(nid, node_size) for nid in str_ids],
+        node_fill,
+        node_border,
+        node_border_width,
+        node_border_opacity,
+        node_order,
+        [_attrs_json(tip) for tip in _tooltip_rows(node_tips)],
+    )
+    if show_labels:
+        scene.set_labels(
+            [label_map[nid] for nid in str_ids], label_color, max(8, min(13, node_size * 0.7))
+        )
+    index = {nid: k for k, nid in enumerate(str_ids)}
+    scene.set_edges(
+        [index[src] for src, _ in edges],
+        [index[tgt] for _, tgt in edges],
+        edge_color_col,
+        edge_width_col,
+        edge_opacity_col,
+        edge_bows,
+        edge_loop_sizes,
+        [edge_routes.get(e) for e in edges],
+        edge_order,
+        None if lean else [_attrs_json(tip) for tip in edge_tips],
+    )
+    if edge_labels is not None:
+        scene.set_edge_labels(edge_labels)
+    return scene
 
 
 def emit_svg(scene: Scene, colors: "_Colors") -> Tuple[str, str]:
     """`scene` drawn in the colors of `colors`'s theme: the SVG, and the HTML that shows it with
     tooltips."""
     th = colors.theme
-    width, height = scene.width, scene.height
-    if not scene.node_ids:
-        svg = (
-            f'<svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="{height}" '
-            f'viewBox="0 0 {width} {height}">'
-            f'<rect width="100%" height="100%" fill="{th.bg}"/>'
-            f'<text x="{width / 2}" y="{height / 2}" text-anchor="middle" '
-            f'fill="{th.label_color}" font-family="{FONT_FAMILY}" '
-            f'font-size="14">Empty graph</text></svg>'
-        )
-        return svg, svg
-
-    picked = [colors.pick(*pair) for pair in scene.colors]
-    ids, xs, ys, rs = scene.node_ids, scene.node_x, scene.node_y, scene.node_r
-    is_directed, curved_edges = scene.directed, scene.curved
-    edge_labels = scene.edge_labels
-    vb = scene.viewbox
-    vb_str = f"{vb[0]:.1f} {vb[1]:.1f} {vb[2]:.1f} {vb[3]:.1f}"
-
-    svg_parts = []
-    svg_parts.append(
-        f'<svg xmlns="http://www.w3.org/2000/svg" '
-        f'width="{width}" height="{height}" '
-        f'viewBox="{vb_str}" '
-        f'style="font-family: {FONT_FAMILY};">'
-    )
-    svg_parts.append(
-        f'<rect x="{vb[0]:.1f}" y="{vb[1]:.1f}" width="{vb[2]:.1f}" height="{vb[3]:.1f}" fill="{th.bg}"/>'
-    )
-
-    lean = len(ids) > LEAN_MIN or len(scene.edge_src) > LEAN_MIN
-    edge_tip_table = _tooltip_table(scene.edge_tips) if lean else None
-    edge_runs = _StyleRuns(svg_parts)
-    run_groups: Dict[Tuple[str, float, float], Tuple[str, str]] = {}
-
-    # Edges first (painter's algorithm)
-    for i in scene.edge_order:
-        s, t = scene.edge_src[i], scene.edge_tgt[i]
-        src, tgt = ids[s], ids[t]
-        x1, y1, x2, y2 = xs[s], ys[s], xs[t], ys[t]
-        r_src, r_dst = rs[s], rs[t]
-        e_color = picked[scene.edge_color[i]]
-        e_width = scene.edge_width[i]
-        e_opacity = scene.edge_opacity[i]
-
-        if edge_tip_table is None:
-            attrs_j, tag = _attrs_json(scene.edge_tips[i]), ""
-        else:
-            # The edge's row in the table
-            attrs_j, tag = None, f' data-e="{i}"'
-        eid = f"{src}-{tgt}-{i}"
-
-        bow = scene.edge_bow[i]
-
-        # In lean SVG, an edge joins the run of edges drawn in its style
-        route = scene.edge_route[i]
-        if lean:
-            if s == t:
-                shape = _loop_geometry(x1, y1, r_src, e_width, is_directed, scene.edge_loop[i])
-            elif curved_edges or abs(bow) > 1e-6:
-                shape = _curved_geometry(
-                    x1,
-                    y1,
-                    x2,
-                    y2,
-                    r_src,
-                    r_dst,
-                    e_width,
-                    is_directed,
-                    0.2 + bow if curved_edges else bow,
-                )
-            else:
-                shape = _lean_line(route, x1, y1, x2, y2, r_src, r_dst, e_width, is_directed)
-            if shape is not None:
-                line, head = shape
-                style = (e_color, e_width, e_opacity)
-                groups = run_groups.get(style)
-                if groups is None:
-                    groups = run_groups[style] = (
-                        f'<g fill="none" stroke="{e_color}" stroke-width="{e_width}" '
-                        f'stroke-opacity="{e_opacity}" stroke-linecap="round">',
-                        f'<g fill="{e_color}" fill-opacity="{e_opacity}">',
-                    )
-                # Curved edges keep their IDs for their labels, which follow them
-                path_id = f' id="path-{eid}"' if curved_edges and edge_labels is not None else ""
-                edge_runs.add(
-                    groups,
-                    f'<path{tag}{path_id} d="{line}"/>',
-                    None if head is None else f'<path{tag} d="{_head_d(head)}"/>',
-                )
-            continue
-        edge_runs.flush()
-
-        # Self-loop
-        if s == t:
-            svg_parts.append(
-                _svg_edge_loop(
-                    x1,
-                    y1,
-                    r_src,
-                    e_color,
-                    e_width,
-                    e_opacity,
-                    is_directed,
-                    eid,
-                    attrs_j,
-                    loop_size=scene.edge_loop[i],
-                    tag=tag,
-                )
-            )
-            continue
-
-        if curved_edges:
-            svg_parts.append(
-                _svg_edge_curved(
-                    x1,
-                    y1,
-                    x2,
-                    y2,
-                    r_src,
-                    r_dst,
-                    e_color,
-                    e_width,
-                    e_opacity,
-                    is_directed,
-                    eid,
-                    attrs_j,
-                    bow=0.2 + bow,
-                    tag=tag,
-                )
-            )
-        elif abs(bow) > 1e-6:
-            svg_parts.append(
-                _svg_edge_curved(
-                    x1,
-                    y1,
-                    x2,
-                    y2,
-                    r_src,
-                    r_dst,
-                    e_color,
-                    e_width,
-                    e_opacity,
-                    is_directed,
-                    eid,
-                    attrs_j,
-                    bow=bow,
-                    tag=tag,
-                )
-            )
-        elif route is not None:
-            svg_parts.append(
-                _svg_edge_routed(
-                    route,
-                    r_src,
-                    r_dst,
-                    e_color,
-                    e_width,
-                    e_opacity,
-                    is_directed,
-                    eid,
-                    attrs_j,
-                    tag=tag,
-                )
-            )
-        else:
-            svg_parts.append(
-                _svg_edge_straight(
-                    x1,
-                    y1,
-                    x2,
-                    y2,
-                    r_src,
-                    r_dst,
-                    e_color,
-                    e_width,
-                    e_opacity,
-                    is_directed,
-                    eid,
-                    attrs_j,
-                    tag=tag,
-                )
-            )
-    edge_runs.flush()
-
-    # Edge labels (stretch goal)
-    if edge_labels is not None:
-        # Each edge's place among the edges between the same two nodes, numbered as in
-        # `_compute_edge_fans()`
-        fan_members: Dict[Tuple[str, str], List[int]] = {}
-        for i, (s, t) in enumerate(zip(scene.edge_src, scene.edge_tgt)):
-            if s != t:
-                src, tgt = ids[s], ids[t]
-                fan_members.setdefault((min(src, tgt), max(src, tgt)), []).append(i)
-        fan_place = {i: (k, m) for m in fan_members.values() for k, i in enumerate(m)}
-        for i, (s, t) in enumerate(zip(scene.edge_src, scene.edge_tgt)):
-            label_val = edge_labels[i]
-            if label_val is None:
-                continue
-            src, tgt = ids[s], ids[t]
-            x1, y1, x2, y2 = xs[s], ys[s], xs[t], ys[t]
-            eid = f"{src}-{tgt}-{i}"
-            k, fan = fan_place.get(i, (0, [i]))
-
-            if curved_edges:
-                # For textPath, text reads left-to-right along the path.
-                # If the path runs right-to-left, add a reversed copy for the label.
-                text_path_ref = f"path-{eid}"
-                if x1 > x2:
-                    # Emit a hidden reversed path so text reads correctly
-                    dx_e = x2 - x1
-                    dy_e = y2 - y1
-                    d_e = math.sqrt(dx_e * dx_e + dy_e * dy_e)
-                    if d_e > 1e-6:
-                        ux_e, uy_e = dx_e / d_e, dy_e / d_e
-                        px_e, py_e = -uy_e, ux_e
-                        r_src, r_dst = rs[s], rs[t]
-                        bow_val = 0.2 + scene.edge_bow[i]
-                        cmx = (x1 + x2) / 2 + px_e * d_e * bow_val
-                        cmy = (y1 + y2) / 2 + py_e * d_e * bow_val
-                        # Reversed: swap start/end
-                        cdx_s2 = cmx - x2
-                        cdy_s2 = cmy - y2
-                        cd_s2 = math.sqrt(cdx_s2**2 + cdy_s2**2)
-                        sx2 = x2 + (cdx_s2 / cd_s2) * r_dst if cd_s2 > 1e-6 else x2
-                        sy2 = y2 + (cdy_s2 / cd_s2) * r_dst if cd_s2 > 1e-6 else y2
-                        cdx_e2 = cmx - x1
-                        cdy_e2 = cmy - y1
-                        cd_e2 = math.sqrt(cdx_e2**2 + cdy_e2**2)
-                        ex2 = x1 + (cdx_e2 / cd_e2) * r_src if cd_e2 > 1e-6 else x1
-                        ey2 = y1 + (cdy_e2 / cd_e2) * r_src if cd_e2 > 1e-6 else y1
-                        rev_id = f"path-{eid}-rev"
-                        svg_parts.append(
-                            f'<path id="{rev_id}" '
-                            f'd="M {sx2:.1f} {sy2:.1f} Q {cmx:.1f} {cmy:.1f} {ex2:.1f} {ey2:.1f}" '
-                            f'fill="none" stroke="none"/>'
-                        )
-                        text_path_ref = rev_id
-                svg_parts.append(
-                    f'<text font-family="{FONT_FAMILY}" font-size="10" '
-                    f'fill="{th.label_color}" fill-opacity="0.7" pointer-events="none">'
-                    f'<textPath href="#{text_path_ref}" startOffset="50%" text-anchor="middle">'
-                    f"{html_mod.escape(label_val)}</textPath></text>"
-                )
-            elif len(fan) >= 3 and math.dist((x1, y1), (x2, y2)) > 1e-6:
-                # Three or more edges between two nodes leave no room beside the inner ones, so
-                # each label sits on its own edge, ringed by the background. The labels step
-                # along the edges too, in the order of the curves, each step the length of a
-                # label's box measured along the edges, so that neighbors don't overlap however
-                # the edges are angled (as far as the edges are long enough)
-                a_x, a_y, b_x, b_y = (x1, y1, x2, y2) if src <= tgt else (x2, y2, x1, y1)
-                dist = math.dist((a_x, a_y), (b_x, b_y))
-                box_w = max(
-                    _text_width(edge_labels[j], 10) for j in fan if edge_labels[j] is not None
-                )
-                step = (box_w * abs(b_x - a_x) + 11 * abs(b_y - a_y)) / dist + 3
-                rank = k - (len(fan) - 1) / 2
-                t_ = 0.5 + rank * min(step / dist, 0.7 / (len(fan) - 1))
-                # The edge's offset from the straight line, on the side of the A-to-B normal
-                v = scene.edge_bow[i] if src <= tgt else -scene.edge_bow[i]
-                bulge = dist * v * 2 * t_ * (1 - t_)
-                mx = a_x + (b_x - a_x) * t_ - (b_y - a_y) / dist * bulge
-                my = a_y + (b_y - a_y) * t_ + (b_x - a_x) / dist * bulge
-                svg_parts.append(
-                    f'<text x="{mx:.1f}" y="{my + 3.5:.1f}" text-anchor="middle" '
-                    f'font-family="{FONT_FAMILY}" font-size="10" '
-                    f'fill="{th.label_color}" fill-opacity="0.7" stroke="{th.bg}" '
-                    f'stroke-width="3" stroke-linejoin="round" paint-order="stroke" '
-                    f'pointer-events="none">{html_mod.escape(label_val)}</text>'
-                )
-            else:
-                # Midpoint label, offset perpendicular to the edge. A parallel edge is drawn as a
-                # curve, so its label goes by the middle of the curve, on the outside of it. Beside
-                # a steep edge, the text starts or ends at that point, so it stays clear of the line
-                mx = (x1 + x2) / 2
-                my = (y1 + y2) / 2
-                anchor = "middle"
-                dx, dy = x2 - x1, y2 - y1
-                dist = math.sqrt(dx * dx + dy * dy)
-                if dist > 1e-6:
-                    px, py = -dy / dist, dx / dist
-                    bow = scene.edge_bow[i]
-                    offset = 8 + dist * abs(bow) / 2 if abs(bow) > 1e-6 else 8
-                    if bow < -1e-6:
-                        px, py = -px, -py
-                    mx += px * offset
-                    my += py * offset
-                    if abs(px) > 0.7:
-                        anchor = "start" if px > 0 else "end"
-                        my += 3
-                svg_parts.append(
-                    f'<text x="{mx:.1f}" y="{my:.1f}" text-anchor="{anchor}" '
-                    f'font-family="{FONT_FAMILY}" font-size="10" '
-                    f'fill="{th.label_color}" fill-opacity="0.7" '
-                    f'pointer-events="none">{html_mod.escape(label_val)}</text>'
-                )
-
-    # Nodes on top
-    node_runs = _StyleRuns(svg_parts)
-    for k in scene.node_order:
-        nid = ids[k]
-        x, y, r = xs[k], ys[k], rs[k]
-        fill = picked[scene.node_fill[k]]
-        border = picked[scene.node_border[k]]
-        border_width = scene.node_border_width[k]
-        border_opacity = scene.node_border_opacity[k]
-        tip = _attrs_json(scene.node_tips[k])
-        if lean:
-            node_runs.add(
-                (
-                    f'<g fill="{fill}" stroke="{border}" stroke-width="{border_width:g}" '
-                    f'stroke-opacity="{border_opacity}">',
-                ),
-                f'<circle cx="{x:.1f}" cy="{y:.1f}" r="{r:.1f}" '
-                f"data-node=\"{html_mod.escape(nid)}\" data-attrs='{tip}'/>",
-            )
-            continue
-        svg_parts.append(
-            _svg_node(
-                x,
-                y,
-                r,
-                fill,
-                nid,
-                tip,
-                border_opacity=border_opacity,
-                border=border,
-                border_width=border_width,
-            )
-        )
-    node_runs.flush()
-
-    # Labels
-    if scene.labels is not None:
-        for k, text in enumerate(scene.labels):
-            svg_parts.append(
-                _svg_label(xs[k], ys[k], rs[k], text, picked[scene.label_color[k]], scene.font_size)
-            )
-
+    legend = None
     if scene.legend:
+        vb = scene.viewbox
         # Viewbox units per pixel
-        unit = vb[3] / height
-        svg_parts.append(
+        unit = vb[3] / scene.height
+        legend = (
             f'<g class="ec-legend" transform="translate('
             f"{vb[0] + vb[2] - (scene.legend_w - _LEGEND_PAD) * unit:.1f} "
             f'{vb[1]:.1f}) scale({unit:.4f})">{_svg_legend(scene.legend, colors, th)}</g>'
         )
-
-    svg_parts.append("</svg>")
-    svg_str = "\n".join(svg_parts)
-
-    # --- HTML wrapper with hover tooltips ---
-    return svg_str, _generate_html_wrapper(svg_str, th, width, height, edge_tip_table)
+    picked = [colors.pick(*pair) for pair in scene.colors]
+    svg_str = scene.svg(picked, th.bg, th.label_color, FONT_FAMILY, legend)
+    if not scene.node_count:
+        return svg_str, svg_str
+    html_str = _generate_html_wrapper(svg_str, th, scene.width, scene.height, scene.edge_tip_table)
+    return svg_str, html_str
 
 
 # ---------------------------------------------------------------------------
