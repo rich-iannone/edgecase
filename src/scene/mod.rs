@@ -5,6 +5,7 @@ mod color;
 mod css;
 mod geometry;
 mod highlight;
+mod overlay;
 mod palette;
 mod pyfmt;
 mod raster;
@@ -308,8 +309,11 @@ impl Scene {
     }
 
     /// The scene as SVG, in a theme: `colors` are the color table's colors in it, `bg`,
-    /// `label_color` its background and text colors, and `legend` the legend's markup.
-    #[pyo3(signature = (colors, bg, label_color, font_family, legend=None))]
+    /// `label_color` its background and text colors, and `legend` the legend's markup. `raster`
+    /// is the markup of the edges' layer and the nodes' as images (see `png()`), to draw in
+    /// place of the edges and the nodes, between which the edge labels go.
+    #[allow(clippy::too_many_arguments)]
+    #[pyo3(signature = (colors, bg, label_color, font_family, legend=None, raster=None))]
     fn svg(
         &self,
         py: Python<'_>,
@@ -318,6 +322,7 @@ impl Scene {
         label_color: String,
         font_family: String,
         legend: Option<String>,
+        raster: Option<(String, String)>,
     ) -> PyResult<String> {
         check_len(
             "colors",
@@ -331,6 +336,7 @@ impl Scene {
             label_color: &label_color,
             font_family: &font_family,
             legend: legend.as_deref(),
+            raster: raster.as_ref().map(|(e, n)| (e.as_str(), n.as_str())),
         };
         Ok(py.allow_threads(|| svg::draw(self, &style)))
     }
@@ -342,9 +348,12 @@ impl Scene {
     /// its rank. `edges` and `nodes` say which are drawn, so that each can be a layer of its
     /// own. With `palette`, the image is indexed, in at most 256 colors: its own if it has no
     /// more, otherwise the nearest that the quantizer finds, which makes it two to three times
-    /// smaller. Labels and the legend aren't drawn.
+    /// smaller. Labels and the legend aren't drawn, but `overlay` is an SVG of the frame's size
+    /// drawn over the rest, such as `svg()` makes of them, its text in the system's fonts.
     #[allow(clippy::too_many_arguments)]
-    #[pyo3(signature = (colors, bg=None, scale=2.0, tone="log", edges=true, nodes=true, palette=false))]
+    #[pyo3(signature = (
+        colors, bg=None, scale=2.0, tone="log", edges=true, nodes=true, palette=false, overlay=None
+    ))]
     fn png<'py>(
         &self,
         py: Python<'py>,
@@ -355,6 +364,7 @@ impl Scene {
         edges: bool,
         nodes: bool,
         palette: bool,
+        overlay: Option<String>,
     ) -> PyResult<Bound<'py, PyBytes>> {
         check_len(
             "colors",
@@ -385,6 +395,13 @@ impl Scene {
             tone: raster::Tone::parse(tone)?,
             edges,
             nodes,
+            overlay: match overlay {
+                Some(svg) => {
+                    let (width, height) = self.raster_size(scale)?;
+                    Some(py.allow_threads(|| overlay::draw(&svg, width, height))?)
+                }
+                None => None,
+            },
         };
         self.raster(py, &style, palette)
     }
@@ -407,6 +424,7 @@ impl Scene {
             tone: raster::Tone::parse(tone)?,
             edges: true,
             nodes: false,
+            overlay: None,
         };
         self.raster(py, &style, true)
     }
