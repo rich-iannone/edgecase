@@ -1464,7 +1464,8 @@ def _raster_layers(scene: Scene, colors: "_Colors", scale: float = 2.0, tone: st
     Edges of one color are a mask, filled with that color, so that one image serves both themes
     of the automatic one. Edges of more colors, and the nodes, are an image in the theme's
     colors. In the automatic theme they are an image in each theme's (or one, if the two come
-    out the same), and the theme's variables show the one that the page's color scheme picks."""
+    out the same), and the theme's variables show the one that the page's color scheme picks.
+    Every image is indexed, in at most 256 colors."""
     x, y, w, h = scene.raster_box(scale)
     box = f'x="{x:.3f}" y="{y:.3f}" width="{w:.3f}" height="{h:.3f}"'
     place = f'{box} preserveAspectRatio="none"'
@@ -1473,7 +1474,7 @@ def _raster_layers(scene: Scene, colors: "_Colors", scale: float = 2.0, tone: st
         return f'<image {place}{style} href="{_png_href(png)}"/>'
 
     def themed(edges: bool) -> List[str]:
-        layer = {"scale": scale, "tone": tone, "edges": edges, "nodes": not edges}
+        layer = {"scale": scale, "tone": tone, "edges": edges, "nodes": not edges, "palette": True}
         if not colors.auto:
             return [image(scene.png([colors.pick(*pair) for pair in scene.colors], **layer))]
         light = scene.png([lt for lt, _ in scene.colors], **layer)
