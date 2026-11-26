@@ -6,6 +6,7 @@ aesthetic: filled circles, thin semi-transparent edges, minimal chrome.
 
 from __future__ import annotations
 
+import base64
 import dataclasses
 import hashlib
 import html as html_mod
@@ -1450,6 +1451,54 @@ def emit_svg(scene: Scene, colors: "_Colors") -> Tuple[str, str]:
         return svg_str, svg_str
     html_str = _generate_html_wrapper(svg_str, th, scene.width, scene.height, scene.edge_tip_table)
     return svg_str, html_str
+
+
+def _png_href(png: bytes) -> str:
+    return "data:image/png;base64," + base64.b64encode(png).decode("ascii")
+
+
+def _raster_layers(scene: Scene, colors: "_Colors", scale: float = 2.0, tone: str = "log") -> str:
+    """`scene`'s edges and nodes drawn as images (see `Scene.png()`), in the colors of `colors`'s
+    theme: SVG elements to draw in their place, the edges' layer and then the nodes'.
+
+    Edges of one color are a mask, filled with that color, so that one image serves both themes
+    of the automatic one. Edges of more colors, and the nodes, are an image in the theme's
+    colors. In the automatic theme they are an image in each theme's (or one, if the two come
+    out the same), and the theme's variables show the one that the page's color scheme picks."""
+    x, y, w, h = scene.raster_box(scale)
+    box = f'x="{x:.3f}" y="{y:.3f}" width="{w:.3f}" height="{h:.3f}"'
+    place = f'{box} preserveAspectRatio="none"'
+
+    def image(png: bytes, style: str = "") -> str:
+        return f'<image {place}{style} href="{_png_href(png)}"/>'
+
+    def themed(edges: bool) -> List[str]:
+        layer = {"scale": scale, "tone": tone, "edges": edges, "nodes": not edges}
+        if not colors.auto:
+            return [image(scene.png([colors.pick(*pair) for pair in scene.colors], **layer))]
+        light = scene.png([lt for lt, _ in scene.colors], **layer)
+        dark = scene.png([dk for _, dk in scene.colors], **layer)
+        if light == dark:
+            return [image(light)]
+        return [
+            image(light, f' style="display:{colors.pick("inline", "none")}"'),
+            image(dark, f' style="display:{colors.pick("none", "inline")}"'),
+        ]
+
+    parts = []
+    tint = scene.edge_tint
+    if tint is not None:
+        mask = scene.edge_mask(scale, tone)
+        # Named after its pixels, so that two plots on a page can't take each other's
+        mask_id = "ec-edges-" + hashlib.sha1(mask).hexdigest()[:10]
+        parts.append(f'<mask id="{mask_id}">{image(mask)}</mask>')
+        parts.append(
+            f'<rect {box} fill="{colors.pick(*scene.colors[tint])}" mask="url(#{mask_id})"/>'
+        )
+    elif scene.edge_count:
+        parts += themed(edges=True)
+    parts += themed(edges=False)
+    return "\n".join(parts)
 
 
 # ---------------------------------------------------------------------------
