@@ -754,35 +754,6 @@ def _contrast_color(hex_color: str) -> str:
     return "#ffffff" if lum < 0.45 else "#374151"
 
 
-def _build_color_map(
-    values: List[Any],
-    palette_name: str = "tableau",
-) -> Dict[Any, str]:
-    """Map unique categorical values to palette colors."""
-    try:
-        from edgecase.colors import get_palette
-
-        colors = get_palette(palette_name)
-    except Exception:
-        colors = [
-            "#4e79a7",
-            "#f28e2c",
-            "#e15759",
-            "#76b7b2",
-            "#59a14f",
-            "#edc949",
-            "#af7aa1",
-            "#ff9da7",
-            "#9c755f",
-            "#bab0ab",
-        ]
-    unique = list(dict.fromkeys(values))
-    mapping = {}
-    for i, val in enumerate(unique):
-        mapping[val] = colors[i % len(colors)]
-    return mapping
-
-
 # ---------------------------------------------------------------------------
 # Color scales and highlighting
 # ---------------------------------------------------------------------------
@@ -863,82 +834,6 @@ def _scale_color(stops, t: float) -> Tuple[str, str]:
     return stops[-1][1], stops[-1][2]
 
 
-def _is_number(v) -> bool:
-    return isinstance(v, (int, float)) and not isinstance(v, bool) and math.isfinite(v)
-
-
-def _color_scale(values: List[Any], scale: Optional[str], param: str) -> str:
-    """The scale for mapping `values` to colors: `scale` if given, else sequential for
-    numbers among which there is a fraction (a float), and categorical for anything else."""
-    if scale is not None:
-        if scale not in COLOR_SCALES:
-            raise ValueError(
-                f"Unknown color_scale {scale!r}; use one of {', '.join(map(repr, COLOR_SCALES))}"
-            )
-        present = [v for v in values if v is not None]
-        if scale != "categorical" and not all(_is_number(v) for v in present):
-            raise ValueError(f"color_scale={scale!r} needs numeric values of {param}")
-        return scale
-    present = [v for v in values if v is not None]
-    numeric = present and all(_is_number(v) for v in present)
-    if numeric and any(isinstance(v, float) for v in present):
-        return "sequential"
-    return "categorical"
-
-
-def _numeric_colors(
-    values: List[Any], scale: str, midpoint: Optional[float]
-) -> Tuple[List[Tuple[str, str]], Tuple[float, float, Optional[float]]]:
-    """(light, dark) colors for `values` on the sequential or diverging `scale`, and the
-    (low, high, midpoint) the scale's ends stand for."""
-    nums = [v for v in values if _is_number(v)]
-    if not nums:
-        return [MISSING_COLOR] * len(values), (0.0, 0.0, None)
-    lo, hi = min(nums), max(nums)
-    if scale == "diverging":
-        mid = 0.0 if midpoint is None else float(midpoint)
-        extent = max(abs(hi - mid), abs(mid - lo)) or 1.0
-        out = [
-            _scale_color(DIVERGING_STOPS, (v - mid) / extent) if _is_number(v) else MISSING_COLOR
-            for v in values
-        ]
-        return out, (mid - extent, mid + extent, mid)
-    span = (hi - lo) or 1.0
-    out = [
-        _scale_color(SEQUENTIAL_STOPS, (v - lo) / span) if _is_number(v) else MISSING_COLOR
-        for v in values
-    ]
-    return out, (lo, hi, None)
-
-
-def _sorted_values(values: List[Any]) -> List[Any]:
-    """The distinct `values` in order (`None` last), or in order of first appearance should they
-    not be comparable."""
-    unique = list(dict.fromkeys(v for v in values if v is not None))
-    try:
-        unique.sort()
-    except TypeError:
-        pass
-    if any(v is None for v in values):
-        unique.append(None)
-    return unique
-
-
-def _is_marked(v) -> bool:
-    """Whether an attribute value picks its node or edge out for `highlight=`: any value but a
-    missing one (`None` or NaN) or `False`. A 0 counts, being, e.g., the first node of a path."""
-    return v is not None and v is not False and not (isinstance(v, float) and math.isnan(v))
-
-
-def _graph_edges(graph) -> Dict[int, Tuple[int, int, Dict[str, Any], Optional[float]]]:
-    """{edge ID: (source, target, attributes, weight)}."""
-    out = {}
-    for eid in graph.get_edge_ids():
-        e = graph.get_edge(eid)
-        out[eid] = (e.source, e.target, dict(e.attributes) if e.attributes else {}, e.weight)
-    return out
-
-
 def _resolve_highlight(
     graph, highlight, highlight_edges
 ) -> Dict[str, Tuple[set, set]]:
@@ -947,7 +842,7 @@ def _resolve_highlight(
 
     `highlight=` takes nodes: one node (an ID or a label), a list of them, `"selection"` (the
     selected nodes and edges), or the name of a node or edge attribute (the nodes or edges whose
-    value `_is_marked()`). A list in which each node is joined to the next is a path, and its
+    value marks them: any but None, NaN or False). A list in which each node is joined to the next is a path, and its
     edges are picked out as well; so are those of an attribute whose marked values are distinct
     whole numbers, taken in their order (as `shortest_path_order` holds a path). A list can also
     hold `(u, v)` pairs, for the edges between them. `highlight_edges=` takes edges: an edge ID,
@@ -956,24 +851,9 @@ def _resolve_highlight(
     `"soft"` to such values. The ends of a picked-out edge are picked out at its level, too, and
     what is picked out at both levels is accent.
     """
+    from edgecase._core import edge_ends, marked_edges, marked_nodes
+
     out = {level: (set(), set()) for level in HIGHLIGHT_LEVELS}
-    graph_edges = None
-    node_attrs = None
-
-    def edges_info():
-        nonlocal graph_edges
-        if graph_edges is None:
-            graph_edges = _graph_edges(graph)
-        return graph_edges
-
-    def nodes_info():
-        nonlocal node_attrs
-        if node_attrs is None:
-            node_attrs = {}
-            for nid in graph.get_node_ids(limit=None):
-                obj = graph.get_node(nid)
-                node_attrs[nid] = dict(obj.attributes) if obj and obj.attributes else {}
-        return node_attrs
 
     def node_id(ref, param):
         if isinstance(ref, bool) or not isinstance(ref, (int, str)):
@@ -1004,28 +884,18 @@ def _resolve_highlight(
         return found
 
     def edge_attr_marked(name):
-        info = edges_info()
-        if not any(name in attrs for _, _, attrs, _ in info.values()):
-            return None
-        return {eid for eid, (_, _, attrs, _) in info.items() if _is_marked(attrs.get(name))}
+        marked = marked_edges(graph._graph, name)
+        return None if marked is None else set(marked)
 
     def nodes_spec(spec):
         param = "highlight"
         if isinstance(spec, str):
             if spec == "selection":
                 return set(graph.get_selected_node_ids()), set(graph.get_selected_edge_ids())
-            attrs = nodes_info()
-            if any(spec in a for a in attrs.values()):
-                marked = {nid: a[spec] for nid, a in attrs.items() if _is_marked(a.get(spec))}
-                edges = set()
-                vals = list(marked.values())
-                if (
-                    len(vals) >= 2
-                    and all(isinstance(v, int) and not isinstance(v, bool) for v in vals)
-                    and len(set(vals)) == len(vals)
-                ):
-                    edges = set(path_edges(sorted(marked, key=marked.get)))
-                return set(marked), edges
+            marked = marked_nodes(graph._graph, spec)
+            if marked is not None:
+                nodes, path = marked
+                return set(nodes), set(path_edges(path)) if path is not None else set()
             edges = edge_attr_marked(spec)
             if edges is not None:
                 return set(), edges
@@ -1101,8 +971,7 @@ def _resolve_highlight(
             out[level][1].update(edges)
 
     for level in HIGHLIGHT_LEVELS:
-        for eid in out[level][1]:
-            out[level][0].update(graph.get_node_ids_by_edge_id(eid))
+        out[level][0].update(edge_ends(graph._graph, list(out[level][1])))
     out["soft"][0].difference_update(out["accent"][0])
     out["soft"][1].difference_update(out["accent"][1])
     return out
@@ -1335,33 +1204,6 @@ def _compute_viewbox(
 # ---------------------------------------------------------------------------
 
 
-def _plot_node_values(graph, node_ids, node_data, key, param):
-    """Resolve `label_by=` / `size_by=` / `color_by=` to a value per node (keyed by str ID).
-
-    `"id"` is always the node ID. Otherwise a stored node attribute with that name wins, and
-    `"label"` (falling back to the ID) and `"degree"` are computed. Any other name that no node has raises, rather than
-    silently plotting nothing. Nodes lacking a stored attribute get `None`.
-    """
-    if key is None:
-        return {str(nid): None for nid in node_ids}
-    if key == "id":
-        return {str(nid): str(nid) for nid in node_ids}
-    if any(key in attrs for attrs in node_data.values()):
-        return {str(nid): node_data[nid].get(key) for nid in node_ids}
-    if key == "label":
-        return {
-            str(nid): (lbl if (lbl := graph.get_label_from_id(nid)) is not None else str(nid))
-            for nid in node_ids
-        }
-    if key == "degree":
-        # get_degree() rather than degrees(), which also writes a "degree" column
-        return {str(nid): graph.get_degree(nid) for nid in node_ids}
-    raise ValueError(
-        f"{param}={key!r}: no node has an attribute {key!r} (built-in options are 'id', "
-        f"'label' and 'degree')"
-    )
-
-
 def _round_sig(v: float, digits: int = 4) -> float:
     """`v` to `digits` significant digits, but keeping all of its whole-number digits."""
     if v == 0 or not math.isfinite(v):
@@ -1369,83 +1211,8 @@ def _round_sig(v: float, digits: int = 4) -> float:
     return round(v, max(0, digits - 1 - math.floor(math.log10(abs(v)))))
 
 
-def _is_num_vector(v) -> bool:
-    return (
-        isinstance(v, (list, tuple))
-        and len(v) > 0
-        and all(isinstance(c, (int, float)) and not isinstance(c, bool) for c in v)
-    )
-
-
-def _tooltip_rows(rows: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-    """Round the floats in the nodes' (or edges') tooltip values, which can run to 16 digits.
-
-    A single number keeps 4 significant digits. The numbers in a vector (e.g., a stored `pos`) are
-    rounded to the same decimal place in every row: a hundredth of the typical spacing of that
-    many points spread over the vectors' range. Significant digits would instead show a
-    coordinate that is nearly 0 as noise like 1.3e-17.
-    """
-    decimals = {}
-    for key in dict.fromkeys(k for row in rows for k in row):
-        vectors = [row[key] for row in rows if _is_num_vector(row.get(key))]
-        comps = [c for v in vectors for c in v if math.isfinite(c)]
-        if comps:
-            spread = max(comps) - min(comps)
-            decimals[key] = (
-                max(0, math.ceil(math.log10(math.sqrt(len(vectors)) / spread)) + 2)
-                if spread > 0
-                else 2
-            )
-
-    def tidy(key, v):
-        if isinstance(v, float):
-            return _round_sig(v)
-        if key in decimals and _is_num_vector(v):
-            return [round(c, decimals[key]) for c in v]
-        return v
-
-    return [{k: tidy(k, v) for k, v in row.items()} for row in rows]
-
-
-def _attrs_json(attrs: Dict[str, Any]) -> str:
-    """`attrs` as JSON for a `data-attrs='...'` attribute."""
-    return (
-        json.dumps(attrs, default=str)
-        .replace("&", "&amp;")
-        .replace("'", "&#39;")
-        .replace("<", "&lt;")
-    )
-
-
-def _tooltip_table(rows: List[Dict[str, Any]]) -> str:
-    """`rows` (the edges' tooltips) as one JSON table for a `<script type="application/json">`.
-
-    It has the keys in the order first seen, and a column of values for each. A column that every
-    row has a value in is a list, and any other an object from row number to value, so that
-    either is read as `column[i]`. Numbers that JSON can't hold (NaN, infinities) are written as
-    text, since one would keep the whole table from being read.
-    """
-
-    def jsonable(v):
-        if isinstance(v, float) and not math.isfinite(v):
-            return str(v)
-        if isinstance(v, (list, tuple)):
-            return [jsonable(c) for c in v]
-        return v
-
-    keys = list(dict.fromkeys(k for row in rows for k in row))
-    columns = []
-    for key in keys:
-        if all(key in row for row in rows):
-            columns.append([jsonable(row[key]) for row in rows])
-        else:
-            columns.append({str(i): jsonable(row[key]) for i, row in enumerate(rows) if key in row})
-    # "<" written as an escape, so that no "</script>" in a value can end the script
-    return json.dumps({"k": keys, "c": columns}, default=str).replace("<", "\\u003c")
-
-
 # Above this many nodes or edges, `plot()` writes lean SVG: no hit areas around the edges, the
-# edges' tooltips in one table (see `_tooltip_table()`), and elements gathered into groups that
+# edges' tooltips in one table (see `edgecase._core.tooltip_table()`), and elements gathered into groups that
 # carry their style
 LEAN_MIN = 2000
 # With `edge_routing="auto"`, edges are routed while all the routes have no more waypoints than
@@ -1465,6 +1232,22 @@ _LEAN_EDGE_BYTES = 40
 _BG_COLORS = (LIGHT.bg, DARK.bg)
 _EDGE_COLORS = (LIGHT.edge_color, DARK.edge_color)
 _LABEL_COLORS = (LIGHT.label_color, DARK.label_color)
+
+# The colors that `SceneBuilder` encodes with, as (light, dark) pairs
+_SCENE_COLORS = {
+    "node": (DEFAULT_NODE_COLOR, DEFAULT_NODE_COLOR),
+    "edge": _EDGE_COLORS,
+    "label": _LABEL_COLORS,
+    "surface": _BG_COLORS,
+    "missing": MISSING_COLOR,
+    "accent": ACCENT_COLOR,
+    "muted_node": MUTED_NODE_COLOR,
+    "muted_label": MUTED_LABEL_COLOR,
+    # Edges between groups of edge_color_by=, without cross_community_color=
+    "cross": ("#52525b", "#a1a1aa"),
+    "sequential": SEQUENTIAL_STOPS,
+    "diverging": DIVERGING_STOPS,
+}
 
 
 def render_plot(
@@ -1516,9 +1299,10 @@ def build_scene(
     """The scene for `plot()` of `graph`, which takes the same arguments: the layout, and the
     colors, sizes, highlighting, shapes, labels, tooltips and legend that the arguments give.
 
-    The scene (`edgecase._core.Scene`) holds them as columns, an entry for each node (in the
-    order of the graph's node IDs) or each edge, and draws itself with `emit_svg()`."""
-    from edgecase._core import Scene
+    `edgecase._core.SceneBuilder` reads the graph and works these out, and makes the scene
+    (`edgecase._core.Scene`), which holds them as columns, an entry for each node (in the order
+    of the graph's node IDs) or each edge, and draws itself with `emit_svg()`."""
+    from edgecase._core import Scene, SceneBuilder
 
     _check_style(layout, None, stored_ok=True)
     if isinstance(edge_routing, str) and edge_routing not in ("auto", "around", "straight"):
@@ -1559,109 +1343,19 @@ def build_scene(
         avg_spacing = math.sqrt(float(width * height) / max(n, 1))
         node_size = max(3.5, min(16.0, avg_spacing * 0.15))
 
-    # Node data
-    node_data = {}
-    for nid in node_ids:
-        obj = graph.get_node(nid)
-        attrs = dict(obj.attributes) if obj and obj.attributes else {}
-        node_data[nid] = attrs
-
-    # Per-node values for label_by= / size_by= / color_by= (keyed by str ID)
-    label_values = _plot_node_values(graph, node_ids, node_data, label_by, "label_by")
-    size_by_values = _plot_node_values(graph, node_ids, node_data, size_by, "size_by")
-    color_by_values = _plot_node_values(graph, node_ids, node_data, color_by, "color_by")
-
-    # Edge data (supports multi-edges between same pair)
-    is_directed = graph.is_directed()
-    edges: List[Tuple[str, str]] = []
-    edge_attrs_list: List[Dict] = []
-    # Each edge's ID and weight (None for an edge drawn without its edge object)
-    edge_id_list: List[Optional[int]] = []
-    edge_weights: List[Optional[float]] = []
-    # The start of each edge's tooltip: its ID, ends (named as their labels are drawn, and in the
-    # order stored) and weight. Its attributes follow
-    edge_tip_heads: List[Dict] = []
-    arrow = "→" if is_directed else "—"
-
-    def drawn_name(nid):
-        value = label_values[str(nid)]
-        return str(nid) if value is None else str(value)
-
-    def tip_head(src, tgt, e_obj=None):
-        if e_obj is not None:
-            src, tgt = e_obj.source, e_obj.target
-        head = {"id": e_obj.id} if e_obj is not None else {}
-        head["edge"] = f"{drawn_name(src)} {arrow} {drawn_name(tgt)}"
-        if e_obj is not None and e_obj.weight is not None:
-            head["weight"] = e_obj.weight
-        return head
-
-    seen_pairs: set = set()
-    for nid in node_ids:
-        try:
-            neighbors = graph.get_neighbors(nid)
-        except Exception:
-            continue
-        for nb in neighbors:
-            if is_directed:
-                pair_key = (str(nid), str(nb))
-            else:
-                pair_key = tuple(sorted([str(nid), str(nb)]))
-            if pair_key not in seen_pairs:
-                seen_pairs.add(pair_key)
-                try:
-                    eids = graph.find_edge_ids(nid, nb)
-                except Exception:
-                    eids = []
-                if not eids:
-                    edges.append((str(nid), str(nb)))
-                    edge_attrs_list.append({})
-                    edge_tip_heads.append(tip_head(nid, nb))
-                    edge_id_list.append(None)
-                    edge_weights.append(None)
-                else:
-                    for eid in eids:
-                        edges.append((str(nid), str(nb)))
-                        edge_id_list.append(eid)
-                        try:
-                            e_obj = graph.get_edge(eid)
-                            edge_attrs_list.append(
-                                dict(e_obj.attributes) if e_obj and e_obj.attributes else {}
-                            )
-                            edge_tip_heads.append(tip_head(nid, nb, e_obj))
-                            edge_weights.append(e_obj.weight)
-                        except Exception:
-                            edge_attrs_list.append({})
-                            edge_tip_heads.append(tip_head(nid, nb))
-                            edge_weights.append(None)
-
-    def edge_values(key):
-        """Each edge's value of the edge attribute `key` (or its weight, for `"weight"`), or
-        `None` if no edge has the attribute."""
-        if any(key in a for a in edge_attrs_list):
-            return [a.get(key) for a in edge_attrs_list]
-        if key == "weight" and any(w is not None for w in edge_weights):
-            return list(edge_weights)
-        return None
-
-    # edge_color_by= names an edge attribute, or else a node attribute whose groups the edges
-    # take on
-    edge_color_attr_values = edge_values(edge_color_by) if edge_color_by else None
-    edge_color_values = (
-        _plot_node_values(graph, node_ids, node_data, edge_color_by, "edge_color_by")
-        if edge_color_by and edge_color_attr_values is None
-        else {str(nid): None for nid in node_ids}
+    # The nodes and edges, and the values of the attributes that the arguments name, read once
+    builder = SceneBuilder(
+        graph._graph,
+        _SCENE_COLORS,
+        label_by=label_by,
+        size_by=size_by,
+        color_by=color_by,
+        edge_color_by=edge_color_by,
+        edge_width_by=edge_width_by,
+        edge_label_by=edge_label_by,
     )
-    edge_width_values = None
-    if edge_width_by:
-        edge_width_values = edge_values(edge_width_by)
-        if edge_width_values is None:
-            raise ValueError(
-                f"edge_width_by={edge_width_by!r}: no edge has an attribute {edge_width_by!r}"
-            )
-
-    # Convert node_ids to strings for consistency
-    str_ids = [str(nid) for nid in node_ids]
+    str_ids = builder.node_names
+    edges = builder.edge_names
 
     # --- Layout ---
     if layout == "circular":
@@ -1684,384 +1378,56 @@ def build_scene(
 
     # --- Aesthetic mappings ---
 
-    # Color mapping. `node_colors` holds each node's (light, dark) colors; the legend's blocks
-    # gather in `legend_blocks`
-    legend_blocks: List[Dict[str, Any]] = []
-    node_colors: Dict[str, Tuple[str, str]] = {}
-    node_community = {}
-    if color_by:
-        cat_values = [color_by_values[nid] for nid in str_ids]
-        scale = _color_scale(cat_values, color_scale, "color_by")
-        if scale == "categorical":
-            for nid, val in zip(str_ids, cat_values):
-                node_community[nid] = val
-            # Nodes without a value are gray, as on a numeric scale, rather than taking a hue
-            order = _sorted_values(cat_values)
-            present = [v for v in order if v is not None]
-            palette_map = _build_color_map(present, palette)
-            pairs = {v: (palette_map[v],) * 2 for v in present}
-            pairs[None] = MISSING_COLOR
-            for nid, val in zip(str_ids, cat_values):
-                node_colors[nid] = pairs.get(val, (DEFAULT_NODE_COLOR,) * 2)
-            legend_blocks.append(
-                {
-                    "title": color_by,
-                    "kind": "swatches",
-                    "items": [
-                        ("node", pairs[v], "no value" if v is None else str(v)) for v in order
-                    ],
-                }
-            )
-        else:
-            mapped, ends = _numeric_colors(cat_values, scale, color_midpoint)
-            node_colors = dict(zip(str_ids, mapped))
-            legend_blocks.append(
-                {
-                    "title": color_by,
-                    "kind": "ramp",
-                    "scale": scale,
-                    "ends": ends,
-                    "missing": any(not _is_number(v) for v in cat_values),
-                }
-            )
-    else:
-        for nid in str_ids:
-            node_colors[nid] = (DEFAULT_NODE_COLOR, DEFAULT_NODE_COLOR)
+    # The colors, sizes and widths. Legends are shown only for what they can tell apart: a
+    # palette's colors repeat after its length, so a categorical block with more values than
+    # that is left out
+    from edgecase.colors import get_palette
 
-    # Edge color mapping: by an edge attribute's values, or by the groups of the endpoints
-    edge_community = {}
-    edge_attr_colors: Optional[List[Optional[Tuple[str, str]]]] = None
-    if edge_color_attr_values is not None:
-        scale = _color_scale(edge_color_attr_values, None, "edge_color_by")
-        if scale == "categorical":
-            order = _sorted_values(edge_color_attr_values)
-            present = [v for v in order if v is not None]
-            ecb_palette = _build_color_map(present, palette)
-            edge_attr_colors = [
-                (ecb_palette[v],) * 2 if v is not None else None for v in edge_color_attr_values
-            ]
-            legend_blocks.append(
-                {
-                    "title": edge_color_by,
-                    "kind": "swatches",
-                    "items": [("edge", (ecb_palette[v],) * 2, str(v)) for v in present],
-                }
-            )
-        else:
-            mapped, ends = _numeric_colors(edge_color_attr_values, scale, None)
-            edge_attr_colors = [
-                pair if _is_number(v) else None for pair, v in zip(mapped, edge_color_attr_values)
-            ]
-            legend_blocks.append(
-                {"title": edge_color_by, "kind": "ramp", "scale": scale, "ends": ends}
-            )
-            # A color scale reads poorly through the default, faint edges
-            if edge_opacity == 0.4:
-                edge_opacity = 0.85
-    elif edge_color_by:
-        for nid in str_ids:
-            edge_community[nid] = edge_color_values[nid]
-        ecb_vals = [v for v in edge_community.values() if v is not None]
-        order = _sorted_values(ecb_vals)
-        ecb_palette = _build_color_map(order, palette) if ecb_vals else {}
-        ecb_node_colors = {
-            nid: (ecb_palette[c],) * 2 if c in ecb_palette else _EDGE_COLORS
-            for nid, c in edge_community.items()
-        }
-        ecb_cross_color = (
-            (cross_community_color,) * 2 if cross_community_color else ("#52525b", "#a1a1aa")
-        )
-        cross_item = ("edge", ecb_cross_color, "between groups")
-        if edge_color_by == color_by and legend_blocks and legend_blocks[0]["kind"] == "swatches":
-            legend_blocks[0]["items"].append(cross_item)
-        else:
-            legend_blocks.append(
-                {
-                    "title": edge_color_by,
-                    "kind": "swatches",
-                    "items": [("edge", (ecb_palette[v],) * 2, str(v)) for v in order]
-                    + [cross_item],
-                }
-            )
+    legend_blocks = builder.encode(
+        get_palette(palette) if color_by or edge_color_by else [],
+        color_scale,
+        color_midpoint,
+        cross_community_color,
+        node_size,
+        edge_width,
+        edge_opacity,
+        LEGEND_MAX_ITEMS if legend else None,
+    )
 
-    # Edge widths from edge_width_by=, from half to two and a half times the base width
-    edge_widths = [edge_width] * len(edges)
-    if edge_width_values is not None:
-        nums = [v for v in edge_width_values if _is_number(v)]
-        if nums:
-            lo, hi = min(nums), max(nums)
-            span = (hi - lo) or 1.0
-            edge_widths = [
-                edge_width * (0.5 + 2.0 * (v - lo) / span) if _is_number(v) else edge_width
-                for v in edge_width_values
-            ]
-
-    # Highlighting: each node's and edge's level ("accent", "soft", or None for muted)
-    node_level: Dict[str, Optional[str]] = {}
-    edge_level: List[Optional[str]] = []
+    # Highlighting: each node and edge is accent, soft or muted
     if highlight is not None or highlight_edges is not None:
-        picked = _resolve_highlight(graph, highlight, highlight_edges)
-        for nid in str_ids:
-            node_level[nid] = None
-        edge_level = [None] * len(edges)
-        index_of_edge = {eid: i for i, eid in enumerate(edge_id_list) if eid is not None}
-        for level in reversed(HIGHLIGHT_LEVELS):
-            for nid in picked[level][0]:
-                node_level[str(nid)] = level
-            for eid in picked[level][1]:
-                if eid in index_of_edge:
-                    edge_level[index_of_edge[eid]] = level
-
-    # Legends are shown only for what they can tell apart: a palette's colors repeat after
-    # its length, so a categorical block with more values than that is left out
-    if not legend:
-        legend_blocks = []
-    else:
-        from edgecase.colors import get_palette
-
-        n_colors = len(get_palette(palette)) if color_by or edge_color_by else 0
-        legend_blocks = [
-            b
-            for b in legend_blocks
-            if b["kind"] == "ramp"
-            or sum(1 for item in b["items"] if item[2] != "between groups")
-            <= min(n_colors, LEGEND_MAX_ITEMS)
-        ]
-
-    # Size mapping
-    radii = {}
-    if size_by:
-        size_values = []
-        for nid in str_ids:
-            val = size_by_values[nid]
-            try:
-                size_values.append(float(val))
-            except (TypeError, ValueError):
-                size_values.append(None)
-
-        valid = [v for v in size_values if v is not None]
-        if valid:
-            lo, hi = min(valid), max(valid)
-            rng = hi - lo if hi != lo else 1.0
-            for nid, val in zip(str_ids, size_values):
-                if val is not None:
-                    norm = (val - lo) / rng
-                    radii[nid] = node_size * (0.5 + norm * 1.5)
-                else:
-                    radii[nid] = node_size
-        else:
-            radii = {nid: node_size for nid in str_ids}
-    else:
-        radii = {nid: node_size for nid in str_ids}
+        builder.highlight(_resolve_highlight(graph, highlight, highlight_edges))
 
     # --- Overlap removal (force layout only) ---
     if node_overlap != "allow" and layout not in ("circular",) and n >= 2:
         overlap_pad = float(node_overlap) if isinstance(node_overlap, (int, float)) else 2.0
+        radii = dict(zip(str_ids, builder.radii))
         positions = _remove_overlaps(positions, radii, padding=overlap_pad, seed=seed)
 
-    # --- Build label map for viewBox computation ---
-    label_map = {}
-    if show_labels:
-        for nid in str_ids:
-            value = label_values[nid]
-            label_map[nid] = nid if value is None else str(value)
-
-    # --- Compute viewBox ---
     # The legend gets a column of its own at the right, so that it never covers the drawing
     legend_marks: List[Tuple[Any, ...]] = []
     legend_w = 0.0
     if legend_blocks:
         legend_marks, legend_w, _ = _legend_layout(legend_blocks)
-    legend_w = min(legend_w, width * 0.4)
-    vb = _compute_viewbox(
+
+    # Non-curved edges are routed around the nodes in their way
+    route = None
+    if edge_routing != "straight" and not curved_edges and n >= 3:
+        route = (
+            float(edge_routing) if isinstance(edge_routing, (int, float)) else 3.0,
+            ROUTE_WAYPOINTS_MAX if edge_routing == "auto" else None,
+        )
+    return builder.scene(
         positions,
-        radii,
-        labels=label_map if show_labels else None,
-        label_space=20 if show_labels else 0,
-        frame=(width - legend_w, height),
-    )
-    if legend_blocks:
-        # Viewbox units per pixel
-        unit = vb[3] / height
-        vb = (vb[0], vb[1], vb[2] + legend_w * unit, vb[3])
-
-    # Precompute routed edge paths (avoid nodes for non-curved edges), once for each pair of
-    # ends however many edges join them
-    edge_routes: Dict[Tuple[str, str], List[Tuple[float, float]]] = {}
-    if edge_routing != "straight" and not curved_edges and len(str_ids) >= 3:
-        from edgecase._core import route_edges
-
-        route_margin = float(edge_routing) if isinstance(edge_routing, (int, float)) else 3.0
-        index = {nid: i for i, nid in enumerate(str_ids)}
-        pairs = list(dict.fromkeys(e for e in edges if e[0] in index and e[1] in index))
-        routes = route_edges(
-            [positions[nid][0] for nid in str_ids],
-            [positions[nid][1] for nid in str_ids],
-            [radii.get(nid, 5.0) for nid in str_ids],
-            [(index[src], index[tgt]) for src, tgt in pairs],
-            margin=route_margin,
-            max_waypoints=ROUTE_WAYPOINTS_MAX if edge_routing == "auto" else None,
-        )
-        # None when the routes would bend too much for "auto"
-        if routes is not None:
-            edge_routes = {pair: route for pair, route in zip(pairs, routes) if route is not None}
-
-    # Compute fan-out bows for parallel / reciprocal edges
-    edge_bows, edge_loop_sizes = _compute_edge_fans(edges)
-
-    # The colors as indexes into the scene's table of them
-    color_index: Dict[Tuple[str, str], int] = {}
-
-    def color(pair):
-        return color_index.setdefault(tuple(pair), len(color_index))
-
-    # Highlighted elements are drawn over the muted ones, and accent over soft
-    level_rank = {None: 0, "soft": 1, "accent": 2}
-
-    # Edges
-    edge_color_col, edge_width_col, edge_opacity_col = [], [], []
-    for i, (src, tgt) in enumerate(edges):
-        e_color = _EDGE_COLORS
-        if edge_attr_colors is not None:
-            if edge_attr_colors[i] is not None:
-                e_color = edge_attr_colors[i]
-        elif edge_color_by and edge_community:
-            src_comm = edge_community.get(src)
-            tgt_comm = edge_community.get(tgt)
-            if src_comm is not None and src_comm == tgt_comm:
-                e_color = ecb_node_colors.get(src, _EDGE_COLORS)
-            elif src_comm is not None or tgt_comm is not None:
-                e_color = ecb_cross_color
-        elif (
-            color_by
-            and node_community.get(src) == node_community.get(tgt)
-            and node_community.get(src) is not None
-        ):
-            e_color = node_colors.get(src, _EDGE_COLORS)
-
-        e_width = edge_widths[i]
-        e_opacity = edge_opacity
-        if edge_level:
-            level = edge_level[i]
-            if level is None:
-                e_color = _EDGE_COLORS
-                e_opacity = edge_opacity * 0.5
-            else:
-                # A highlighted edge keeps a color that edge_color_by= gives it, or else takes
-                # the accent (rather than its group's color from color_by=, so that a path or
-                # matching is all of one color)
-                if not edge_color_by or e_color == _EDGE_COLORS:
-                    e_color = ACCENT_COLOR
-                if level == "accent":
-                    e_width = max(e_width * 2.0, 1.5)
-                    e_opacity = max(edge_opacity, 0.9)
-                else:
-                    e_width = max(e_width * 1.3, 1.0)
-                    e_opacity = max(edge_opacity, 0.5)
-        edge_color_col.append(color(e_color))
-        edge_width_col.append(e_width)
-        edge_opacity_col.append(e_opacity)
-    edge_order = list(range(len(edges)))
-    if edge_level:
-        edge_order.sort(key=lambda j: level_rank[edge_level[j]])
-
-    edge_labels = None
-    if edge_label_by:
-        label_vals = edge_values(edge_label_by) or [None] * len(edges)
-        edge_labels = [None if v is None else str(v) for v in label_vals]
-
-    # Node tooltips: the ID and the label as well, when it differs from the ID, since either may
-    # be drawn under the node, then the node's attributes
-    node_tips = []
-    for raw_nid, nid in zip(node_ids, str_ids):
-        tip = {"id": nid}
-        n_label = graph.get_label_from_id(raw_nid)
-        if n_label is not None and str(n_label) != nid:
-            tip["label"] = n_label
-        node_tips.append({**tip, **node_data.get(raw_nid, {})})
-
-    # Nodes
-    surface = (LIGHT.bg, DARK.bg)
-    node_fill, node_border, node_border_width, node_border_opacity = [], [], [], []
-    for nid in str_ids:
-        light, dark = node_colors.get(nid, (DEFAULT_NODE_COLOR, DEFAULT_NODE_COLOR))
-        border_opacity, border_width = 0.3, 1.5
-        ring = None
-        if node_level:
-            level = node_level[nid]
-            if not color_by:
-                light, dark = ACCENT_COLOR
-            if level is None:
-                light, dark = MUTED_NODE_COLOR
-            elif level == "soft":
-                # A ring of the color around a pale version of it
-                ring = (light, dark)
-                light, dark = _mix(light, surface[0], 0.7), _mix(dark, surface[1], 0.7)
-                border_opacity, border_width = 1.0, 2.0
-        node_fill.append(color((light, dark)))
-        node_border.append(
-            color(ring if ring is not None else (_darken(light, 0.3), _darken(dark, 0.3)))
-        )
-        node_border_width.append(border_width)
-        node_border_opacity.append(border_opacity)
-    node_order = list(range(n))
-    if node_level:
-        node_order.sort(key=lambda k: level_rank[node_level[str_ids[k]]])
-
-    label_color = [
-        color(MUTED_LABEL_COLOR if node_level and node_level[nid] is None else _LABEL_COLORS)
-        for nid in str_ids
-    ]
-
-    lean = n > LEAN_MIN or len(edges) > LEAN_MIN
-    edge_tips = _tooltip_rows(
-        [{**head, **e_attrs} for head, e_attrs in zip(edge_tip_heads, edge_attrs_list)]
-    )
-    scene = Scene(
         width,
         height,
-        directed=is_directed,
-        curved=curved_edges,
-        lean=lean,
-        viewbox=vb,
-        colors=list(color_index),
-        legend=legend_marks,
-        legend_w=legend_w,
-        # In lean SVG, an edge's tooltip is its row in one table of them
-        edge_tip_table=_tooltip_table(edge_tips) if lean else None,
+        curved_edges,
+        bool(show_labels),
+        legend_marks,
+        legend_w,
+        route,
+        lean_min=LEAN_MIN,
     )
-    scene.set_nodes(
-        str_ids,
-        [positions[nid][0] for nid in str_ids],
-        [positions[nid][1] for nid in str_ids],
-        [radii.get(nid, node_size) for nid in str_ids],
-        node_fill,
-        node_border,
-        node_border_width,
-        node_border_opacity,
-        node_order,
-        [_attrs_json(tip) for tip in _tooltip_rows(node_tips)],
-    )
-    if show_labels:
-        scene.set_labels(
-            [label_map[nid] for nid in str_ids], label_color, max(8, min(13, node_size * 0.7))
-        )
-    index = {nid: k for k, nid in enumerate(str_ids)}
-    scene.set_edges(
-        [index[src] for src, _ in edges],
-        [index[tgt] for _, tgt in edges],
-        edge_color_col,
-        edge_width_col,
-        edge_opacity_col,
-        edge_bows,
-        edge_loop_sizes,
-        [edge_routes.get(e) for e in edges],
-        edge_order,
-        None if lean else [_attrs_json(tip) for tip in edge_tips],
-    )
-    if edge_labels is not None:
-        scene.set_edge_labels(edge_labels)
-    return scene
 
 
 def emit_svg(scene: Scene, colors: "_Colors") -> Tuple[str, str]:
@@ -2102,7 +1468,7 @@ def _generate_html_wrapper(
 ) -> str:
     """The SVG in a page fragment that shows tooltips on hover. Elements carry theirs in
     `data-attrs`, or for edges with a `data-e` row number, in `edge_tip_table` (see
-    `_tooltip_table()`)."""
+    `edgecase._core.tooltip_table()`)."""
     global _tooltip_counter
     _tooltip_counter += 1
     tip_id = f"ec-tooltip-{_tooltip_counter}"
