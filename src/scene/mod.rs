@@ -7,6 +7,7 @@ mod geometry;
 mod highlight;
 mod overlay;
 mod palette;
+mod payload;
 mod pyfmt;
 mod raster;
 mod svg;
@@ -404,6 +405,13 @@ impl Scene {
             },
         };
         self.raster(py, &style, palette)
+    }
+
+    /// The scene as the viewer's payload (see `payload.rs`): its frame, color table, nodes and
+    /// edges, as columns of 32-bit numbers after a JSON header. Labels and tooltips aren't in it.
+    fn payload<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyBytes>> {
+        let bytes = py.allow_threads(|| payload::payload(self))?;
+        Ok(PyBytes::new(py, &bytes))
     }
 
     /// The edges as a PNG mask: white, with the opacity at which `png()` draws them, to be
