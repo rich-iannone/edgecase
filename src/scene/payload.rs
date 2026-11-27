@@ -89,6 +89,7 @@ pub fn payload(scene: &Scene) -> PyResult<Vec<u8>> {
         ("width", f32s(&in_order(&edges.width, order))),
         ("opacity", f32s(&in_order(&edges.opacity, order))),
         ("bow", f32s(&bow)),
+        ("loop_size", f32s(&in_order(&edges.loop_size, order))),
     ]);
     if let Some(labels) = &scene.labels {
         columns.push(("label_order", u32s(&labels.order)));
