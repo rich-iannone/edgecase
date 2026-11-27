@@ -196,10 +196,13 @@ class _Colors:
         png: Optional[Callable[[], bytes]] = None,
         svg: Optional[Callable[[], str]] = None,
         viewer: bool = False,
+        graph: Any = None,
+        home: Optional[Dict[str, float]] = None,
     ) -> "StepPlayer":
         """The `StepPlayer` for the rendering, saved to `output=` when that is given. `png` makes
         its PNG image, if it has one, and `svg` the SVG that it holds, when that isn't the one
-        that the HTML shows. `viewer` says that the HTML is the viewer's, without its runtime."""
+        that the HTML shows. `viewer` says that the HTML is the viewer's, without its runtime,
+        of `graph` (whose selection the viewer's sets), and `home` is its view at first."""
         for_files = None
         if self.save_light:
             for_files = (self._for_file(svg_str), self._for_file(html_str))
@@ -214,7 +217,9 @@ class _Colors:
                 drawn = svg()
                 return self._own(drawn), self._for_file(drawn) if self.save_light else None
 
-        result = StepPlayer(self._own(svg_str), html_str, for_files, png, own_svg, viewer)
+        result = StepPlayer(
+            self._own(svg_str), html_str, for_files, png, own_svg, viewer, graph, home
+        )
         if output:
             result.save(output)
         return result
@@ -253,6 +258,121 @@ FONT_FAMILY = (
 # StepPlayer result object
 # ---------------------------------------------------------------------------
 
+# The state of a plot of the viewer's that Python shares with it (see `StepPlayer.selection`),
+# and the zooms that the viewer takes, as `ZOOM_MIN` and `ZOOM_MAX` in `static/viewer.js` have them
+STATES = ("selection", "view", "filters")
+_ZOOM_MIN, _ZOOM_MAX = 0.25, 1000.0
+_widget_cls: Any = None
+
+
+def _widget_class() -> Any:
+    """The anywidget that shows a plot of the viewer's in a notebook, made when first wanted, as
+    importing anywidget takes a moment. Its module is the runtime, once for each widget (the
+    first defines `<ec-graph>`), which gives a view of it the plot, `html`, and keeps the
+    widget's state and the viewer's alike (see `render()` in `static/viewer.js`)."""
+    global _widget_cls
+    if _widget_cls is None:
+        import anywidget
+        import traitlets
+
+        class ViewerWidget(anywidget.AnyWidget):
+            _esm = _runtime_js()
+            html = traitlets.Unicode("").tag(sync=True)
+            selection = traitlets.Dict().tag(sync=True)
+            view = traitlets.Dict().tag(sync=True)
+            filters = traitlets.List().tag(sync=True)
+
+        _widget_cls = ViewerWidget
+    return _widget_cls
+
+
+def _widget_host() -> bool:
+    """Whether a notebook's widgets show the plot: in a Jupyter kernel (as JupyterLab, Notebook,
+    VS Code and Colab run), but not one that Quarto runs to render a page, which keeps the HTML,
+    as a page's plots don't need a kernel."""
+    if "QUARTO_FIG_FORMAT" in os.environ:
+        return False
+    ipython = sys.modules.get("IPython")
+    shell = ipython.get_ipython() if ipython is not None else None
+    return getattr(shell, "kernel", None) is not None
+
+
+def _state_id(value: Any, what: str) -> int:
+    # The viewer gives an ID past 2^53 as a string
+    if isinstance(value, bool) or not isinstance(value, (int, str)):
+        raise TypeError(f"{what} takes node IDs, got {value!r}")
+    try:
+        return int(value)
+    except ValueError:
+        raise TypeError(f"{what} takes node IDs, got {value!r}") from None
+
+
+def _state_number(value: Any, what: str) -> float:
+    if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value):
+        raise TypeError(f"{what} takes a finite number, got {value!r}")
+    return float(value)
+
+
+def _keys(value: Any, name: str, keys: Tuple[str, ...], form: str) -> Dict[str, Any]:
+    if not isinstance(value, dict):
+        raise TypeError(f"{name} takes {form}, got {value!r}")
+    extra = [k for k in value if k not in keys]
+    if extra:
+        raise ValueError(
+            f"{name} has the keys {', '.join(map(repr, keys))}, not {', '.join(map(repr, extra))}"
+        )
+    return value
+
+
+def _norm_selection(value: Any, directed: bool) -> Dict[str, list]:
+    """`value` as the viewer and its widget have a selection: the nodes' IDs, and the edges'
+    ends, an undirected edge's in order, each once and all in order."""
+    form = "a dict of 'nodes' (IDs) and 'edges' ((u, v) pairs)"
+    value = _keys({} if value is None else value, "selection", ("nodes", "edges"), form)
+    nodes = sorted({_state_id(v, "selection['nodes']") for v in value.get("nodes", ())})
+    pairs = set()
+    for pair in value.get("edges", ()):
+        if isinstance(pair, (str, bytes)) or not hasattr(pair, "__len__") or len(pair) != 2:
+            raise TypeError(f"selection['edges'] takes (u, v) pairs, got {pair!r}")
+        u, v = (_state_id(end, "selection['edges']") for end in pair)
+        pairs.add((u, v) if directed or u <= v else (v, u))
+    return {"nodes": nodes, "edges": [list(e) for e in sorted(pairs)]}
+
+
+def _norm_view(value: Any, now: Dict[str, float]) -> Dict[str, float]:
+    """`value` as the viewer has a view, with what it leaves out as in `now`."""
+    form = "a dict of 'x', 'y' and 'zoom'"
+    value = _keys(value, "view", ("x", "y", "zoom"), form)
+    out = {k: _state_number(value.get(k, now.get(k)), f"view[{k!r}]") for k in ("x", "y", "zoom")}
+    if out["zoom"] <= 0:
+        raise ValueError(f"view['zoom'] must be more than 0, got {out['zoom']!r}")
+    out["zoom"] = min(_ZOOM_MAX, max(_ZOOM_MIN, out["zoom"]))
+    return out
+
+
+def _norm_filters(value: Any) -> List[Dict[str, Any]]:
+    """`value` as the viewer has its filters."""
+    if value is None:
+        return []
+    if isinstance(value, dict) or not isinstance(value, (list, tuple)):
+        raise TypeError(f"filters takes a list of dicts, got {value!r}")
+    form = "a dict of 'attr', 'of' and 'range'"
+    out = []
+    for f in value:
+        f = _keys(f, "A filter", ("attr", "of", "range"), form)
+        attr, of, span = f.get("attr"), f.get("of"), f.get("range")
+        if not isinstance(attr, str):
+            raise TypeError(f"A filter's 'attr' is an attribute's name, got {attr!r}")
+        if of not in (None, "nodes", "edges"):
+            raise ValueError(f"A filter's 'of' is 'nodes' or 'edges', got {of!r}")
+        if isinstance(span, (str, bytes)) or not hasattr(span, "__len__") or len(span) != 2:
+            raise TypeError(f"A filter's 'range' is a (low, high) pair, got {span!r}")
+        lo, hi = (_state_number(v, "A filter's 'range'") for v in span)
+        if lo > hi:
+            raise ValueError(f"A filter's 'range' goes from low to high, got {span!r}")
+        out.append({"attr": attr, "of": of, "range": [lo, hi]})
+    return out
+
 
 class StepPlayer:
     """Interactive graph visualization result.
@@ -260,6 +380,11 @@ class StepPlayer:
     Returned by `Graph.play()`, `Graph.plot()`, and `Graph.plot_traversal()`. Renders inline in
     Jupyter via `_repr_html_`, with a PNG image of a plot (`_repr_png_`) for where HTML doesn't
     show, and can be saved with `.save()`. `.as_raw_html()` gives the HTML for a page of one's own.
+
+    A plot drawn with `backend="viewer"` shows as a widget in a notebook's kernel (JupyterLab,
+    Jupyter Notebook, VS Code, Colab, and marimo), whose `.selection`, `.view` and `.filters`
+    follow the viewer, and move it when set, with `.on_change()` for a function to call as they
+    change. Elsewhere, as in a page that Quarto renders, it is the HTML.
     """
 
     def __init__(
@@ -270,6 +395,8 @@ class StepPlayer:
         png: Optional[Callable[[], bytes]] = None,
         svg: Optional[Callable[[], Tuple[str, Optional[str]]]] = None,
         viewer: bool = False,
+        graph: Any = None,
+        home: Optional[Dict[str, float]] = None,
     ) -> None:
         self._svg = svg_str
         # Without the viewer's runtime, for a plot of the viewer's
@@ -282,6 +409,19 @@ class StepPlayer:
         self._png: Optional[bytes] = None
         # What makes the SVG and the one for files, when it isn't the one that the HTML shows
         self._make_svg = svg
+        # For a plot of the viewer's: the graph plotted, whose selection the viewer's sets; the
+        # view that fits it; the state it shares with Python, until there is a widget, which
+        # then holds it; and the functions that on_change() was given
+        self._graph = graph
+        self._directed = bool(graph is not None and graph.is_directed())
+        self._home = dict(home or {})
+        self._state: Dict[str, Any] = {
+            "selection": {"nodes": [], "edges": []},
+            "view": dict(self._home),
+            "filters": [],
+        }
+        self._widget: Any = None
+        self._callbacks: List[Callable[[str, Any], Any]] = []
 
     @property
     def svg(self) -> str:
@@ -336,6 +476,235 @@ class StepPlayer:
         """
         return self._with_runtime(self._html, runtime)
 
+    # In a notebook's kernel, a plot of the viewer's is its widget. The HTML and the PNG image,
+    # which IPython adds to it, stay for where widgets don't show
+    def _repr_mimebundle_(self, include: Any = None, exclude: Any = None) -> Any:
+        if not (self._viewer and _widget_host()):
+            return None
+        data, metadata = self.widget._repr_mimebundle_()
+        data["text/plain"] = repr(self)
+        return data, metadata
+
+    # marimo runs the widget itself
+    def _display_(self) -> Any:
+        return self.widget if self._viewer else _Shown(self)
+
+    @property
+    def widget(self) -> Any:
+        """The widget that shows a plot of the viewer's in a notebook.
+
+        It is an [anywidget](https://anywidget.dev), made when it is first wanted, which a
+        notebook shows when it shows the plot, so this is for putting the plot in a layout of
+        widgets of one's own. Its module is the viewer's runtime, about 135 kB, so it works
+        offline, and in a notebook saved with its widgets' state. It is `None` for a plot that
+        isn't the viewer's.
+
+        Examples
+        --------
+        ```python
+        import edgecase as ec
+        import ipywidgets as widgets
+
+        g = ec.karate_club()
+        plots = [g.plot(layout=name, backend="viewer", width=420) for name in ["force", "circular"]]
+        widgets.HBox([p.widget for p in plots])
+        ```
+        """
+        if not self._viewer:
+            return None
+        if self._widget is None:
+            widget = _widget_class()(html=self._html, **self._state)
+            widget.observe(lambda change: self._changed(change["name"]), names=list(STATES))
+            self._widget = widget
+        return self._widget
+
+    def _raw(self, name: str) -> Any:
+        """The state `name` as the viewer and its widget have it."""
+        held = getattr(self._widget, name) if self._widget is not None else self._state[name]
+        if name == "selection":
+            return _norm_selection(held, self._directed)
+        if name == "view":
+            return _norm_view(held, held) if held else {}
+        return _norm_filters(held)
+
+    def _set(self, name: str, value: Any) -> None:
+        if value == self._raw(name):
+            return
+        if self._widget is not None:
+            # Which tells `_changed()`
+            setattr(self._widget, name, value)
+        else:
+            self._state[name] = value
+            self._changed(name)
+
+    def _check_viewer(self, name: str) -> None:
+        if not self._viewer:
+            raise ValueError(f"Only a plot with backend='viewer' has a {name}")
+
+    def _changed(self, name: str) -> None:
+        value = getattr(self, name)
+        if name == "selection" and self._graph is not None:
+            self._select(value)
+        for callback in list(self._callbacks):
+            callback(name, value)
+
+    def _select(self, selection: Dict[str, list]) -> None:
+        """Make the plotted graph's selection the viewer's, of the nodes and edges it still has.
+        A graph selects nodes or edges, so where the viewer has both, the graph has its nodes."""
+        g = self._graph
+        nodes = [i for i in selection["nodes"] if g.has_node(i)]
+        edges: set = set()
+        if not nodes:
+            for u, v in selection["edges"]:
+                if g.has_node(u) and g.has_node(v):
+                    edges.update(g.find_edge_ids(u, v))
+        g._set_selection(nodes, sorted(edges))
+
+    @property
+    def selection(self) -> Optional[Dict[str, list]]:
+        """The nodes and edges selected in a plot of the viewer's.
+
+        It is a dict of `"nodes"`, the selected nodes' IDs, and `"edges"`, the ends `(u, v)` of
+        the selected edges (an undirected edge's in the order of their IDs), each in order. It
+        follows the viewer as nodes and edges are clicked or lassoed there, and setting it
+        selects them in the viewer, leaving out those that the plot doesn't have. Either key can
+        be left out, and `None` clears the selection. A pair selects every edge between its
+        ends. It is `None` for a plot that isn't the viewer's, and setting it raises
+        `ValueError`.
+
+        The selection is also the plotted graph's, for `highlight="selection"`,
+        `get_selected_node_ids()` and the other selection methods: each change of it replaces
+        the graph's. A graph selects nodes or edges, so where the viewer has both, the graph
+        has the nodes. Selecting in the graph doesn't change the viewer's selection; setting
+        this does.
+
+        Examples
+        --------
+        ```python
+        import edgecase as ec
+
+        g = ec.karate_club()
+        p = g.plot(backend="viewer")
+        p.selection = {"nodes": [1, 34]}
+        g.get_selected_node_ids()
+        ```
+        """
+        if not self._viewer:
+            return None
+        raw = self._raw("selection")
+        return {"nodes": raw["nodes"], "edges": [tuple(e) for e in raw["edges"]]}
+
+    @selection.setter
+    def selection(self, value: Optional[Dict[str, list]]) -> None:
+        self._check_viewer("selection")
+        self._set("selection", _norm_selection(value, self._directed))
+
+    @property
+    def view(self) -> Optional[Dict[str, float]]:
+        """The viewer's camera: what it centers on and how far it zooms in.
+
+        It is a dict of `"x"` and `"y"`, the center, in the plot's own units (those of the SVG's
+        viewBox, in which the layout places the nodes), and `"zoom"`, 1 where the graph fits the
+        box, from 0.25 to 1000. It follows the viewer once a pan or a zoom comes to a stop, and
+        setting it pans and zooms the viewer there, with any key left out kept as it is, and
+        `None` for the view that fits the graph. It is `None` for a plot that isn't the
+        viewer's.
+
+        Examples
+        --------
+        ```python
+        import edgecase as ec
+
+        p = ec.karate_club().plot(backend="viewer")
+        p.view = {**p.view, "zoom": 2}
+        p.view
+        ```
+        """
+        if not self._viewer:
+            return None
+        return self._raw("view")
+
+    @view.setter
+    def view(self, value: Optional[Dict[str, float]]) -> None:
+        self._check_viewer("view")
+        self._set("view", _norm_view(self._home if value is None else value, self._raw("view")))
+
+    @property
+    def filters(self) -> Optional[List[Dict[str, Any]]]:
+        """The filters of the viewer's Filter tab that hide part of the plot.
+
+        It is a list of dicts, one for each filter that hides something: `"attr"`, the numeric
+        attribute it filters by, `"of"`, `"nodes"` or `"edges"`, whose attribute that is, and
+        `"range"`, the `(low, high)` range of the values it shows. It follows the Filter tab, and
+        setting it puts these filters there in place of its own, each in the range of its
+        attribute's values. `"of"` can be left out (or `None`), for the nodes' attribute of the
+        name if there is one, and the edges' if not. A filter of an attribute that the tab
+        doesn't have is left out, and `None` or `[]` removes the filters. It is `None` for a plot
+        that isn't the viewer's.
+
+        Examples
+        --------
+        ```python
+        import edgecase as ec
+
+        g = ec.karate_club()
+        g.set_node_attrs("age", [20 + i for i in range(34)], nodes=g.get_node_ids(limit=None))
+        p = g.plot(backend="viewer")
+        p.filters = [{"attr": "age", "of": "nodes", "range": (30, 40)}]
+        ```
+        """
+        if not self._viewer:
+            return None
+        return [{**f, "range": tuple(f["range"])} for f in self._raw("filters")]
+
+    @filters.setter
+    def filters(self, value: Optional[List[Dict[str, Any]]]) -> None:
+        self._check_viewer("filters")
+        self._set("filters", _norm_filters(value))
+
+    def on_change(self, callback: Callable[[str, Any], Any]) -> Callable[[str, Any], Any]:
+        """Call a function whenever the selection, the view or the filters of a plot of the
+        viewer's change.
+
+        The function is called with the name of what changed (`"selection"`, `"view"` or
+        `"filters"`) and its new value, as the property of that name gives it, whether it
+        changed in the viewer or was set from Python. For the selection, the plotted graph's
+        selection has changed with it by then (see `selection`). As each `on_change()` adds a
+        function, a function can be given as a decorator.
+
+        Parameters
+        ----------
+        callback
+            The function, taking `(name, value)`. Anything else raises `TypeError`, and so does
+            a plot that isn't the viewer's (`ValueError`).
+
+        Returns
+        -------
+        Callable
+            `callback`, as it was given.
+
+        Examples
+        --------
+        ```python
+        import edgecase as ec
+
+        g = ec.karate_club()
+        p = g.plot(backend="viewer")
+
+        @p.on_change
+        def changed(name, value):
+            if name == "selection":
+                print(len(value["nodes"]), "nodes selected")
+
+        p.selection = {"nodes": [1, 2, 3]}
+        ```
+        """
+        self._check_viewer("on_change()")
+        if not callable(callback):
+            raise TypeError(f"on_change() takes a function, got {callback!r}")
+        self._callbacks.append(callback)
+        return callback
+
     def _with_runtime(self, html_str: str, runtime: Optional[str] = None) -> str:
         runtime = _runtime if runtime is None else _check_runtime(runtime)
         if self._viewer and runtime == "inline":
@@ -377,6 +746,19 @@ class StepPlayer:
 
     def __repr__(self) -> str:
         return f"StepPlayer({len(self._svg)} chars)"
+
+
+class _Shown:
+    """A rendering as marimo shows what isn't a widget, its HTML and its PNG image."""
+
+    def __init__(self, player: StepPlayer) -> None:
+        self._player = player
+
+    def _repr_html_(self) -> str:
+        return self._player._repr_html_()
+
+    def _repr_png_(self) -> Any:
+        return self._player._repr_png_()
 
 
 # ---------------------------------------------------------------------------
@@ -1578,6 +1960,8 @@ def render_plot(
         # The SVG is drawn when it's first wanted. The image's edges are in the viewer's tone
         size = f'width="{scene.width}" height="{scene.height}"'
         empty = f'<svg xmlns="http://www.w3.org/2000/svg" {size}/>'
+        # The view that fits the graph, as the viewer starts with
+        vb = scene.viewbox
         return colors.finish(
             empty,
             html_str,
@@ -1585,6 +1969,8 @@ def render_plot(
             png=lambda: plot_png(scene, theme, tone, shade),
             svg=vector,
             viewer=True,
+            graph=graph,
+            home={"x": vb[0] + vb[2] / 2, "y": vb[1] + vb[3] / 2, "zoom": 1.0},
         )
     picked = built
     if built == "auto":
