@@ -423,12 +423,12 @@ impl<'py> Tips<'py> {
     /// column of values for each. A column that every row has a value in is a list, and any
     /// other an object from row number to value, so that either is read as `column[i]`. Numbers
     /// that JSON can't hold (NaN, infinities) are written as text, since one would keep the
-    /// whole table from being read
-    pub fn table(&self) -> PyResult<String> {
+    /// whole table from being read. With `order`, row `i` of the table is row `order[i]`
+    pub fn table(&self, order: Option<&[usize]>) -> PyResult<String> {
         let n = self.keys.len();
         let mut columns: Vec<Vec<(usize, &Cell)>> = (0..n).map(|_| Vec::new()).collect();
-        for (i, row) in self.rows.iter().enumerate() {
-            for (k, cell) in row {
+        for i in 0..self.rows.len() {
+            for (k, cell) in &self.rows[order.map_or(i, |o| o[i])] {
                 columns[*k].push((i, cell));
             }
         }
@@ -484,7 +484,7 @@ pub fn tooltip_attrs(py: Python<'_>, rows: Vec<Bound<'_, PyDict>>) -> PyResult<V
 /// one JSON table, `{"k": keys, "c": columns}`
 #[pyfunction]
 pub fn tooltip_table(py: Python<'_>, rows: Vec<Bound<'_, PyDict>>) -> PyResult<String> {
-    rows_of(py, rows)?.table()
+    rows_of(py, rows)?.table(None)
 }
 
 #[cfg(test)]
