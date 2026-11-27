@@ -1265,8 +1265,9 @@ impl SceneBuilder {
     }
 
     /// The scene, with the nodes at `positions` (`{node ID as text: (x, y)}`) in a frame of
-    /// `width` by `height` pixels. `legend` holds the legend's marks, `legend_w` pixels wide,
-    /// and `route` the margin and greatest number of waypoints for routing edges around nodes,
+    /// `width` by `height` pixels. `legend` holds the legend's marks, `legend_w` pixels wide, in
+    /// a column at the right, or with a `legend_h`, that high, in a band along the bottom, and
+    /// `route` the margin and greatest number of waypoints for routing edges around nodes,
     /// None for straight edges. With `show_labels`, at most `max_labels` labels are drawn (see
     /// `labels.rs`), or with None, every one up to `labels::ALL_MAX` nodes and otherwise
     /// `labels::AUTO_MAX`. More than `lean_min` nodes or edges make it lean, and `viewer` keeps
@@ -1283,6 +1284,7 @@ impl SceneBuilder {
         max_labels=None,
         lean_min=2000,
         viewer=false,
+        legend_h=0.0,
     ))]
     #[allow(clippy::too_many_arguments)]
     fn scene(
@@ -1299,6 +1301,7 @@ impl SceneBuilder {
         max_labels: Option<usize>,
         lean_min: usize,
         viewer: bool,
+        legend_h: f64,
     ) -> PyResult<Scene> {
         let Some(enc) = &self.enc else {
             return Err(PyValueError::new_err("encode() comes before scene()"));
@@ -1335,8 +1338,14 @@ impl SceneBuilder {
             return Err(PyKeyError::new_err(self.names[k].clone()));
         }
 
-        // The legend gets a column of its own at the right, so that it never covers the drawing
-        let legend_w = py_min(legend_w, width * 0.4);
+        // The legend gets a column of its own at the right, or a band along the bottom, so that
+        // it never covers the drawing
+        let band = py_min(legend_h, height * 0.4);
+        let column = if legend_h > 0.0 {
+            0.0
+        } else {
+            py_min(legend_w, width * 0.4)
+        };
         let pick = |v: &[f64]| order.iter().map(|&k| v[k]).collect::<Vec<_>>();
         // The labels drawn, which the frame makes room for. Their font is in the frame's units,
         // as the nodes are, so which of them overlap doesn't depend on the frame
@@ -1380,13 +1389,19 @@ impl SceneBuilder {
             chars.as_deref(),
             if any_shown { 20.0 } else { 0.0 },
             30.0,
-            Some((width - legend_w, height)),
+            Some((width - column, height - band)),
         );
         if legend.is_truthy()? {
             // Viewbox units per pixel
-            let unit = viewbox.3 / height;
-            viewbox.2 += legend_w * unit;
+            if legend_h > 0.0 {
+                let unit = viewbox.2 / width;
+                viewbox.3 += band * unit;
+            } else {
+                let unit = viewbox.3 / height;
+                viewbox.2 += column * unit;
+            }
         }
+        let legend_w = if legend_h > 0.0 { legend_w } else { column };
 
         // Edges routed around the nodes in their way, once for each pair of ends however many
         // edges join them
@@ -1697,6 +1712,7 @@ impl SceneBuilder {
             colors: table.colors,
             legend: legend.unbind(),
             legend_w,
+            legend_h,
             edge_tip_table,
             tip_tables,
             controls,
