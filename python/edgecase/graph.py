@@ -4513,6 +4513,8 @@ class Graph:
         color_midpoint: Optional[float] = None,
         highlight=None,
         highlight_edges=None,
+        view: Optional[dict] = None,
+        filters: Optional[list] = None,
         legend: bool = True,
         edge_tone: str = "auto",
         shade: bool = False,
@@ -4720,6 +4722,32 @@ class Graph:
             returns), `"selection"` for the selected edges, or the name of an edge attribute. It
             can be combined with `highlight=`, and also takes a dict with the keys `"accent"` and
             `"soft"`. What both levels pick out is drawn as accent. Default is `None`.
+        view
+            The camera to draw the plot at, as the viewer has it (see `StepPlayer.view`): a dict
+            of `"x"` and `"y"`, the point at the middle, in the plot's own units (those of the
+            SVG's viewBox), and `"zoom"`, 1 where the graph fits the box, from 0.25 to 1000.
+            A key left out is the one that fits the graph. The viewer opens there, and the other
+            backends draw what it shows there: the part in sight, the nodes grown as it grows
+            them (by the square root of the zoom), and the edges' widths and the labels at their
+            size in pixels, with the labels chosen again for the nodes in sight. The plot is then
+            framed as the viewer frames it, its legend along the bottom, its node size (see
+            `node_size=`) and its edges unrouted, so that what it draws is what the viewer shows.
+            A dict of other keys, or a
+            zoom of 0 or less, raises `ValueError`, and a value that isn't a finite number
+            `TypeError`. Default is `None`, for the graph fitted to the box, framed as usual.
+        filters
+            What to leave out of the plot, as the viewer's filters do (see
+            `StepPlayer.filters`): a list of dicts, each with `"attr"`, an attribute's name,
+            `"of"`, `"nodes"` or `"edges"` (or left out, for the nodes' attribute of the name if
+            there is one, and the edges' if not), and either `"range"`, a `(low, high)` range of
+            a numeric attribute's values to show, or `"values"`, a list of the values to show of
+            an attribute that the legend has swatches for (`color_by=` or `edge_color_by=`),
+            whose other swatches are drawn faint, as the viewer's are when clicked off. A node
+            that a filter hides takes its edges with it. The viewer starts with them, in its
+            Filter tab and its legend, and its "Copy as code" writes them out. A filter of a range
+            whose attribute has no numbers to filter by, or of values that the legend has no
+            swatches for, raises `ValueError`, and one that isn't such a dict `TypeError` or
+            `ValueError`. Default is `None`, for no filters.
         legend
             Whether to show a legend at the right of the plot for the colors of `color_by=` and
             `edge_color_by=`: swatches for groups, or a color bar for a color scale. A legend for
@@ -4763,8 +4791,7 @@ class Graph:
             wide, whose "Copy as code" writes the `plot()` call that draws what it shows, the
             selection included. Its Filter tab has histograms of the nodes' and the edges' numeric
             attributes (and of their degree and weight), and a drag across one, or a range typed
-            in, shows only the nodes or edges within it; these filters, like the legend's, are the
-            view's, and not arguments. The HTML holds the drawing's data, the labels and the
+            in, shows only the nodes or edges within it, as `filters=` does. The HTML holds the drawing's data, the labels and the
             tooltips, about 15 MB for 600,000 edges, half of it the tooltips, and the viewer's code
             (about 100 kB), which a page of several plots needs only once (see `runtime_tags()`
             and `set_runtime()`). A plot lets its WebGL context go while it is out of view, as a
@@ -4945,6 +4972,8 @@ class Graph:
             color_midpoint=color_midpoint,
             highlight=highlight,
             highlight_edges=highlight_edges,
+            view=view,
+            filters=filters,
             legend=legend,
             edge_tone=edge_tone,
             shade=shade,
