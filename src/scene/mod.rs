@@ -11,11 +11,13 @@ mod palette;
 mod payload;
 mod pyfmt;
 mod raster;
+mod shade;
 mod svg;
 mod tips;
 
 pub use builder::SceneBuilder;
 pub use highlight::{edge_ends, marked_edges, marked_nodes};
+pub use shade::shade_stops;
 pub use tips::{tooltip_attrs, tooltip_table};
 
 use pyo3::exceptions::PyValueError;
@@ -347,9 +349,13 @@ impl Scene {
     /// The scene as SVG, in a theme: `colors` are the color table's colors in it, `bg`,
     /// `label_color` its background and text colors, and `legend` the legend's markup. `raster`
     /// is the markup of the edges' layer and the nodes' as images (see `png()`), to draw in
-    /// place of the edges and the nodes, between which the edge labels go.
+    /// place of the edges and the nodes, between which the edge labels go. `shade` shades the
+    /// nodes as spheres (see `shade.rs`), unless they are images: for each color of the table,
+    /// the id of its gradient and its highlight's and far side's colors (from `shade_stops()`).
     #[allow(clippy::too_many_arguments)]
-    #[pyo3(signature = (colors, bg, label_color, font_family, legend=None, raster=None))]
+    #[pyo3(signature = (
+        colors, bg, label_color, font_family, legend=None, raster=None, shade=None
+    ))]
     fn svg(
         &self,
         py: Python<'_>,
@@ -359,6 +365,7 @@ impl Scene {
         font_family: String,
         legend: Option<String>,
         raster: Option<(String, String)>,
+        shade: Option<Vec<(String, String, String)>>,
     ) -> PyResult<String> {
         check_len(
             "colors",
@@ -366,6 +373,14 @@ impl Scene {
             self.colors.len(),
             "colors in the table",
         )?;
+        if let Some(shade) = &shade {
+            check_len(
+                "shade",
+                shade.len(),
+                self.colors.len(),
+                "colors in the table",
+            )?;
+        }
         let style = svg::Style {
             colors: &colors,
             bg: &bg,
@@ -373,6 +388,7 @@ impl Scene {
             font_family: &font_family,
             legend: legend.as_deref(),
             raster: raster.as_ref().map(|(e, n)| (e.as_str(), n.as_str())),
+            shade: shade.as_deref(),
         };
         Ok(py.allow_threads(|| svg::draw(self, &style)))
     }
@@ -386,9 +402,11 @@ impl Scene {
     /// more, otherwise the nearest that the quantizer finds, which makes it two to three times
     /// smaller. Labels and the legend aren't drawn, but `overlay` is an SVG of the frame's size
     /// drawn over the rest, such as `svg()` makes of them, its text in the system's fonts.
+    /// `shade` shades the nodes as spheres, as `svg()` does.
     #[allow(clippy::too_many_arguments)]
     #[pyo3(signature = (
-        colors, bg=None, scale=2.0, tone="log", edges=true, nodes=true, palette=false, overlay=None
+        colors, bg=None, scale=2.0, tone="log", edges=true, nodes=true, palette=false,
+        overlay=None, shade=false
     ))]
     fn png<'py>(
         &self,
@@ -401,6 +419,7 @@ impl Scene {
         nodes: bool,
         palette: bool,
         overlay: Option<String>,
+        shade: bool,
     ) -> PyResult<Bound<'py, PyBytes>> {
         check_len(
             "colors",
@@ -431,6 +450,7 @@ impl Scene {
             tone: raster::Tone::parse(tone)?,
             edges,
             nodes,
+            shade,
             overlay: match overlay {
                 Some(svg) => {
                     let (width, height) = self.raster_size(scale)?;
@@ -484,6 +504,7 @@ impl Scene {
             tone: raster::Tone::parse(tone)?,
             edges: true,
             nodes: false,
+            shade: false,
             overlay: None,
         };
         self.raster(py, &style, true)
