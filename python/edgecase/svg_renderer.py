@@ -504,7 +504,7 @@ class StepPlayer:
 
         A plot drawn with `backend="viewer"` is an `<ec-graph>` element, which the viewer's
         runtime draws (see `runtime_tags()`). With the runtime, the HTML works wherever it goes;
-        a page that has the runtime once can take its plots without it, about 135 kB smaller
+        a page that has the runtime once can take its plots without it, about 100 kB smaller
         each. The other renderings hold their own code, and `runtime=` doesn't change them.
 
         Parameters
@@ -549,7 +549,7 @@ class StepPlayer:
 
         It is an [anywidget](https://anywidget.dev), made when it is first wanted, which a
         notebook shows when it shows the plot, so this is for putting the plot in a layout of
-        widgets of one's own. Its module is the viewer's runtime, about 135 kB, so it works
+        widgets of one's own. Its module is the viewer's runtime, about 100 kB, so it works
         offline, and in a notebook saved with its widgets' state. It is `None` for a plot that
         isn't the viewer's.
 
@@ -2427,11 +2427,26 @@ RUNTIMES = ("inline", "none")
 _runtime = "inline"
 
 
+def _runtime_file() -> Path:
+    """The viewer's runtime: `static/viewer.min.js`, `static/viewer.js` minified by
+    `scripts/minify_viewer.py`, while its first line has the hash of `viewer.js` as it is, and
+    otherwise (as while `viewer.js` is being changed) `viewer.js` itself."""
+    static = Path(__file__).parent / "static"
+    source, minified = static / "viewer.js", static / "viewer.min.js"
+    try:
+        with minified.open("rb") as f:
+            head = f.readline().rstrip()
+    except OSError:
+        return source
+    digest = hashlib.sha256(source.read_bytes()).hexdigest().encode()
+    return minified if head.endswith(b" sha256 " + digest) else source
+
+
 def _runtime_js() -> str:
-    """The viewer's code (`static/viewer.js`), the runtime that defines `<ec-graph>`."""
+    """The viewer's code (see `_runtime_file()`), the runtime that defines `<ec-graph>`."""
     global _viewer_js
     if _viewer_js is None:
-        _viewer_js = (Path(__file__).parent / "static" / "viewer.js").read_text(encoding="utf-8")
+        _viewer_js = _runtime_file().read_text(encoding="utf-8")
     return _viewer_js
 
 
@@ -2447,7 +2462,7 @@ def runtime_tags(nonce: Optional[str] = None, src: Optional[str] = None) -> str:
     """The `<script>` tag that puts the viewer's runtime on a page, once for all its plots.
 
     A plot drawn with `plot(backend="viewer")` is an `<ec-graph>` element, and the runtime is
-    the code that defines the element and draws it, about 135 kB. A plot carries the runtime
+    the code that defines the element and draws it, about 100 kB. A plot carries the runtime
     itself unless told otherwise, so that a saved file or a lone output works; a page that has
     the runtime in its `<head>` can leave it out of each plot, with
     `StepPlayer.as_raw_html(runtime="none")` or `set_runtime("none")`. Copies of it on the same
