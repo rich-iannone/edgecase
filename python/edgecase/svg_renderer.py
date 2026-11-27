@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import base64
 import dataclasses
+import gzip
 import hashlib
 import html as html_mod
 import json
@@ -1664,6 +1665,7 @@ def build_scene(
             legend_w,
             route,
             lean_min=LEAN_MIN,
+            tip_tables=backend == "viewer",
         )
 
     if backend != "auto":
@@ -1722,8 +1724,8 @@ _viewer_js: Optional[str] = None
 def emit_viewer(scene: Scene, colors: "_Colors", css_width: Optional[str] = None) -> str:
     """The HTML that shows `scene` in the viewer (`static/viewer.js`), in the colors of
     `colors`'s theme: WebGL draws its edges and nodes, from `Scene.payload()`, to pan and zoom,
-    under the legend as SVG. It holds the viewer's code and the payload (in base64), so that it
-    works on its own, in a notebook or a page or a file.
+    under the legend as SVG. It holds the viewer's code, the payload and the tooltips (in
+    base64), so that it works on its own, in a notebook or a page or a file.
 
     The viewer is `scene`'s size, or `css_width` wide (a CSS length) and `scene`'s height. Its
     legend keeps its size in pixels, at the top right, and the viewer folds it into a button
@@ -1762,12 +1764,24 @@ def emit_viewer(scene: Scene, colors: "_Colors", css_width: Optional[str] = None
             f'<g class="ec-legend" transform="translate({_LEGEND_PAD:g} 0)">'
             f"{_svg_legend(scene.legend, colors, th)}</g></svg></div>"
         )
+    # The tooltips, the SVG's: the nodes' in their order, and the edges' in the order drawn,
+    # gzipped (to about a fifth) for the viewer to read on the first hover
+    tips = ""
+    if scene.tip_tables is not None:
+        table = '{{"nodes": {}, "edges": {}}}'.format(*scene.tip_tables).encode("utf-8")
+        packed = base64.b64encode(gzip.compress(table, compresslevel=6, mtime=0)).decode("ascii")
+        tips = f'<script type="application/octet-stream" class="ec-tips">{packed}</script>\n'
     encoded = base64.b64encode(payload).decode("ascii")
-    options = json.dumps({"theme": colors.pick("light", "dark")})
+    options = json.dumps(
+        {
+            "theme": colors.pick("light", "dark"),
+            "tip": {"bg": th.tooltip_bg, "fg": th.tooltip_fg, "font": FONT_FAMILY},
+        }
+    )
     return f"""<div class="ec-viewer" id="{root_id}" style="{box}">
 {legend}
 <script type="application/octet-stream" class="ec-payload">{encoded}</script>
-<script type="module">
+{tips}<script type="module">
 {_viewer_js}
 const root = document.getElementById("{root_id}");
 const text = root.querySelector("script.ec-payload").textContent;
