@@ -353,10 +353,13 @@ The layout then keeps the default canvas's shape at that height, and the viewer 
 box. The legend keeps its size, at the top right, and where the plot is too small for it, it folds
 into a button that shows it.
 
-The viewer draws less than the SVG does, for now: no labels or tooltips, no arrowheads or
-self-loops, and no routing of edges around nodes. The legend is drawn over it as SVG. The HTML holds
-the viewer's code and the drawing's data, about 2 MB for the wiki-vote network, and the viewer
-stays quick with hundreds of thousands of edges, in any browser with WebGL 2. The plot's `svg`
+Hovering over a node or an edge outlines it and shows its tooltip, the same as in the SVG; on a
+touch screen, tap it. Dragging hides the tooltip until the drag ends.
+
+The viewer draws less than the SVG does, for now: no labels, no arrowheads or self-loops, and no
+routing of edges around nodes. The legend is drawn over it as SVG. The HTML holds the viewer's
+code, the drawing's data and the tooltips, compressed, about 2.6 MB for the wiki-vote network, and
+the viewer stays quick with hundreds of thousands of edges, in any browser with WebGL 2. The plot's `svg`
 property and `.svg` file hold the SVG elements, and its `.png` file is an image as for the other
 backends.
 
