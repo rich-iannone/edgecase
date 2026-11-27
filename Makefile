@@ -1,4 +1,4 @@
-.PHONY: help install dev build test test-rust test-python test-all coverage lint format clean docs examples benchmark gallery gallery-serve
+.PHONY: help install dev build test test-rust test-python test-all coverage lint format clean docs examples benchmark gallery gallery-serve viewer
 
 help:
 	@echo "EdgeCase Development Commands"
@@ -28,6 +28,9 @@ help:
 	@echo "Gallery:"
 	@echo "  make gallery       Build the SVG gallery (SAGE)"
 	@echo "  make gallery-serve Build and serve the gallery at http://localhost:8765"
+	@echo ""
+	@echo "Viewer:"
+	@echo "  make viewer        Minify static/viewer.js after changing it (needs node)"
 	@echo ""
 	@echo "Utilities:"
 	@echo "  make examples      Run example scripts"
@@ -130,6 +133,9 @@ gallery-serve: gallery
 	@echo "Press Ctrl+C to stop."
 	@python3 -c "import webbrowser; webbrowser.open('http://localhost:8765/svg_gallery.html')" &
 	python3 -m http.server 8765
+
+viewer:
+	python3 scripts/minify_viewer.py
 
 docs:
 	cd docs && make html
