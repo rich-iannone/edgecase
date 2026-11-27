@@ -4761,8 +4761,11 @@ class Graph:
             opens a panel of controls (the node size and shading, the edges' opacity, width, curve
             and tone, the labels, the theme and the legend), docked at the side when the plot is
             wide, whose "Copy as code" writes the `plot()` call that draws what it shows, the
-            selection included (the legend's filters aren't arguments). The HTML holds the
-            viewer's code (about 111 kB), the drawing's data, the labels and the tooltips, about
+            selection included. Its Filter tab has histograms of the nodes' and the edges' numeric
+            attributes (and of their degree and weight), and a drag across one, or a range typed
+            in, shows only the nodes or edges within it; these filters, like the legend's, are the
+            view's, and not arguments. The HTML holds the viewer's code (about 128 kB), the
+            drawing's data, the labels and the tooltips, about
             15 MB for 600,000 edges, half of it the tooltips, and the browser needs WebGL 2. Any
             other value raises `ValueError`.
 
