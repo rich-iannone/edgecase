@@ -1313,13 +1313,13 @@ SVG_ELEMENTS_MAX = 20_000
 _TAG_RE = re.compile(r"<[A-Za-z]")
 # What `plot()` draws the edges and nodes as: SVG elements, images (see `_raster_layers()`), or
 # by default SVG while its HTML fits `NOTEBOOK_BYTES_MAX` and its elements `SVG_ELEMENTS_MAX`,
-# and images past that
-BACKENDS = ("auto", "svg", "png")
+# and images past that. Or the viewer draws them, to pan and zoom (see `emit_viewer()`)
+BACKENDS = ("auto", "svg", "png", "viewer")
 # The images' pixels to a pixel of the plot, so that they stay sharp on high-density screens
 RASTER_SCALE = 2.0
-# The least radius of the automatic node size, as SVG and as an image, whose nodes can be
-# smaller since they don't each take an element
-_NODE_SIZE_MIN = {"svg": 3.5, "png": 1.0}
+# The least radius of the automatic node size, as SVG and as an image or in the viewer, whose
+# nodes can be smaller since they don't each take an element
+_NODE_SIZE_MIN = {"svg": 3.5, "png": 1.0, "viewer": 1.0}
 
 
 _PACKAGE_DIR = str(Path(__file__).parent) + os.sep
@@ -1393,7 +1393,8 @@ def render_plot(
     makes of it with `options`, drawn in `theme`, its edges and nodes as SVG elements or, with
     `backend="png"`, as images. With `backend="auto"`, they are images where their SVG would
     pass `NOTEBOOK_BYTES_MAX` or `SVG_ELEMENTS_MAX`, and the player's SVG is then drawn when it
-    is first wanted."""
+    is first wanted. With `backend="viewer"`, the HTML is the viewer's (see `emit_viewer()`),
+    and the SVG is drawn when it is first wanted too."""
     _check_style(options.get("layout", "force"), theme, stored_ok=True)
     if backend not in BACKENDS:
         raise ValueError(
@@ -1411,6 +1412,41 @@ def render_plot(
         return True
 
     scene = build_scene(graph, backend=backend, fits=fits, **options)
+
+    def vector() -> str:
+        # The SVG that the images or the viewer stand in for
+        _check_svg_size(scene.node_count, scene.edge_count, plotted=True)
+        svg_str = emit_svg(scene, colors)[0]
+        if len(svg_str) > NOTEBOOK_BYTES_MAX:
+            why = (
+                "which is why the plot draws its edges and nodes as images"
+                if backend == "auto"
+                else "which the viewer shows more readily"
+            )
+            warnings.warn(
+                f"The SVG is {len(svg_str) / 1e6:,.0f} MB, {why}. A .png or .html file of it "
+                "is smaller",
+                stacklevel=_user_stacklevel(),
+            )
+        return svg_str
+
+    if backend == "viewer" and scene.node_count:
+        html_str = emit_viewer(scene, colors)
+        if len(html_str) > NOTEBOOK_BYTES_MAX:
+            warnings.warn(
+                f"The plot is {len(html_str) / 1e6:,.0f} MB, past the "
+                f"{NOTEBOOK_BYTES_MAX / 1e6:.0f} MB a notebook output should stay within. "
+                "backend='png' makes it smaller, as does plotting a part of the graph, such as "
+                "what k_core() or ego_graph() returns",
+                stacklevel=3,
+            )
+        # The SVG is drawn when it's first wanted. The image's edges are as the viewer's, which
+        # stack up as the SVG's do
+        size = f'width="{scene.width}" height="{scene.height}"'
+        empty = f'<svg xmlns="http://www.w3.org/2000/svg" {size}/>'
+        return colors.finish(
+            empty, html_str, output, png=lambda: plot_png(scene, theme, "over"), svg=vector
+        )
     picked = backend
     if backend == "auto":
         picked = "svg" if fitting else "png"
@@ -1429,19 +1465,6 @@ def render_plot(
         )
     # The edges as the SVG draws them, or as its images do
     tone = "over" if picked == "svg" else "log"
-
-    def vector() -> str:
-        # The SVG that the images stand in for
-        _check_svg_size(scene.node_count, scene.edge_count, plotted=True)
-        svg_str = emit_svg(scene, colors)[0]
-        if len(svg_str) > NOTEBOOK_BYTES_MAX:
-            warnings.warn(
-                f"The SVG is {len(svg_str) / 1e6:,.0f} MB, which is why the plot draws its "
-                "edges and nodes as images. A .png or .html file of it is smaller",
-                stacklevel=_user_stacklevel(),
-            )
-        return svg_str
-
     return colors.finish(
         svg_str,
         html_str,
@@ -1482,8 +1505,9 @@ def build_scene(
 ) -> Scene:
     """The scene for `plot()` of `graph`, which takes the same arguments: the layout, and the
     colors, sizes, highlighting, shapes, labels, tooltips and legend that the arguments give.
-    With `backend="png"`, the automatic node size can be smaller, and there's no limit to the
-    output's size, which an SVG's elements would pass. With `backend="auto"`, it is the scene
+    With `backend="png"` or `"viewer"`, the automatic node size can be smaller, and there's no
+    limit to the output's size, which an SVG's elements would pass; the viewer's edges aren't
+    routed, since it draws them straight or curved. With `backend="auto"`, it is the scene
     for SVG if `fits()` is true of that, and the one for images otherwise, or straight away when
     even the fewest bytes or elements the SVG could take would pass `NOTEBOOK_BYTES_MAX` or
     `SVG_ELEMENTS_MAX`.
@@ -1601,9 +1625,10 @@ def build_scene(
         if legend_blocks:
             legend_marks, legend_w, _ = _legend_layout(legend_blocks)
 
-        # Non-curved edges are routed around the nodes in their way
+        # Non-curved edges are routed around the nodes in their way, except in the viewer, which
+        # draws them straight
         route = None
-        if edge_routing != "straight" and not curved_edges and n >= 3:
+        if edge_routing != "straight" and not curved_edges and n >= 3 and backend != "viewer":
             route = (
                 float(edge_routing) if isinstance(edge_routing, (int, float)) else 3.0,
                 ROUTE_WAYPOINTS_MAX if edge_routing == "auto" else None,
@@ -1656,6 +1681,58 @@ def _legend_markup(scene: Scene, colors: "_Colors") -> Optional[str]:
         f"{vb[0] + vb[2] - (scene.legend_w - _LEGEND_PAD) * unit:.1f} "
         f'{vb[1]:.1f}) scale({unit:.4f})">{_svg_legend(scene.legend, colors, colors.theme)}</g>'
     )
+
+
+_viewer_counter = 0
+_viewer_js: Optional[str] = None
+
+
+def emit_viewer(scene: Scene, colors: "_Colors") -> str:
+    """The HTML that shows `scene` in the viewer (`static/viewer.js`), in the colors of
+    `colors`'s theme: WebGL draws its edges and nodes, from `Scene.payload()`, to pan and zoom,
+    under the legend as SVG. It holds the viewer's code and the payload (in base64), so that it
+    works on its own, in a notebook or a page or a file.
+
+    In the automatic theme, the viewer reads its theme from a variable of `colors` (one that
+    holds "light" or "dark"), so that it follows the page by the same rules as the legend's
+    colors, and a saved file is in the light theme, as for SVG."""
+    global _viewer_counter, _viewer_js
+    if _viewer_js is None:
+        _viewer_js = (Path(__file__).parent / "static" / "viewer.js").read_text(encoding="utf-8")
+    payload = scene.payload()
+    _viewer_counter += 1
+    # Unique on the page, even among the outputs of notebooks run in other sessions
+    root_id = f"ec-viewer-{_viewer_counter}-{hashlib.sha1(payload).hexdigest()[:8]}"
+    th = colors.theme
+    # Centered and scaled down, keeping its shape, where the page is narrower, as the SVG is
+    box = (
+        f"position:relative;width:{scene.width}px;max-width:100%;"
+        f"aspect-ratio:{scene.width}/{scene.height};margin:1em auto;"
+        f"background:{th.bg};color:{th.label_color};color-scheme:{colors.scheme()}"
+    )
+    # The legend, over the drawing and fixed as it pans and zooms
+    vb = " ".join(f"{v:.3f}" for v in scene.viewbox)
+    legend = (
+        f'<svg class="ec-legend-layer" xmlns="http://www.w3.org/2000/svg" viewBox="{vb}" '
+        'preserveAspectRatio="xMidYMid meet" '
+        'style="position:absolute;inset:0;width:100%;height:100%;pointer-events:none">'
+        f"{_legend_markup(scene, colors) or ''}</svg>"
+    )
+    encoded = base64.b64encode(payload).decode("ascii")
+    options = json.dumps({"theme": colors.pick("light", "dark")})
+    return f"""<div class="ec-viewer" id="{root_id}" style="{box}">
+{legend}
+<script type="application/octet-stream" class="ec-payload">{encoded}</script>
+<script type="module">
+{_viewer_js}
+const root = document.getElementById("{root_id}");
+const text = root.querySelector("script.ec-payload").textContent;
+const bytes = Uint8Array.fromBase64
+  ? Uint8Array.fromBase64(text)
+  : Uint8Array.from(atob(text), (c) => c.charCodeAt(0));
+mount(root, bytes.buffer, {options});
+</script>
+</div>"""
 
 
 def plot_png(scene: Scene, theme: Optional[str] = None, tone: str = "log") -> bytes:
