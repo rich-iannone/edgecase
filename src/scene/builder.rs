@@ -1087,7 +1087,8 @@ impl SceneBuilder {
     /// The scene, with the nodes at `positions` (`{node ID as text: (x, y)}`) in a frame of
     /// `width` by `height` pixels. `legend` holds the legend's marks, `legend_w` pixels wide,
     /// and `route` the margin and greatest number of waypoints for routing edges around nodes,
-    /// None for straight edges. More than `lean_min` nodes or edges make it lean
+    /// None for straight edges. More than `lean_min` nodes or edges make it lean, and
+    /// `tip_tables` keeps the tooltips as tables for the viewer
     #[pyo3(signature = (
         positions,
         width,
@@ -1098,6 +1099,7 @@ impl SceneBuilder {
         legend_w,
         route=None,
         lean_min=2000,
+        tip_tables=false,
     ))]
     #[allow(clippy::too_many_arguments)]
     fn scene(
@@ -1112,6 +1114,7 @@ impl SceneBuilder {
         legend_w: f64,
         route: Option<(f64, Option<usize>)>,
         lean_min: usize,
+        tip_tables: bool,
     ) -> PyResult<Scene> {
         let Some(enc) = &self.enc else {
             return Err(PyValueError::new_err("encode() comes before scene()"));
@@ -1387,9 +1390,14 @@ impl SceneBuilder {
         edge_tips.round()?;
         // In lean SVG, an edge's tooltip is its row in one table of them
         let (edge_tip_table, edge_tip_json) = if lean {
-            (Some(edge_tips.table()?), Vec::new())
+            (Some(edge_tips.table(None)?), Vec::new())
         } else {
             (None, edge_tips.attrs_json()?)
+        };
+        let tip_tables = if tip_tables {
+            Some((node_tips.table(None)?, edge_tips.table(Some(&edge_order))?))
+        } else {
+            None
         };
 
         Ok(Scene {
@@ -1403,6 +1411,7 @@ impl SceneBuilder {
             legend: legend.unbind(),
             legend_w,
             edge_tip_table,
+            tip_tables,
             nodes: Nodes {
                 ids: self.names.clone(),
                 x: xs,
