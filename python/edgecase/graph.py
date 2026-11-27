@@ -4514,6 +4514,8 @@ class Graph:
         highlight=None,
         highlight_edges=None,
         legend: bool = True,
+        edge_tone: str = "auto",
+        shade: bool = False,
         backend: str = "auto",
     ):
         """
@@ -4723,29 +4725,40 @@ class Graph:
             `edge_color_by=`: swatches for groups, or a color bar for a color scale. A legend for
             more groups than the palette has colors (or more than 12) is left out, since its
             colors would repeat. Default is `True`.
+        edge_tone
+            How edges that cross show: `"over"`, each over the ones under it as SVG strokes stack
+            up, so that a dense part of a large graph goes solid, or `"log"`, by the density of
+            the edges at each point on a log scale, from a lone edge's opacity to opaque at the
+            densest point, so that where many cross reads darker than where a few do. `"log"`
+            needs the edges drawn as an image or by the viewer, where it is taken for the view
+            in sight as it pans and zooms. `"auto"`, the default, is `"log"` where the edges are
+            drawn as an image (and in the viewer, where `backend="auto"` would draw them as one)
+            and `"over"` otherwise. Any other value raises `ValueError`.
+        shade
+            Whether to shade the nodes as spheres, lit from the upper left: lighter there and
+            darker toward the far side, with the node's color in between, alike in each backend.
+            Default is `False`, for flat nodes.
         backend
             What the edges and nodes are drawn as: `"svg"`, an SVG element each, or `"png"`, an
             image of the edges and one of the nodes in the SVG, with the edges drawn by their
-            density, so that where many cross reads darker than where a few do. `"auto"`, the
-            default, is `"svg"` while the output stays within 10 MB and 20,000 SVG elements,
-            and `"png"` for graphs whose SVG would pass either. The labels and the legend are
-            SVG text either way. The images keep the output to a few megabytes whatever the size
-            of the graph, but nodes and edges have no tooltips. A graph whose SVG would pass
-            200 MB can only be plotted as images or by the viewer. `"viewer"` draws the edges
-            and nodes with WebGL in the browser, with the edges by their density, to pan (drag)
-            and zoom (the buttons, the keys `+`, `-` and `0`, a double click, or the wheel once
-            the plot has been clicked), with hundreds of thousands of edges, and to show full
-            screen (its button, or the key `F`). Hovering over a node or an edge (or tapping it)
-            shows its tooltip, as in the SVG. The legend stays SVG, over it, and folds into a
-            button when the plot is too small for it. The labels keep their size as it zooms,
-            chosen again for what is in view (see `max_labels=`); there are no arrowheads or
-            self-loops yet, and edges aren't routed. Its Settings button opens a panel of
-            controls (the node size, the edges' opacity, width and curve, the labels, the theme
-            and the legend), docked at the side when the plot is wide, whose "Copy as code"
+            density (see `edge_tone=`). `"auto"`, the default, is `"svg"` while the output stays
+            within 10 MB and 20,000 SVG elements, and `"png"` for graphs whose SVG would pass
+            either. The labels and the legend are SVG text either way. The images keep the output to
+            a few megabytes whatever the size of the graph, but nodes and edges have no tooltips. A
+            graph whose SVG would pass 200 MB can only be plotted as images or by the viewer.
+            `"viewer"` draws the edges and nodes with WebGL in the browser, to pan (drag) and zoom
+            (the buttons, the keys `+`, `-` and `0`, a double click, or the wheel once the plot has
+            been clicked), with hundreds of thousands of edges, and to show full screen (its button,
+            or the key `F`). Hovering over a node or an edge (or tapping it) shows its tooltip, as
+            in the SVG. The legend stays SVG, over it, and folds into a button when the plot is too
+            small for it. The labels keep their size as it zooms, chosen again for what is in view
+            (see `max_labels=`); edges aren't routed. Its Settings button opens a panel of controls
+            (the node size and shading, the edges' opacity, width, curve and tone, the labels, the
+            theme and the legend), docked at the side when the plot is wide, whose "Copy as code"
             writes the `plot()` call that draws what it shows. The HTML holds the viewer's code
-            (about 76 kB), the drawing's data, the labels and the tooltips, about 15 MB for
-            600,000 edges, half of it the tooltips, and the browser needs WebGL 2. Any other
-            value raises `ValueError`.
+            (about 89 kB), the drawing's data, the labels and the tooltips, about 15 MB for 600,000
+            edges, half of it the tooltips, and the browser needs WebGL 2. Any other value raises
+            `ValueError`.
 
         Returns
         -------
@@ -4766,7 +4779,8 @@ class Graph:
             has, `layout=`, `theme=` or `color_scale=` is unknown, a numeric `color_scale=` meets
             values that aren't numbers, `palette=` is unknown while `color_by=` or
             `edge_color_by=` is set, `highlight=` or `highlight_edges=` names a node, edge or
-            attribute the graph doesn't have, `edge_routing=` or `backend=` is unknown,
+            attribute the graph doesn't have, `edge_routing=`, `edge_tone=` or `backend=` is
+            unknown, `edge_tone="log"` is given with `backend="svg"`,
             `width=` is a string other than a CSS length or without `backend="viewer"`,
             `output=` has an extension other than `.html`, `.svg` or `.png`, or the graph is so
             large that its SVG would pass 200 MB (with `backend="svg"`, or for the `.svg` of a
@@ -4917,6 +4931,8 @@ class Graph:
             highlight=highlight,
             highlight_edges=highlight_edges,
             legend=legend,
+            edge_tone=edge_tone,
+            shade=shade,
             backend=backend,
         )
 
