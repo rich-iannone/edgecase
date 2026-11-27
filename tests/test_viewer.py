@@ -9,7 +9,9 @@ import gzip
 import html as html_mod
 import json
 import re
+import shutil
 import struct
+import subprocess
 import sys
 from pathlib import Path
 
@@ -786,6 +788,89 @@ def test_the_viewer_selects_searches_and_filters():
     # The search pill, and the legend's swatches as checkboxes
     assert "function searchPill(" in js and '"combobox"' in js and "function flyTo(" in js
     assert ".ec-key" in js and "The legend's filters aren't in the code" in js
+
+
+def test_the_payload_has_the_groups_of_the_cluster_force():
+    g = ec.karate_club()
+    html = g.plot(backend="viewer", seed=1, color_by="faction")._repr_html_()
+    header, columns = _html_payload(html)
+    # Each node's group of a categorical `color_by=`: its value's place among them, plus 1
+    assert header["cluster"] == {"name": "faction", "count": 2}
+    faction = g.get_node_attrs("faction")
+    places = {v: k + 1 for k, v in enumerate(sorted(set(faction.values())))}
+    assert list(columns["cluster"]) == [places[faction[i]] for i in columns["node_id"]]
+    # And the legend's band, which the viewer fits a moved layout above
+    assert header["legend_h"] > 0
+    html = g.plot(backend="viewer", seed=1, color_by="faction", legend=False)._repr_html_()
+    header, _ = _html_payload(html)
+    assert header["legend_h"] == 0 and header["cluster"]["count"] == 2
+    # None for a ramp, nor without `color_by=`, nor for a scene that isn't a plot's
+    ids = g.get_node_ids(limit=None)
+    g.set_node_attrs("score", [0.37 * i for i in ids], nodes=ids)
+    for kwargs in [{"color_by": "score"}, {}]:
+        header, columns = _html_payload(g.plot(backend="viewer", seed=1, **kwargs)._repr_html_())
+        assert header["cluster"] is None and "cluster" not in columns
+        assert "cluster" not in header["constants"]
+    assert _payload(_scene().payload())[0]["cluster"] is None
+
+
+def test_the_viewer_has_a_layout_tab():
+    js = (Path(svg_renderer.__file__).parent / "static" / "viewer.js").read_text()
+    # The forces by the names that the Rust layout is to take, which the copied code leaves out
+    for name in ["gravity", "repulsion", "link_strength", "link_distance", "friction", "collision"]:
+        assert f'force("{name}"' in js
+    assert 'name: "cluster_by"' in js and 'force("cluster_strength"' in js
+    assert "if (c.value === c.start || c.view) continue;" in js
+    assert "The simulation's positions aren't in the code" in js
+    # Run, pause and restore; a node dragged while it runs; a worker, or the page where none
+    assert "function runBar(" in js and "Restore positions" in js and "function grab(" in js
+    assert "function simulation(init)" in js and "function engine(init, got)" in js
+    assert "new Worker(" in js and "function workerMain(" in js
+
+
+NODE = shutil.which("node")
+# A ring of 40 with chords, in two groups, from a circle, with nodes on one point, run as it is,
+# again, with collisions and the cluster force, and with a node pinned and held
+_RING = """
+const n = 40, src = [], tgt = [];
+for (let i = 0; i < n; i++) { src.push(i); tgt.push((i + 1) % n); if (i % 5 === 0) { src.push(i); tgt.push((i + 13) % n); } }
+src.push(3); tgt.push(3);
+const x = Float32Array.from({ length: n }, (_, i) => 300 + 200 * Math.cos(i / 6));
+const y = Float32Array.from({ length: n }, (_, i) => 200 + 150 * Math.sin(i / 6));
+x[7] = x[8]; y[7] = y[8];
+const cluster = Uint32Array.from({ length: n }, (_, i) => 1 + (i % 2));
+const init = (forces) => ({ n, m: src.length, frame: [0, 0, 600, 400], x, y, r: 6, src: Uint32Array.from(src),
+  tgt: Uint32Array.from(tgt), cluster, groups: 2, forces, alpha: 0.1 });
+function run(forces, pin) {
+  const sim = simulation(init(forces));
+  if (pin) { sim.pin(0, 100, 50); sim.hold(true); }
+  let out, ticks = 0;
+  do { out = sim.step(1); ticks++; } while (!out.settled && ticks < 400);
+  if (pin) { sim.hold(false); out = sim.step(1); }
+  return { ticks, settled: out.settled, x: Array.from(out.x), y: Array.from(out.y) };
+}
+const spread = (r) => { const m = (k) => r.x.filter((_, i) => i % 2 === k); return Math.max(...m(0)) - Math.min(...m(0)); };
+const a = run({}), b = run({}), c = run({ collision: 1, cluster: true, cluster_strength: 0.5 }), p = run({}, true);
+console.log(JSON.stringify({ a: [a.ticks, a.settled], same: JSON.stringify(a) === JSON.stringify(b),
+  finite: [a, c, p].every((r) => r.x.concat(r.y).every(Number.isFinite)), clustered: spread(c) < spread(a),
+  pinned: [p.x[0], p.y[0], p.ticks, p.settled] }));
+"""  # noqa: E501
+
+
+@pytest.mark.skipif(NODE is None, reason="needs node")
+def test_the_simulation_settles_alike_each_time(tmp_path):
+    js = (Path(svg_renderer.__file__).parent / "static" / "viewer.js").read_text()
+    start = js.index("function simulation(init) {")
+    body = js[start : js.index("\n}\n", start) + 2]
+    (tmp_path / "sim.mjs").write_text(body + _RING)
+    run = subprocess.run([NODE, tmp_path / "sim.mjs"], capture_output=True, text=True, check=True)
+    out = json.loads(run.stdout)
+    # About 200 ticks from the warm start, the same each time
+    assert out["a"] == [200, True] and out["same"] and out["finite"]
+    # The cluster force draws each group together
+    assert out["clustered"]
+    # A node pinned stays put, and the drag's heat keeps it running until let go
+    assert out["pinned"] == [pytest.approx(100, abs=1e-3), pytest.approx(50, abs=1e-3), 400, False]
 
 
 def _kernel(monkeypatch, kernel=True):
