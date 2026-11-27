@@ -5,6 +5,7 @@ mod color;
 mod css;
 mod geometry;
 mod highlight;
+mod labels;
 mod overlay;
 mod palette;
 mod payload;
@@ -38,10 +39,19 @@ struct Nodes {
     tips: Vec<String>,
 }
 
+/// The nodes' labels: each one's text and color, and which of them are drawn (see `labels.rs`).
+/// `show` is `show_labels=`, without which the viewer has them for its controls but draws none;
+/// `order` is the nodes in order of priority, and `limit` how many labels are drawn at most,
+/// None for all of them, which is `auto` when `max_labels=` doesn't say
 struct Labels {
     texts: Vec<String>,
     colors: Vec<usize>,
     font_size: f64,
+    show: bool,
+    order: Vec<usize>,
+    limit: Option<usize>,
+    auto: Option<usize>,
+    shown: Vec<bool>,
 }
 
 #[derive(Default)]
@@ -235,7 +245,7 @@ impl Scene {
         Ok(())
     }
 
-    /// The text under each node, in `font_size`.
+    /// The text under each node, in `font_size`, all of them drawn.
     fn set_labels(
         &mut self,
         texts: Vec<String>,
@@ -247,9 +257,14 @@ impl Scene {
         check_len("colors", colors.len(), n, "nodes")?;
         check_index("colors", &colors, self.colors.len(), "colors")?;
         self.labels = Some(Labels {
+            shown: vec![true; n],
             texts,
             colors,
             font_size,
+            show: true,
+            order: (0..n).collect(),
+            limit: None,
+            auto: None,
         });
         Ok(())
     }
@@ -428,10 +443,27 @@ impl Scene {
     }
 
     /// The scene as the viewer's payload (see `payload.rs`): its frame, color table, nodes and
-    /// edges, as columns of 32-bit numbers after a JSON header. Labels and tooltips aren't in it.
+    /// edges, as columns of 32-bit numbers after a JSON header. The labels' texts and the
+    /// tooltips aren't in it (see `label_texts`).
     fn payload<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyBytes>> {
         let bytes = py.allow_threads(|| payload::payload(self))?;
         Ok(PyBytes::new(py, &bytes))
+    }
+
+    /// For the viewer, the labels' texts as JSON, `{"nodes": [...], "edges": [...]}`: the
+    /// nodes' in their order and the edges' in the order drawn, None where an edge has none,
+    /// and either list null when there are no such labels. None when there are neither
+    #[getter]
+    fn label_texts(&self) -> Option<String> {
+        if self.labels.is_none() && self.edge_labels.is_none() {
+            return None;
+        }
+        let nodes = self.labels.as_ref().map(|l| &l.texts);
+        let edges = self
+            .edge_labels
+            .as_ref()
+            .map(|l| self.edges.order.iter().map(|&i| &l[i]).collect::<Vec<_>>());
+        Some(serde_json::json!({"nodes": nodes, "edges": edges}).to_string())
     }
 
     /// The edges as a PNG mask: white, with the opacity at which `png()` draws them, to be
