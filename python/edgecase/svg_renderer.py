@@ -13,6 +13,7 @@ import hashlib
 import html as html_mod
 import json
 import math
+import numbers
 import os
 import random
 import re
@@ -21,7 +22,7 @@ import sys
 import warnings
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Tuple, Union
+from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Sequence, Tuple, Union
 
 if TYPE_CHECKING:
     from edgecase._core import Scene
@@ -198,11 +199,13 @@ class _Colors:
         viewer: bool = False,
         graph: Any = None,
         home: Optional[Dict[str, float]] = None,
+        state: Optional[Dict[str, Any]] = None,
     ) -> "StepPlayer":
         """The `StepPlayer` for the rendering, saved to `output=` when that is given. `png` makes
         its PNG image, if it has one, and `svg` the SVG that it holds, when that isn't the one
         that the HTML shows. `viewer` says that the HTML is the viewer's, without its runtime,
-        of `graph` (whose selection the viewer's sets), and `home` is its view at first."""
+        of `graph` (whose selection the viewer's sets), `home` is the view that fits the graph,
+        and `state` has the view and the filters that the viewer starts with."""
         for_files = None
         if self.save_light:
             for_files = (self._for_file(svg_str), self._for_file(html_str))
@@ -218,7 +221,7 @@ class _Colors:
                 return self._own(drawn), self._for_file(drawn) if self.save_light else None
 
         result = StepPlayer(
-            self._own(svg_str), html_str, for_files, png, own_svg, viewer, graph, home
+            self._own(svg_str), html_str, for_files, png, own_svg, viewer, graph, home, state
         )
         if output:
             result.save(output)
@@ -356,21 +359,57 @@ def _norm_view(value: Any, now: Dict[str, float]) -> Dict[str, float]:
     return out
 
 
+def _json_scalar(value: Any) -> Any:
+    """An attribute's value as JSON has it, as the viewer's legend compares it: None, a bool, a
+    string, an int or a finite float, and anything else as its string."""
+    if value is None or isinstance(value, (bool, str)):
+        return value
+    if isinstance(value, numbers.Integral):
+        return int(value)
+    if isinstance(value, numbers.Real) and math.isfinite(value):
+        return float(value)
+    return str(value)
+
+
 def _norm_filters(value: Any) -> List[Dict[str, Any]]:
     """`value` as the viewer has its filters."""
     if value is None:
         return []
     if isinstance(value, dict) or not isinstance(value, (list, tuple)):
         raise TypeError(f"filters takes a list of dicts, got {value!r}")
-    form = "a dict of 'attr', 'of' and 'range'"
+    form = "a dict of 'attr', 'of', and 'range' or 'values'"
     out = []
     for f in value:
-        f = _keys(f, "A filter", ("attr", "of", "range"), form)
+        f = _keys(f, "A filter", ("attr", "of", "range", "values"), form)
         attr, of, span = f.get("attr"), f.get("of"), f.get("range")
         if not isinstance(attr, str):
             raise TypeError(f"A filter's 'attr' is an attribute's name, got {attr!r}")
         if of not in (None, "nodes", "edges"):
             raise ValueError(f"A filter's 'of' is 'nodes' or 'edges', got {of!r}")
+        if ("range" in f) == ("values" in f):
+            raise ValueError(f"A filter has a 'range' or 'values', and not both, got {f!r}")
+        if "values" in f:
+            shown = f["values"]
+            if isinstance(shown, (set, frozenset)):
+                shown = sorted(shown, key=repr)
+            if not isinstance(shown, (list, tuple)):
+                raise TypeError(f"A filter's 'values' is a list of values, got {shown!r}")
+            values: List[Any] = []
+            for v in shown:
+                if not (
+                    v is None
+                    or isinstance(v, (bool, str, numbers.Integral))
+                    or (isinstance(v, numbers.Real) and math.isfinite(v))
+                ):
+                    raise TypeError(
+                        f"A filter's 'values' are None, bools, strings or finite numbers, got {v!r}"
+                    )
+                v = _json_scalar(v)
+                # Each once, 1 and True alike, as the legend's groups take them
+                if v not in values:
+                    values.append(v)
+            out.append({"attr": attr, "of": of, "values": values})
+            continue
         if isinstance(span, (str, bytes)) or not hasattr(span, "__len__") or len(span) != 2:
             raise TypeError(f"A filter's 'range' is a (low, high) pair, got {span!r}")
         lo, hi = (_state_number(v, "A filter's 'range'") for v in span)
@@ -451,6 +490,7 @@ class StepPlayer:
         viewer: bool = False,
         graph: Any = None,
         home: Optional[Dict[str, float]] = None,
+        state: Optional[Dict[str, Any]] = None,
     ) -> None:
         self._svg = svg_str
         # Without the viewer's runtime, for a plot of the viewer's
@@ -465,14 +505,16 @@ class StepPlayer:
         self._make_svg = svg
         # For a plot of the viewer's: the graph plotted, whose selection the viewer's sets; the
         # view that fits it; the state it shares with Python, until there is a widget, which
-        # then holds it; and the functions that on_change() was given
+        # then holds it, at first the view and the filters of `state`; and the functions that
+        # on_change() was given
         self._graph = graph
         self._directed = bool(graph is not None and graph.is_directed())
         self._home = dict(home or {})
+        state = state or {}
         self._state: Dict[str, Any] = {
             "selection": {"nodes": [], "edges": []},
-            "view": dict(self._home),
-            "filters": [],
+            "view": dict(state.get("view") or self._home),
+            "filters": list(state.get("filters") or []),
         }
         self._widget: Any = None
         self._callbacks: List[Callable[[str, Any], Any]] = []
@@ -661,8 +703,9 @@ class StepPlayer:
         viewBox, in which the layout places the nodes), and `"zoom"`, 1 where the graph fits the
         box, from 0.25 to 1000. It follows the viewer once a pan or a zoom comes to a stop, and
         setting it pans and zooms the viewer there, with any key left out kept as it is, and
-        `None` for the view that fits the graph. It is `None` for a plot that isn't the
-        viewer's.
+        `None` for the view that fits the graph. `plot(view=...)` takes the same dict, to start
+        there, and to draw as SVG or PNG what the viewer shows there. It is `None` for a plot
+        that isn't the viewer's.
 
         Examples
         --------
@@ -685,16 +728,19 @@ class StepPlayer:
 
     @property
     def filters(self) -> Optional[List[Dict[str, Any]]]:
-        """The filters of the viewer's Filter tab that hide part of the plot.
+        """The filters of the viewer's Filter tab and its legend that hide part of the plot.
 
-        It is a list of dicts, one for each filter that hides something: `"attr"`, the numeric
-        attribute it filters by, `"of"`, `"nodes"` or `"edges"`, whose attribute that is, and
-        `"range"`, the `(low, high)` range of the values it shows. It follows the Filter tab, and
-        setting it puts these filters there in place of its own, each in the range of its
-        attribute's values. `"of"` can be left out (or `None`), for the nodes' attribute of the
-        name if there is one, and the edges' if not. A filter of an attribute that the tab
-        doesn't have is left out, and `None` or `[]` removes the filters. It is `None` for a plot
-        that isn't the viewer's.
+        It is a list of dicts, one for each filter that hides something: `"attr"`, the attribute
+        it filters by, `"of"`, `"nodes"` or `"edges"`, whose attribute that is, and either
+        `"range"`, the `(low, high)` range of a numeric attribute's values that it shows, from
+        the Filter tab, or `"values"`, the list of the values that it shows of an attribute that
+        the legend has swatches for, those not clicked off. It follows the viewer, and setting
+        it puts these filters there in place of its own, each range in that of its attribute's
+        values, and turns off the legend's other swatches of each attribute of values. `"of"`
+        can be left out (or `None`), for the nodes' attribute of the name if there is one, and
+        the edges' if not. A filter of an attribute that the viewer doesn't have is left out,
+        and `None` or `[]` removes the filters. `plot(filters=...)` takes the same list, to
+        start with. It is `None` for a plot that isn't the viewer's.
 
         Examples
         --------
@@ -709,7 +755,9 @@ class StepPlayer:
         """
         if not self._viewer:
             return None
-        return [{**f, "range": tuple(f["range"])} for f in self._raw("filters")]
+        return [
+            {**f, "range": tuple(f["range"])} if "range" in f else f for f in self._raw("filters")
+        ]
 
     @filters.setter
     def filters(self, value: Optional[List[Dict[str, Any]]]) -> None:
@@ -1788,13 +1836,18 @@ def _ramp_gradient(scale: str, colors: "_Colors", across: str = "") -> Tuple[str
 
 
 def _svg_legend(
-    marks: List[Tuple[Any, ...]], colors: "_Colors", th: Theme, keys: bool = False
+    marks: List[Tuple[Any, ...]],
+    colors: "_Colors",
+    th: Theme,
+    keys: bool = False,
+    off: Sequence[int] = (),
 ) -> str:
     """The legend's `marks` (from `_legend_layout()`) in SVG.
 
     With `keys`, as the viewer has it, each swatch and its text are a checkbox that shows or
     hides what the swatch stands for: its `data-key` is its place among the swatches and its
     `data-block` the place of its block, as the payload's "node_key" and "edge_key" count them.
+    The swatches of `off`, by those places, are faint, as the viewer's are when turned off.
     """
     parts = []
     font = f'font-family="{FONT_FAMILY}" font-size="{_LEGEND_FONT:g}"'
@@ -1804,8 +1857,11 @@ def _svg_legend(
     for i, (kind, *mark) in enumerate(marks):
         if kind == "text" and mark[3] == "600":
             block += 1
-        if keys and kind in ("node", "edge"):
+        if kind in ("node", "edge"):
             key += 1
+        if not keys and kind in ("node", "edge") and key in off:
+            parts.append('<g opacity="0.35">')
+        if keys and kind in ("node", "edge"):
             label = marks[i + 1][3]
             width = 22 + _text_width(label) + 4
             x = mark[2] if len(mark) > 2 else 0.0
@@ -1822,7 +1878,7 @@ def _svg_legend(
                 f'<text x="{x:.1f}" y="{ty:.1f}" {font}{w} fill="{th.label_color}" '
                 f'dominant-baseline="middle">{html_mod.escape(s)}</text>'
             )
-            if keys and i > 0 and marks[i - 1][0] in ("node", "edge"):
+            if (keys or key in off) and i > 0 and marks[i - 1][0] in ("node", "edge"):
                 parts.append("</g>")
         elif kind in ("node", "dot", "edge"):
             y, pair, *at = mark
@@ -2094,7 +2150,15 @@ def render_plot(
         auto_tone = "log" if _draws_images(scene, colors) else "over"
         tone = auto_tone if edge_tone == "auto" else edge_tone
         look = {"tone": {"value": edge_tone, "auto": auto_tone}, "shade": shade}
-        html_str = emit_viewer(scene, colors, css_width, call, moves, look)
+        # The view that fits the graph, and the view and the filters that the viewer starts with
+        vb = scene.viewbox
+        home = {"x": vb[0] + vb[2] / 2, "y": vb[1] + vb[3] / 2, "zoom": 1.0}
+        view = options.get("view")
+        state = {
+            "view": None if view is None else _norm_view(view, home),
+            "filters": _norm_filters(options.get("filters")),
+        }
+        html_str = emit_viewer(scene, colors, css_width, call, moves, look, state)
         # With the runtime, as a notebook has it
         total = len(html_str) + len(_runtime_js())
         if total > NOTEBOOK_BYTES_MAX:
@@ -2108,8 +2172,6 @@ def render_plot(
         # The SVG is drawn when it's first wanted. The image's edges are in the viewer's tone
         size = f'width="{scene.width}" height="{scene.height}"'
         empty = f'<svg xmlns="http://www.w3.org/2000/svg" {size}/>'
-        # The view that fits the graph, as the viewer starts with
-        vb = scene.viewbox
         return colors.finish(
             empty,
             html_str,
@@ -2118,7 +2180,8 @@ def render_plot(
             svg=vector,
             viewer=True,
             graph=graph,
-            home={"x": vb[0] + vb[2] / 2, "y": vb[1] + vb[3] / 2, "zoom": 1.0},
+            home=home,
+            state=state,
         )
     picked = built
     if built == "auto":
@@ -2194,6 +2257,8 @@ def build_scene(
     highlight=None,
     highlight_edges=None,
     legend: bool = True,
+    view: Optional[Dict[str, float]] = None,
+    filters: Optional[List[Dict[str, Any]]] = None,
     backend: str = "svg",
     fits: Optional[Callable[[Scene], bool]] = None,
 ) -> Scene:
@@ -2205,6 +2270,12 @@ def build_scene(
     for SVG if `fits()` is true of that, and the one for images otherwise, or straight away when
     even the fewest bytes or elements the SVG could take would pass `NOTEBOOK_BYTES_MAX` or
     `SVG_ELEMENTS_MAX`.
+
+    With `view`, a camera as the viewer has it (see `StepPlayer.view`), the scene is drawn as
+    the viewer shows it there, and framed as the viewer frames it: with its node size, its
+    legend along the bottom and no routing. `filters` (see `StepPlayer.filters`) leave out what
+    they hide, as the viewer does, and the legend draws the swatches that they turn off faint;
+    the viewer starts with them.
 
     `edgecase._core.SceneBuilder` reads the graph and works these out, and makes the scene
     (`edgecase._core.Scene`), which holds them as columns, an entry for each node (in the order
@@ -2230,6 +2301,17 @@ def build_scene(
         from edgecase.colors import get_palette
 
         get_palette(palette)  # raises ValueError for an unknown name
+
+    view = None if view is None else _norm_view(view, {})
+    filters = _norm_filters(filters)
+    # Framed as the viewer frames it, to be drawn at its camera
+    framed = backend == "viewer" or view is not None
+    camera = None if view is None else (view.get("x"), view.get("y"), view.get("zoom", 1.0))
+    ranges = [
+        (f["attr"], None if f["of"] is None else f["of"] == "edges", *f["range"])
+        for f in filters
+        if "range" in f
+    ]
 
     # --- Extract graph data ---
     node_ids = list(graph.get_node_ids(limit=None))
@@ -2290,7 +2372,8 @@ def build_scene(
         # Adaptive node size: radius ≈ 15% of avg node spacing so nodes don't overlap
         if node_size == 16.0:
             avg_spacing = math.sqrt(float(width * height) / max(n, 1))
-            size = max(_NODE_SIZE_MIN[backend], min(16.0, avg_spacing * 0.15))
+            least = _NODE_SIZE_MIN["viewer" if framed else backend]
+            size = max(least, min(16.0, avg_spacing * 0.15))
 
         # The colors, sizes and widths. Legends are shown only for what they can tell apart: a
         # palette's colors repeat after its length, so a categorical block with more values
@@ -2305,6 +2388,9 @@ def build_scene(
             edge_opacity,
             LEGEND_MAX_ITEMS if legend else None,
         )
+
+        # The legend's swatches that the filters of values turn off
+        off = _legend_off(builder.legend_entries, filters)
 
         # Highlighting: each node and edge is accent, soft or muted
         if highlight is not None or highlight_edges is not None:
@@ -2321,7 +2407,7 @@ def build_scene(
         # or in the viewer, a band along the bottom
         legend_marks: List[Tuple[Any, ...]] = []
         legend_w = legend_h = 0.0
-        if legend_blocks and backend == "viewer":
+        if legend_blocks and framed:
             legend_marks, legend_w, legend_h = _legend_row(legend_blocks, width)
         elif legend_blocks:
             legend_marks, legend_w, _ = _legend_layout(legend_blocks)
@@ -2329,7 +2415,7 @@ def build_scene(
         # Non-curved edges are routed around the nodes in their way, except in the viewer, which
         # draws them straight
         route = None
-        if edge_routing != "straight" and not curved_edges and n >= 3 and backend != "viewer":
+        if edge_routing != "straight" and not curved_edges and n >= 3 and not framed:
             route = (
                 float(edge_routing) if isinstance(edge_routing, (int, float)) else 3.0,
                 ROUTE_WAYPOINTS_MAX if edge_routing == "auto" else None,
@@ -2347,6 +2433,9 @@ def build_scene(
             lean_min=LEAN_MIN,
             viewer=backend == "viewer",
             legend_h=legend_h,
+            camera=camera,
+            filters=ranges,
+            off=off,
         )
 
     if backend != "auto":
@@ -2354,6 +2443,29 @@ def build_scene(
     # The SVG's if it fits, and the images' otherwise, on the same layout
     scene = scene_for("svg")
     return scene if fits(scene) else scene_for("png")
+
+
+def _legend_off(entries: List[Tuple[Any, str, Any]], filters: List[Dict[str, Any]]) -> List[int]:
+    """The places of the legend's swatches (`entries`, as `SceneBuilder.legend_entries` gives
+    them) that `filters` turn off, as the viewer's legend does: those of a filter of values whose
+    group's value isn't one of them. A filter's `"of"` left out is the nodes, if the legend has
+    swatches of the nodes' attribute of the name, and the edges otherwise."""
+    off = set()
+    for f in filters:
+        if "values" not in f:
+            continue
+        attr, of = f["attr"], f["of"]
+        if of is None:
+            of = "nodes" if any(str(a) == attr and o == "nodes" for a, o, _ in entries) else "edges"
+        places = [k for k, (a, o, _) in enumerate(entries) if str(a) == attr and o == of]
+        if not places:
+            what = "nodes or edges" if f["of"] is None else of
+            raise ValueError(
+                f"filters: a filter of 'values' needs swatches in the legend for {attr!r} of the "
+                f"{what}; color the plot by it (color_by= or edge_color_by=), with legend=True"
+            )
+        off.update(k for k in places if _json_scalar(entries[k][2]) not in f["values"])
+    return sorted(off)
 
 
 def emit_svg(
@@ -2416,7 +2528,7 @@ def _legend_markup(scene: Scene, colors: "_Colors") -> Optional[str]:
         x, y = vb[0] + vb[2] - (scene.legend_w - _LEGEND_PAD) * unit, vb[1]
     return (
         f'<g class="ec-legend" transform="translate({x:.1f} {y:.1f}) scale({unit:.4f})">'
-        f"{_svg_legend(scene.legend, colors, colors.theme)}</g>"
+        f"{_svg_legend(scene.legend, colors, colors.theme, off=scene.legend_off)}</g>"
     )
 
 
@@ -2600,6 +2712,7 @@ def emit_viewer(
     call: Optional[Dict[str, Any]] = None,
     moves: bool = False,
     look: Optional[Dict[str, Any]] = None,
+    state: Optional[Dict[str, Any]] = None,
 ) -> str:
     """The HTML that shows `scene` in the viewer (`static/viewer.js`), in the colors of
     `colors`'s theme: an `<ec-graph>` element, in which WebGL draws its edges and nodes, from
@@ -2615,7 +2728,11 @@ def emit_viewer(
     Its panel of controls writes the `plot()` call that draws what they show, from `call` (see
     `plot_call()`), and `moves` says that the layout depends on the node size, as overlap
     removal makes it. `look` has how the viewer starts to draw, `{"tone": {"value": edge_tone,
-    "auto": the tone that "auto" is}, "shade": shade}`, by default "over" and flat.
+    "auto": the tone that "auto" is}, "shade": shade}`, by default "over" and flat. `state`
+    has the view that it starts at (None for the one that fits the graph) and the filters that
+    it starts with, `{"view": ..., "filters": [...]}`, as `StepPlayer.view` and
+    `StepPlayer.filters` have them; the legend's swatches are in its options as filters of
+    values name them, to turn them off and to write them out.
 
     In the automatic theme, the viewer reads its theme from a variable of `colors` (one that
     holds "light" or "dark"), so that it follows the page by the same rules as the legend's
@@ -2665,6 +2782,12 @@ def emit_viewer(
     if scene.label_texts is not None:
         texts += packed("labels", scene.label_texts)
     encoded = base64.b64encode(payload).decode("ascii")
+    # The swatches, in the order of their places: the attribute, what it is of, and the value,
+    # as JSON has it and as Python source
+    keys = []
+    for attr, of, value in scene.legend_entries:
+        value = _json_scalar(value)
+        keys.append({"attr": str(attr), "of": of, "value": value, "source": _source(value)})
     # In a script, where "</" would end it
     options = json.dumps(
         {
@@ -2675,6 +2798,8 @@ def emit_viewer(
             "call": call,
             "moves": moves,
             **(look or {"tone": {"value": "auto", "auto": "over"}, "shade": False}),
+            "keys": keys,
+            "state": state or {"view": None, "filters": []},
         }
     ).replace("<", "\\u003c")
     return f"""<ec-graph id="{root_id}" style="{box}">
