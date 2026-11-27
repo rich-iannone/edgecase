@@ -869,8 +869,12 @@ def test_on_change_follows_the_viewer_and_python():
 
 def test_the_widgets_module_renders_the_plot():
     js = (Path(svg_renderer.__file__).parent / "static" / "viewer.js").read_text()
-    # anywidget's render(): the element, once upgraded, with its state both ways
-    assert "export default { render };" in js and "function render({ model, el })" in js
+    # anywidget's render(): the element, once upgraded, with its state both ways, and drawn
+    # again for new HTML. The default export gives it to anywidget, Panel and marimo, and is
+    # Streamlit's component
+    assert "export default function host(component) {" in js
+    assert "component?.parentElement ? streamlit(component) : { render }" in js
+    assert "function render({ model, el })" in js and 'model.on("change:html", draw)' in js
     assert "customElements.upgrade(plot)" in js and "model.save_changes()" in js
     assert '"ec-change"' in js and 'const STATES = ["selection", "view", "filters"];' in js
     assert tuple(svg_renderer.STATES) == ("selection", "view", "filters")
