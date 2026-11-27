@@ -294,7 +294,7 @@ reference:
         - Graph.rescale_layout
 
     - title: Visualization
-      desc: Methods for drawing the graph, as static plots, step-through players and interactive views
+      desc: Methods for drawing the graph, as static plots, step-through players and interactive views, the StepPlayer they return, and the viewer's runtime for a page of plots
       contents:
         - Graph.plot
         - Graph.play
@@ -302,6 +302,11 @@ reference:
         - Graph.record_traversal
         - Graph.plot_vis
         - Graph.plot_cosmo
+        - name: StepPlayer
+          members: true
+        - runtime_tags
+        - write_runtime
+        - set_runtime
 
     - title: Step Log
       desc: The record of operations performed on a graph, which play() replays
