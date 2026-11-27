@@ -340,13 +340,19 @@ def _norm_selection(value: Any, directed: bool) -> Dict[str, list]:
 
 
 def _norm_view(value: Any, now: Dict[str, float]) -> Dict[str, float]:
-    """`value` as the viewer has a view, with what it leaves out as in `now`."""
+    """`value` as the viewer has a view, with what it leaves out as in `now`, and left out
+    where `now` doesn't have it either."""
     form = "a dict of 'x', 'y' and 'zoom'"
     value = _keys(value, "view", ("x", "y", "zoom"), form)
-    out = {k: _state_number(value.get(k, now.get(k)), f"view[{k!r}]") for k in ("x", "y", "zoom")}
-    if out["zoom"] <= 0:
-        raise ValueError(f"view['zoom'] must be more than 0, got {out['zoom']!r}")
-    out["zoom"] = min(_ZOOM_MAX, max(_ZOOM_MIN, out["zoom"]))
+    out = {
+        k: _state_number(value.get(k, now.get(k)), f"view[{k!r}]")
+        for k in ("x", "y", "zoom")
+        if k in value or k in now
+    }
+    if "zoom" in out:
+        if out["zoom"] <= 0:
+            raise ValueError(f"view['zoom'] must be more than 0, got {out['zoom']!r}")
+        out["zoom"] = min(_ZOOM_MAX, max(_ZOOM_MIN, out["zoom"]))
     return out
 
 
@@ -372,6 +378,54 @@ def _norm_filters(value: Any) -> List[Dict[str, Any]]:
             raise ValueError(f"A filter's 'range' goes from low to high, got {span!r}")
         out.append({"attr": attr, "of": of, "range": [lo, hi]})
     return out
+
+
+# The apps' frameworks (see `edgecase.shiny`, `edgecase.streamlit`, `edgecase.panel` and
+# `edgecase.solara`) show a plot of the viewer's with the state that they keep for each of an
+# app's sessions, and not with the plot's own, which the sessions may share
+
+
+def _app_plot(value: Any, what: str) -> "StepPlayer":
+    """`value`, a plot of the viewer's, or a graph, which `what` plots with the viewer, and with
+    a seed, so that it is placed the same as an app's code runs again."""
+    from edgecase.graph import Graph
+
+    if isinstance(value, Graph):
+        return value.plot(backend="viewer", seed=1)
+    if not isinstance(value, StepPlayer):
+        raise TypeError(
+            f"{what} takes a plot of the viewer's or a graph, got {type(value).__name__}"
+        )
+    if not value._viewer:
+        raise ValueError(f"{what} takes a plot with backend='viewer'")
+    return value
+
+
+def _app_html(plot: "StepPlayer") -> str:
+    """The plot's HTML, without the runtime, with an ID that comes of what it shows, so that the
+    same plot drawn again, as an app's code runs again, has the same HTML."""
+    html = plot._html
+    found = re.search(r'<ec-graph id="([^"]+)"', html)
+    if found is None:
+        return html
+    digest = hashlib.sha1(html.replace(found.group(1), "").encode("utf-8")).hexdigest()[:12]
+    return html.replace(found.group(1), f"ec-viewer-{digest}")
+
+
+def _app_state(plot: "StepPlayer") -> Dict[str, Any]:
+    """The state that an app's plot starts with, the plot's."""
+    return {name: plot._raw(name) for name in STATES}
+
+
+def _app_value(name: str, value: Any, now: Any = None, directed: bool = True) -> Any:
+    """The state `name`, set by an app or given by the viewer (whose selection is in order, as
+    `directed` keeps it), as the viewer has it, with what a view leaves out as in `now`. A view
+    of `None` is the one that fits the graph."""
+    if name == "selection":
+        return _norm_selection(value, directed)
+    if name == "view":
+        return None if value is None else _norm_view(value, now or {})
+    return _norm_filters(value)
 
 
 class StepPlayer:
