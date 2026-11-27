@@ -803,10 +803,10 @@ def test_the_payload_filters_by_degree_and_weight_unless_attributes_have_their_n
 def test_the_viewer_has_a_filter_tab():
     js = (Path(svg_renderer.__file__).parent / "static" / "viewer.js").read_text()
     # Each filter is a column, a range and a histogram that brushes it, and hides what is out
-    # of it, as the legend's swatches do; neither is in the copied code
+    # of it, as the legend's swatches do; both are in the copied code, as filters=
     assert "function filterTab(" in js and "ec-hist" in js and "ec-brush" in js
     assert "Add a filter" in js and "hidden while filtered" in js
-    assert "The filters aren't in the code" in js and "The filters and the legend's aren't" in js
+    assert 'args.set("filters"' in js and "The filters aren't in the code" not in js
 
 
 def test_the_viewer_selects_searches_and_filters():
@@ -816,7 +816,7 @@ def test_the_viewer_selects_searches_and_filters():
     assert "function relook(" in js and 'args.set("highlight_edges"' in js
     # The search pill, and the legend's swatches as checkboxes
     assert "function searchPill(" in js and '"combobox"' in js and "function flyTo(" in js
-    assert ".ec-key" in js and "The legend's filters aren't in the code" in js
+    assert ".ec-key" in js and "function keyFilters(" in js
 
 
 def test_the_payload_has_the_groups_of_the_cluster_force():
@@ -1134,3 +1134,163 @@ def test_the_widgets_module_renders_the_plot():
     # A shadow root, as marimo shows a widget in, has the style, the focus and the clicks
     assert "root.getRootNode()" in js and "e.composedPath()" in js
     assert "document.activeElement" not in js
+
+
+def _aged():
+    g = ec.karate_club()
+    g.set_node_attrs("age", [20 + i for i in range(34)], nodes=g.get_node_ids(limit=None))
+    return g
+
+
+def _drawn(svg):
+    """The nodes that an SVG draws, by ID: (x, y, r)."""
+    found = re.findall(
+        r'<circle cx="([-\d.]+)" cy="([-\d.]+)" r="([\d.]+)"[^>]*data-node="(\d+)"', svg
+    )
+    return {int(i): (float(x), float(y), float(r)) for x, y, r, i in found}
+
+
+def test_plot_filters_leave_out_what_they_hide():
+    g = _aged()
+    age = g.get_node_attrs("age")
+    shown = {i for i, a in age.items() if 30 <= a <= 45}
+    p = g.plot(
+        seed=1, backend="svg", edge_routing="straight", filters=[{"attr": "age", "range": (30, 45)}]
+    )
+    assert set(_drawn(p.svg)) == shown
+    ends = [(u, v) for _, u, v in g.get_edges_as_tuples() if u in shown and v in shown]
+    assert p.svg.count("data-edge=") == len(ends)
+    # The images draw them alike, and an edge's attribute filters edges
+    g.plot(seed=1, backend="png", filters=[{"attr": "age", "range": (30, 45)}])._png_bytes()
+    edge_ids = [e for e, _, _ in g.get_edges_as_tuples()]
+    g.set_edge_attrs("w", {e: float(k) for k, e in enumerate(edge_ids)})
+    p = g.plot(
+        seed=1,
+        backend="svg",
+        edge_routing="straight",
+        filters=[{"attr": "w", "of": "edges", "range": (0, 9)}],
+    )
+    assert len(_drawn(p.svg)) == 34 and p.svg.count("data-edge=") == 10
+
+
+def test_plot_filters_of_values_turn_the_legends_swatches_off():
+    g = ec.karate_club()
+    faction = g.get_node_attrs("faction")
+    p = g.plot(
+        seed=1, backend="svg", color_by="faction", filters=[{"attr": "faction", "values": [2]}]
+    )
+    assert set(_drawn(p.svg)) == {i for i, f in faction.items() if f == 2}
+    # The swatch off is faint, as the viewer draws it
+    faint = re.findall(r'<g opacity="0\.35">(.*?)</g>', p.svg)
+    assert len(faint) == 1 and ">1</text>" in faint[0]
+    assert '<g opacity="0.35">' not in g.plot(seed=1, backend="svg", color_by="faction").svg
+
+
+@pytest.mark.parametrize(
+    "filters, error",
+    [
+        ([{"attr": "nope", "range": (1, 2)}], ValueError),
+        ([{"attr": "age", "values": [1]}], ValueError),
+        ([{"attr": "faction"}], ValueError),
+        ([{"attr": "faction", "range": (1, 2), "values": [1]}], ValueError),
+        ([{"attr": "faction", "values": [[1]]}], TypeError),
+        ([{"attr": "faction", "values": 1}], TypeError),
+        ([{"attr": "faction", "values": [float("nan")]}], TypeError),
+        ([{"attr": "faction", "of": "edges", "values": [1]}], ValueError),
+        ({"attr": "faction", "values": [1]}, TypeError),
+    ],
+)
+def test_plot_filters_are_checked(filters, error):
+    with pytest.raises(error):
+        _aged().plot(seed=1, backend="svg", color_by="faction", filters=filters)
+
+
+def test_plot_filters_of_values_need_the_legend():
+    with pytest.raises(ValueError, match="swatches in the legend"):
+        ec.karate_club().plot(
+            backend="svg",
+            color_by="faction",
+            legend=False,
+            filters=[{"attr": "faction", "values": [1]}],
+        )
+
+
+def test_filters_of_values_are_normalized():
+    norm = svg_renderer._norm_filters
+    assert norm([{"attr": "a", "values": {"b", "a"}}]) == [
+        {"attr": "a", "of": None, "values": ["a", "b"]}
+    ]
+    # Each once, 1 and True alike, as the legend's groups take them
+    assert norm([{"attr": "a", "of": "nodes", "values": [1, True, 1.0, None, 2]}])[0]["values"] == [
+        1,
+        None,
+        2,
+    ]
+    # As the viewer gives them back
+    given = [
+        {"attr": "a", "of": "edges", "values": ["x"]},
+        {"attr": "b", "of": "nodes", "range": [1, 2]},
+    ]
+    assert norm(given) == [given[0], {"attr": "b", "of": "nodes", "range": [1.0, 2.0]}]
+
+
+def test_plot_view_draws_what_the_viewer_shows_there():
+    g = ec.karate_club()
+    home = g.plot(seed=1, backend="svg", view={})
+    at = g.plot(seed=1, backend="svg", view={"zoom": 2.0})
+    vb = [float(v) for v in re.search(r'viewBox="([^"]+)"', home.svg).group(1).split()]
+    assert vb == [float(v) for v in re.search(r'viewBox="([^"]+)"', at.svg).group(1).split()]
+    hx, hy = vb[0] + vb[2] / 2, vb[1] + vb[3] / 2
+    before, after = _drawn(home.svg), _drawn(at.svg)
+    assert len(before) == 34 and 0 < len(after) < 34
+    for i, (x, y, r) in after.items():
+        x0, y0, r0 = before[i]
+        assert x == pytest.approx(hx + (x0 - hx) * 2, abs=0.2)
+        assert y == pytest.approx(hy + (y0 - hy) * 2, abs=0.2)
+        assert r == pytest.approx(r0 * 2**0.5, abs=0.1)
+    # Framed as the viewer frames it: the legend along the bottom, the edges unrouted
+    shown = g.plot(seed=1, backend="viewer", color_by="faction")
+    framed = g.plot(seed=1, backend="svg", color_by="faction", view={})
+    assert _drawn(framed.svg) == _drawn(shown.svg)
+    # The images too, and a point named
+    g.plot(seed=1, backend="png", view={"x": 300, "y": 200, "zoom": 3})._png_bytes()
+
+
+@pytest.mark.parametrize(
+    "view, error",
+    [
+        ({"zoom": 0}, ValueError),
+        ({"x": float("nan")}, TypeError),
+        ({"z": 1}, ValueError),
+        (2, TypeError),
+    ],
+)
+def test_plot_view_is_checked(view, error):
+    with pytest.raises(error):
+        ec.karate_club().plot(backend="svg", view=view)
+
+
+def test_the_viewer_starts_at_the_view_and_the_filters_given():
+    g = _aged()
+    filters = [
+        {"attr": "age", "range": (25, 40)},
+        {"attr": "faction", "of": "nodes", "values": [2]},
+    ]
+    p = g.plot(seed=1, backend="viewer", color_by="faction", view={"zoom": 30000}, filters=filters)
+    options = _options(p._repr_html_())
+    home = g.plot(seed=1, backend="viewer", color_by="faction").view
+    assert options["state"]["view"] == {**home, "zoom": 1000.0} == p.view
+    values = {"attr": "faction", "of": "nodes", "values": [2]}
+    assert options["state"]["filters"] == [
+        {"attr": "age", "of": None, "range": [25.0, 40.0]},
+        values,
+    ]
+    assert p.filters == [{"attr": "age", "of": None, "range": (25.0, 40.0)}, values]
+    # The legend's swatches, as filters of values name them
+    assert options["keys"] == [
+        {"attr": "faction", "of": "nodes", "value": 1, "source": "1"},
+        {"attr": "faction", "of": "nodes", "value": 2, "source": "2"},
+    ]
+    # Without them, none
+    plain = _options(g.plot(seed=1, backend="viewer")._repr_html_())
+    assert plain["state"] == {"view": None, "filters": []} and plain["keys"] == []
