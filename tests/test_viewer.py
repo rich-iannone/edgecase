@@ -809,6 +809,21 @@ def test_the_viewer_has_a_filter_tab():
     assert 'args.set("filters"' in js and "The filters aren't in the code" not in js
 
 
+def test_the_viewer_captures_the_view():
+    js = (Path(svg_renderer.__file__).parent / "static" / "viewer.js").read_text()
+    # "Capture view" by the zoom buttons, by the C key and in the View tab, which writes the call
+    # with view=; "Copy as code" leaves the camera out
+    assert "ICONS.camera" in js and "Capture view, as code (C)" in js and "C: () => capture()" in js
+    assert 'if (name === "View") page.append(cameraField())' in js and "capture(true)" in js
+    assert 'args.delete("view");\n      if (withView) args.set("view", viewSource());' in js
+    # Where the buttons would reach the legend, the camera leaves them
+    assert "function fitButtons(" in js
+    # The call's parameters have view=, for the code's order
+    html = ec.karate_club().plot(backend="viewer", seed=1)._repr_html_()
+    params = _options(html)["call"]["params"]
+    assert params.index("highlight_edges") < params.index("view") < params.index("backend")
+
+
 def test_the_viewer_selects_searches_and_filters():
     js = (Path(svg_renderer.__file__).parent / "static" / "viewer.js").read_text()
     # A click or a lasso selects, drawn as highlight= draws it, and written as it
