@@ -62,7 +62,7 @@ def test_the_payload_holds_the_scenes_columns():
     # it's the nodes' own
     assert header["constants"] == {
         "fill": 1, "border": 1, "border_width": 0.0, "border_opacity": 1.0,
-        "opacity": pytest.approx(0.6), "bow": 0.0,
+        "opacity": pytest.approx(0.6), "bow": 0.0, "loop_size": 1.0,
     }  # fmt: skip
     assert set(columns) == {"x", "y", "r", "src", "tgt", "color", "width"}
     # The columns follow one another, from the end of the header to the end of the payload
@@ -430,3 +430,52 @@ def test_the_viewer_has_the_edges_labels_in_drawing_order():
 def test_the_viewer_has_a_labels_tab():
     js = (Path(svg_renderer.__file__).parent / "static" / "viewer.js").read_text()
     assert 'tab: "Labels"' in js and "function labelLayer(" in js and 'name: "max_labels"' in js
+
+
+def test_the_payload_has_the_self_loops_sizes():
+    scene = _scene()
+    scene.set_edges(
+        [0, 0, 1], [0, 0, 2], [0] * 3, [1.0] * 3, [1.0] * 3, [0.0] * 3, [1.0, 1.6, 1.0],
+        [None] * 3, [0, 1, 2], ["{}"] * 3,
+    )  # fmt: skip
+    _, columns = _payload(scene.payload())
+    assert columns["loop_size"] == pytest.approx((1.0, 1.6, 1.0))
+    # A multigraph's, as the SVG draws them
+    g = ec.Graph(directed=True).add_nodes(["a", "b"])
+    g.add_edges([("a", "a"), ("a", "a"), ("a", "b")])
+    header, columns = _html_payload(g.plot(backend="viewer", seed=1)._repr_html_())
+    assert header["directed"] is True
+
+    def col(name):
+        return columns.get(name) or (header["constants"][name],) * header["edges"]
+
+    loops = sorted(k for s, t, k in zip(col("src"), col("tgt"), col("loop_size")) if s == t)
+    assert len(loops) == 2 and loops[0] == 1.0 and loops[1] > 1.0
+
+
+def test_the_viewer_has_the_edges_tone_and_the_shading(monkeypatch):
+    g = ec.karate_club()
+    options = _options(g.plot(backend="viewer", seed=1)._repr_html_())
+    # "auto" is what backend="auto" would draw: SVG here, so "over"
+    assert options["tone"] == {"value": "auto", "auto": "over"} and options["shade"] is False
+    html = g.plot(backend="viewer", seed=1, edge_tone="log", shade=True)._repr_html_()
+    options = _options(html)
+    assert options["tone"] == {"value": "log", "auto": "over"} and options["shade"] is True
+    assert dict(options["call"]["args"])["edge_tone"] == '"log"'
+    # And "log" where it would draw images
+    monkeypatch.setattr(svg_renderer, "SVG_ELEMENTS_MAX", 50)
+    assert _options(g.plot(backend="viewer", seed=1)._repr_html_())["tone"]["auto"] == "log"
+
+
+def test_the_viewer_draws_arrowheads_self_loops_and_the_log_tone():
+    js = (Path(svg_renderer.__file__).parent / "static" / "viewer.js").read_text()
+    shader = js[js.index("const LINK_VS") : js.index("const LINK_FS")]
+    # The arrowhead's corners after the strip, a self-loop's two cubic curves, and the edges
+    # trimmed at the nodes' borders
+    assert "u_directed" in shader and "a_loop_size" in shader and "cubic(" in shader
+    assert "Self-loops aren't drawn" not in js and "[1, 1, 2, 0, 2, 0, 2, 1, 2, 2]" in js
+    # The log tone, opaque at the view's densest pixel, and the spheres' gradient
+    assert "u_lone" in js and "PEAK_FS" in js and "function loneAt(" in js
+    assert "vec2(-0.35, 0.35)" in js and "1.5 * v_r" in js
+    # Their controls, and the picker takes self-loops
+    assert 'name: "edge_tone"' in js and 'name: "shade"' in js and "function loopPoints(" in js
