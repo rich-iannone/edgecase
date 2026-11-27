@@ -410,8 +410,9 @@ node and selects it.
 
 The legend is a control too: clicking a swatch hides its nodes, or its edges, along with the edges
 of the hidden nodes, and clicking it again shows them. Alt (Option) and a click shows the swatch's
-group alone, and again shows them all. The filters belong to the view, not to `plot()`, so "Copy as
-code" leaves them out and the panel says so.
+group alone, and again shows them all. "Copy as code" writes the swatches turned off as a filter of
+the values still shown, `filters=[{"attr": "faction", "of": "nodes", "values": [2]}]`, which
+`plot()` takes, to draw the plot with them hidden and their swatches faint.
 
 The panel's Filter tab filters by numbers: the nodes' degree, the edges' weight, and any attribute
 of the nodes or the edges whose values are all numbers. Each filter is a histogram of an
@@ -421,13 +422,29 @@ with the edges of the hidden nodes. Dragging the range moves it, dragging an end
 and a click beside it shows everything again. The faint bars count all the values and the strong
 ones those still shown, so a filter on one attribute shows in the others' histograms. "Add a
 filter" adds another, and a node or an edge must be within all of them to be shown. A node without
-a value for the attribute is hidden while its filter narrows the range. These filters, like the
-legend's, are left out of "Copy as code":
+a value for the attribute is hidden while its filter narrows the range. "Copy as code" writes these
+filters too, each with its `"range"`:
 
 ```{python}
 #| eval: false
 g = ec.les_miserables()
 g.plot(label_by="label", seed=1, backend="viewer")  # try the Filter tab: weight from 3
+```
+
+`filters=` and `view=` (the camera, as a dict of `"x"`, `"y"` and `"zoom"`, which the plot's `view`
+property gives) take what the viewer shows to the other backends as well. The viewer opens there,
+and the SVG or the PNG image draws what it shows: the part in sight, with the nodes grown as they
+grow in the viewer, the edges and the labels at their size on screen, and the labels chosen again
+for the nodes in sight. With `view=`, the plot is framed as the viewer frames it, its legend along
+the bottom and its edges unrouted:
+
+```{python}
+#| eval: false
+g = ec.karate_club()
+g.plot(
+    color_by="faction", seed=1, view={"x": 300, "y": 250, "zoom": 2.5},
+    filters=[{"attr": "degree", "range": (2, 10)}],
+)
 ```
 
 The labels stay the same size as the view zooms, and the viewer chooses them again, by the same
@@ -466,10 +483,11 @@ In a notebook with a running kernel, as in JupyterLab, Jupyter Notebook, VS Code
 the viewer is a widget, which tells Python what is done in it, and does what Python tells it. The
 plot's `selection` is what is selected in the viewer, as a dict of `"nodes"` (their IDs) and
 `"edges"` (the `(u, v)` ends of each edge), `view` is where it looks, as a dict of `"x"`, `"y"` and
-`"zoom"`, and `filters` is a list of the Filter tab's filters, each with its `"attr"`, its `"of"`
-(`"nodes"` or `"edges"`) and its `"range"`. Each follows the viewer as it changes, the view and
-the filters once they keep still, and setting one changes the viewer: the nodes and edges selected,
-the view panned and zoomed (`None` fits the graph again), or the filters in the tab replaced.
+`"zoom"`, and `filters` is a list of the filters, each with its `"attr"`, its `"of"` (`"nodes"` or
+`"edges"`), and its `"range"` (the Filter tab's) or its `"values"` (the legend's), as `plot()` takes
+them. Each follows the viewer as it changes, the view and the filters once they keep still, and
+setting one changes the viewer: the nodes and edges selected, the view panned and zoomed (`None`
+fits the graph again), or the filters replaced.
 `on_change()` adds a function to call, with what changed and its new value:
 
 ```{python}
