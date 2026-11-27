@@ -14,11 +14,20 @@
 // highlighting, the edges' "level" and "base_width" columns have each one's level (0 muted,
 // 1 soft, 2 accent) and its width before highlighting.
 //
+// For its selection, "select" has the indexes of the colors it draws with, which may run past
+// the scene's own (the SVG's) into those after them, and whether color_by= and edge_color_by=
+// color the nodes and edges; with highlighting, the columns "base_fill", "base_border",
+// "base_color" and "base_label_order" have what highlighting changed as it was without it; and
+// with a legend, "node_key" and "edge_key" have the swatch each node and edge falls under (0 for
+// none, else the swatch's place plus 1). The nodes' IDs are the columns "node_id" and
+// "node_id_hi", their low and high 32 bits.
+//
 // With node labels, "labels" has their font size, whether they are shown, the most of them that
 // are drawn ("limit", null for all) and what that is when `max_labels=` doesn't say ("auto"), and
 // the columns "label_order", the nodes in order of priority (see `labels.rs`), and "label_color".
 // Their texts aren't in the payload (see `Scene.label_texts`).
 use super::{css, Scene};
+use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use serde_json::{json, Map, Value};
 
@@ -101,10 +110,40 @@ pub fn payload(scene: &Scene) -> PyResult<Vec<u8>> {
         columns.push(("level", u32s(&level)));
         columns.push(("base_width", f32s(&in_order(base_width, order))));
     }
+    let selection = controls.map(|c| &c.selection);
+    if let Some(sel) = selection {
+        // The nodes' IDs, which the viewer's selection writes out
+        let mut ids = Vec::with_capacity(n);
+        for id in &nodes.ids {
+            ids.push(
+                id.parse::<u64>()
+                    .map_err(|_| PyValueError::new_err(format!("node ID {id} isn't an integer")))?,
+            );
+        }
+        columns.push((
+            "node_id",
+            Column::U32(ids.iter().map(|&v| v as u32).collect()),
+        ));
+        columns.push((
+            "node_id_hi",
+            Column::U32(ids.iter().map(|&v| (v >> 32) as u32).collect()),
+        ));
+        if let Some(base) = &sel.base {
+            columns.push(("base_fill", u32s(&base.fill)));
+            columns.push(("base_border", u32s(&base.border)));
+            columns.push(("base_color", u32s(&in_order(&base.color, order))));
+            columns.push(("base_label_order", u32s(&base.label_order)));
+        }
+        if let Some((node_key, edge_key)) = &sel.keys {
+            columns.push(("node_key", Column::U32(node_key.clone())));
+            columns.push(("edge_key", Column::U32(in_order(edge_key, order))));
+        }
+    }
 
-    let mut light = Vec::with_capacity(scene.colors.len());
-    let mut dark = Vec::with_capacity(scene.colors.len());
-    for (lt, dk) in &scene.colors {
+    let extra = selection.map_or(&[][..], |s| s.extra.as_slice());
+    let mut light = Vec::with_capacity(scene.colors.len() + extra.len());
+    let mut dark = Vec::with_capacity(scene.colors.len() + extra.len());
+    for (lt, dk) in scene.colors.iter().chain(extra) {
         light.push(css::parse(lt)?.to_vec());
         dark.push(css::parse(dk)?.to_vec());
     }
@@ -158,6 +197,17 @@ pub fn payload(scene: &Scene) -> PyResult<Vec<u8>> {
                 "show": l.show,
                 "limit": l.limit,
                 "auto": l.auto,
+            })),
+            "select": selection.map(|s| json!({
+                "accent": s.accent,
+                "accent_border": s.accent_border,
+                "muted": s.muted,
+                "muted_border": s.muted_border,
+                "label": s.label,
+                "muted_label": s.muted_label,
+                "edge": s.edge,
+                "node_colors": s.node_colors,
+                "edge_colors": s.edge_colors,
             })),
             "constants": constants,
             "columns": cols,
