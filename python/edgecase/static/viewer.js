@@ -16,6 +16,20 @@ const TEX_W = 2048; // texels per row; the shaders shift by 11
 const BUDGET = 150000; // the edges that a frame of a moving view draws
 const ZOOM_MIN = 0.25;
 const ZOOM_MAX = 1000;
+const CANVAS_MAX = 4096; // the canvas's longer side, in pixels
+// The legend folds into a button when it would take more of the box than this
+const LEGEND_SHARE = 0.35;
+
+// The buttons' icons, as paths on a 16 by 16 grid, stroked in the text color
+const ICONS = {
+  in: "M8 3v10M3 8h10",
+  out: "M3 8h10",
+  fit: "M8 2.5a5.5 5.5 0 1 0 0 11a5.5 5.5 0 1 0 0-11M8 8h.01",
+  full: "M2.5 6V2.5H6M10 2.5h3.5V6M13.5 10v3.5H10M6 13.5H2.5V10",
+  exit: "M6 2.5V6H2.5M10 2.5V6h3.5M13.5 10H10v3.5M2.5 10H6v3.5",
+  legend: "M6.5 4.5h7M6.5 8h7M6.5 11.5h7M3 4.5h.01M3 8h.01M3 11.5h.01",
+};
+const icon = (path) => `<svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path d="${path}" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
 
 // The payload's header and columns, as views of `buffer`; a column left out of it is a number
 export function parse(buffer) {
@@ -408,10 +422,20 @@ const STYLE = `
 .ec-viewer canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; touch-action: pan-x pan-y; outline: none; }
 .ec-viewer canvas.ec-grab { cursor: grab; }
 .ec-viewer canvas.ec-grabbing { cursor: grabbing; }
-.ec-viewer .ec-legend-layer { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+.ec-viewer .ec-legend-layer { position: absolute; top: 0; right: 0; pointer-events: none; }
+.ec-viewer button { display: flex; align-items: center; justify-content: center; width: 26px; height: 26px; padding: 0; border: 0; border-radius: 6px; color: inherit; background: color-mix(in srgb, currentColor 14%, transparent); cursor: pointer; opacity: 0.75; }
+.ec-viewer button:hover, .ec-viewer button:focus-visible { opacity: 1; }
+.ec-viewer button svg { display: block; }
 .ec-viewer .ec-controls { position: absolute; left: 8px; top: 8px; display: flex; flex-direction: column; gap: 4px; }
-.ec-viewer .ec-controls button { width: 26px; height: 26px; padding: 0; border: 0; border-radius: 6px; font: 15px/26px system-ui, sans-serif; color: inherit; background: color-mix(in srgb, currentColor 14%, transparent); cursor: pointer; opacity: 0.75; }
-.ec-viewer .ec-controls button:hover { opacity: 1; }
+.ec-viewer .ec-controls .ec-apart { margin-top: 6px; }
+.ec-viewer .ec-legend-toggle { position: absolute; right: 8px; top: 8px; display: none; }
+.ec-viewer.ec-legend-folded .ec-legend-toggle { display: flex; }
+.ec-viewer.ec-legend-folded .ec-legend-layer { display: none; }
+.ec-viewer.ec-legend-folded.ec-legend-open .ec-legend-layer { display: block; top: 40px !important; right: 8px !important; pointer-events: auto !important; max-width: calc(100% - 48px); max-height: calc(100% - 48px); overflow: auto; background: inherit; border-radius: 8px; box-shadow: 0 0 0 1px color-mix(in srgb, currentColor 15%, transparent), 0 4px 12px rgba(0, 0, 0, 0.15); }
+.ec-viewer.ec-legend-folded.ec-legend-open .ec-legend-toggle { opacity: 1; }
+.ec-viewer:fullscreen, .ec-viewer.ec-expanded { width: 100vw !important; height: 100vh !important; max-width: none !important; aspect-ratio: auto !important; margin: 0 !important; }
+.ec-viewer.ec-expanded { position: fixed !important; inset: 0; z-index: 2147483000; }
+html.ec-expanded-page, html.ec-expanded-page body { overflow: hidden !important; }
 .ec-viewer .ec-hint { position: absolute; left: 50%; bottom: 10px; transform: translateX(-50%); padding: 4px 10px; border-radius: 6px; font: 12px system-ui, sans-serif; color: inherit; background: color-mix(in srgb, currentColor 14%, transparent); pointer-events: none; opacity: 0; transition: opacity 0.3s; white-space: nowrap; }
 .ec-viewer .ec-hint.ec-on { opacity: 1; }
 .ec-viewer .ec-message { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font: 13px system-ui, sans-serif; }
@@ -439,7 +463,7 @@ export function mount(root, buffer, options = {}) {
   canvas.tabIndex = 0;
   canvas.className = "ec-grab";
   canvas.setAttribute("role", "img");
-  canvas.setAttribute("aria-label", `Graph of ${header.nodes} nodes and ${header.edges} edges. Drag to pan; zoom with the buttons, the keys + and -, or the wheel once clicked`);
+  canvas.setAttribute("aria-label", `Graph of ${header.nodes} nodes and ${header.edges} edges. Drag to pan; zoom with the buttons, the keys + and -, or the wheel once clicked; F for full screen`);
   root.prepend(canvas);
   // A moved view draws `BUDGET` edges at once, so they go in a random order, to be a fair share
   if (header.edges > BUDGET) shuffleEdges(data);
@@ -460,9 +484,12 @@ export function mount(root, buffer, options = {}) {
   const cam = { ...home };
   const fit = (w, h) => Math.min(w / vw, h / vh);
   function view() {
-    const dpr = window.devicePixelRatio || 1;
-    const w = Math.max(1, Math.min(4096, Math.round(canvas.clientWidth * dpr)));
-    const h = Math.max(1, Math.min(4096, Math.round(canvas.clientHeight * dpr)));
+    // At most `CANVAS_MAX` pixels along either side, scaled alike, so that the drawing keeps its
+    // shape on a large screen
+    const [cw, ch] = [canvas.clientWidth, canvas.clientHeight];
+    const dpr = Math.min(window.devicePixelRatio || 1, CANVAS_MAX / Math.max(cw, ch, 1));
+    const w = Math.max(1, Math.round(cw * dpr));
+    const h = Math.max(1, Math.round(ch * dpr));
     if (canvas.width !== w || canvas.height !== h) [canvas.width, canvas.height] = [w, h];
     const unit = fit(w, h);
     const px = unit * cam.zoom;
@@ -576,7 +603,7 @@ export function mount(root, buffer, options = {}) {
   root.append(hint);
   root.addEventListener("pointerleave", () => { active = false; });
   canvas.addEventListener("wheel", (e) => {
-    if (!active && !e.ctrlKey && !e.metaKey) {
+    if (!active && !isFull() && !e.ctrlKey && !e.metaKey) {
       hint.classList.add("ec-on");
       clearTimeout(hintTimer);
       hintTimer = setTimeout(() => hint.classList.remove("ec-on"), 1500);
@@ -592,6 +619,7 @@ export function mount(root, buffer, options = {}) {
       "+": () => zoomBy(1.5), "=": () => zoomBy(1.5), "-": () => zoomBy(1 / 1.5), "0": reset,
       ArrowLeft: () => panBy(40, 0), ArrowRight: () => panBy(-40, 0),
       ArrowUp: () => panBy(0, 40), ArrowDown: () => panBy(0, -40),
+      f: toggleFull, F: toggleFull,
     };
     if (keys[e.key] && !e.ctrlKey && !e.metaKey && !e.altKey) {
       e.preventDefault();
@@ -599,20 +627,99 @@ export function mount(root, buffer, options = {}) {
     }
   });
 
-  const controls = document.createElement("div");
-  controls.className = "ec-controls";
-  for (const [label, title, act] of [["+", "Zoom in", () => zoomBy(1.5)], ["\u2212", "Zoom out", () => zoomBy(1 / 1.5)], ["\u2922", "Fit the graph", reset]]) {
+  function button(path, title, act) {
     const b = document.createElement("button");
     b.type = "button";
-    b.textContent = label;
+    b.innerHTML = icon(path);
     b.title = title;
     b.setAttribute("aria-label", title);
     b.addEventListener("click", act);
-    controls.append(b);
+    return b;
   }
+  const controls = document.createElement("div");
+  controls.className = "ec-controls";
+  const fullButton = button(ICONS.full, "Full screen (F)", () => toggleFull());
+  fullButton.classList.add("ec-apart");
+  controls.append(
+    button(ICONS.in, "Zoom in", () => zoomBy(1.5)),
+    button(ICONS.out, "Zoom out", () => zoomBy(1 / 1.5)),
+    button(ICONS.fit, "Fit the graph (0)", reset),
+    fullButton,
+  );
   root.append(controls);
 
-  new ResizeObserver(() => redraw()).observe(root);
+  // Full screen: the plot's box, or where the page doesn't allow that (as in some notebooks'
+  // frames and VS Code's webviews), an overlay over the whole window. The camera keeps its
+  // center, and zoom 1 fits the larger box
+  const fullElement = () => document.fullscreenElement ?? document.webkitFullscreenElement;
+  const isFull = () => fullElement() === root || root.classList.contains("ec-expanded");
+  function syncFull() {
+    const full = isFull();
+    fullButton.innerHTML = icon(full ? ICONS.exit : ICONS.full);
+    fullButton.title = full ? "Leave full screen (F)" : "Full screen (F)";
+    fullButton.setAttribute("aria-label", fullButton.title);
+  }
+  function expand(on) {
+    root.classList.toggle("ec-expanded", on);
+    document.documentElement.classList.toggle("ec-expanded-page", on);
+    syncFull();
+  }
+  async function toggleFull() {
+    if (fullElement() === root) {
+      (document.exitFullscreen ?? document.webkitExitFullscreen).call(document);
+    } else if (root.classList.contains("ec-expanded")) {
+      expand(false);
+    } else {
+      const request = root.requestFullscreen ?? root.webkitRequestFullscreen;
+      let done = false;
+      if (request && (document.fullscreenEnabled ?? document.webkitFullscreenEnabled)) {
+        try {
+          await request.call(root);
+          done = true;
+        } catch (_) {
+          // Refused, so the overlay instead
+        }
+      }
+      if (!done) expand(true);
+    }
+    canvas.focus({ preventScroll: true });
+  }
+  for (const name of ["fullscreenchange", "webkitfullscreenchange"]) document.addEventListener(name, syncFull);
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && root.classList.contains("ec-expanded")) expand(false);
+  });
+
+  // The legend keeps its size, at the top right, and folds into a button where it would take
+  // too much of the box
+  const legend = root.querySelector(".ec-legend-layer");
+  let legendButton = null;
+  if (legend) {
+    legendButton = button(ICONS.legend, "Legend", () => {
+      const open = root.classList.toggle("ec-legend-open");
+      legendButton.setAttribute("aria-expanded", String(open));
+    });
+    legendButton.className = "ec-legend-toggle";
+    legendButton.setAttribute("aria-expanded", "false");
+    root.append(legendButton);
+  }
+  function fold() {
+    if (!legend) return;
+    const box = root.getBoundingClientRect();
+    const svg = legend.querySelector("svg");
+    const [lw, lh] = [svg.width.baseVal.value, svg.height.baseVal.value];
+    const folded = lw > LEGEND_SHARE * box.width || lh > box.height - 16;
+    root.classList.toggle("ec-legend-folded", folded);
+    if (!folded) {
+      root.classList.remove("ec-legend-open");
+      legendButton.setAttribute("aria-expanded", "false");
+    }
+  }
+  fold();
+
+  new ResizeObserver(() => {
+    fold();
+    redraw();
+  }).observe(root);
   // The page's or the system's color scheme can change under the automatic theme
   if (options.theme !== themeOf(root, options.theme)) {
     const recolor = () => { if (applyTheme()) redraw(); };
