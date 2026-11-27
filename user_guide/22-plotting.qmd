@@ -461,6 +461,43 @@ A browser keeps only about 16 WebGL contexts on a page, so a plot lets its conte
 out of view, and the plots in view hold 12 at most. A plot without its context shows a still image
 of its last frame, and draws again as it comes back into view or the pointer moves over it.
 
+In a notebook with a running kernel, as in JupyterLab, Jupyter Notebook, VS Code, Colab or marimo,
+the viewer is a widget, which tells Python what is done in it, and does what Python tells it. The
+plot's `selection` is what is selected in the viewer, as a dict of `"nodes"` (their IDs) and
+`"edges"` (the `(u, v)` ends of each edge), `view` is where it looks, as a dict of `"x"`, `"y"` and
+`"zoom"`, and `filters` is a list of the Filter tab's filters, each with its `"attr"`, its `"of"`
+(`"nodes"` or `"edges"`) and its `"range"`. Each follows the viewer as it changes, the view and
+the filters once they keep still, and setting one changes the viewer: the nodes and edges selected,
+the view panned and zoomed (`None` fits the graph again), or the filters in the tab replaced.
+`on_change()` adds a function to call, with what changed and its new value:
+
+```{python}
+#| eval: false
+g = ec.karate_club()
+p = g.plot(seed=1, backend="viewer")
+p.on_change(lambda name, value: print(name, value))
+p
+```
+
+```{python}
+#| eval: false
+p.selection = {"nodes": [1, 34]}
+p.view = {"x": p.view["x"], "y": p.view["y"], "zoom": 2}
+```
+
+The viewer's selection is the graph's too: each change of it replaces the graph's selection, so
+that `g.get_selected_node_ids()` gives the nodes selected in the viewer, and a plot with
+`highlight="selection"` (or `highlight_edges="selection"`) draws them. A graph selects either
+nodes or edges, so where the viewer has both, the graph has the nodes. Selecting in the graph
+doesn't change the viewer's selection; setting `p.selection` does.
+
+The widget is the plot's `widget` property, for a layout of widgets of one's own, and its code is
+the viewer's runtime, so it works offline. A notebook keeps the widget's output as well as the
+HTML and the image, but a widget shows again only with its kernel, or once the notebook has been
+saved with its widgets' state (in JupyterLab, Settings > Save Widget State Automatically). Outside
+a kernel, and in a page that Quarto renders, the plot is the HTML, as `save()` and `as_raw_html()`
+always give it.
+
 For graphs the size of the jazz network and larger, several strategies help:
 
 - draw a meaningful part of the graph, such as a k-core, an ego network, or one community, with
