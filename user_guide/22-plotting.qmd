@@ -80,7 +80,7 @@ player.save("karate.png")
 ```
 
 The plot is returned either way, so `output=` can be used in a notebook cell that also displays the
-plot. A large graph's plot can show its edges and nodes as images (see
+plot. A large graph's plot can show its edges and nodes as images, or in the viewer (see
 [Larger graphs](#larger-graphs)); its `.svg` file then holds them as SVG elements all the same.
 
 ## Canvas and node size
@@ -321,8 +321,27 @@ fringe of users with few votes whose edges fan in toward it, and, below and to t
 pairs and triples of users whose votes link them to no one else. `backend="png"` draws any graph
 this way, and `backend="svg"` keeps the SVG elements, however many there are, up to 200 MB, past
 which a plot raises an error rather than being drawn. An output that passes 10 MB even as images,
-with thousands of labels, comes with a warning. For graphs the size of the jazz network and larger,
-several strategies help:
+with thousands of labels, comes with a warning.
+
+`backend="viewer"` draws the edges and nodes in the browser instead, with WebGL, so that the drawing
+can be panned and zoomed. Drag it to pan, and zoom with the buttons in its corner, the `+`, `-` and
+`0` keys, a double click (with Shift to zoom out), or the mouse wheel once the plot has been clicked;
+until then the wheel scrolls the page. As in the images, the edges show their density, and the
+nodes can be as small as a pixel. Zooming in on the core of the wiki-vote network pulls apart edges
+that the whole view runs together:
+
+```{python}
+ec.wiki_vote().plot(show_labels=False, seed=1, backend="viewer")
+```
+
+The viewer draws less than the SVG does, for now: no labels or tooltips, no arrowheads or
+self-loops, and no routing of edges around nodes. The legend is drawn over it as SVG. The HTML holds
+the viewer's code and the drawing's data, about 2 MB for the wiki-vote network, and the viewer
+stays quick with hundreds of thousands of edges, in any browser with WebGL 2. The plot's `svg`
+property and `.svg` file hold the SVG elements, and its `.png` file is an image as for the other
+backends.
+
+For graphs the size of the jazz network and larger, several strategies help:
 
 - draw a meaningful part of the graph, such as a k-core, an ego network, or one community, with
   the methods of [Transforming graphs](transforming.qmd)
@@ -347,7 +366,7 @@ several strategies help:
 | `curved_edges=` | curved rather than straight edges | `False` |
 | `node_overlap=`, `edge_routing=` | overlap removal and routing around nodes | `"remove"`, `"auto"` |
 | `theme=` | `"light"` or `"dark"` | `"light"` |
-| `backend=` | SVG elements (`"svg"`) or images (`"png"`) for the edges and nodes | `"auto"` |
+| `backend=` | SVG elements (`"svg"`), images (`"png"`) or the viewer (`"viewer"`) for the edges and nodes | `"auto"` |
 | `output=` | a path to save to, as `.svg`, `.html` or `.png` | `None` |
 
 The arguments for colors and sizes, `color_by=`, `size_by=`, `edge_color_by=`, `palette=`, and
