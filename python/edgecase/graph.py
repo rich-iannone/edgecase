@@ -4766,7 +4766,7 @@ class Graph:
             in, shows only the nodes or edges within it; these filters, like the legend's, are the
             view's, and not arguments. The HTML holds the drawing's data, the labels and the
             tooltips, about 15 MB for 600,000 edges, half of it the tooltips, and the viewer's code
-            (about 135 kB), which a page of several plots needs only once (see `runtime_tags()`
+            (about 100 kB), which a page of several plots needs only once (see `runtime_tags()`
             and `set_runtime()`). A plot lets its WebGL context go while it is out of view, as a
             page keeps only about 16, and the browser needs WebGL 2. Any other value raises
             `ValueError`.
