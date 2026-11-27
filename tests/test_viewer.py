@@ -180,8 +180,10 @@ def test_the_viewer_has_the_svgs_tooltips(monkeypatch):
     full = _tips(g.plot(backend="viewer", **opts)._repr_html_())
     monkeypatch.setattr(svg_renderer, "LEAN_MIN", 10)
     plot = g.plot(backend="viewer", **opts)
-    assert _tips(plot._repr_html_()) == full
-    assert plot.svg == g.plot(backend="svg", **opts).svg and ' data-e="' in plot.svg
+    assert _tips(plot._repr_html_()) == full and ' data-e="' in plot.svg
+    # (and is the static SVG, but for the legend's place)
+    plain = {**opts, "color_by": None}
+    assert g.plot(backend="viewer", **plain).svg == g.plot(backend="svg", **plain).svg
 
 
 def test_the_viewers_tooltips_are_text():
@@ -287,19 +289,108 @@ def test_the_viewer_can_fill_its_container():
 
 def test_the_viewers_legend_keeps_its_size():
     g = ec.karate_club().cmty_louvain(attr_name="c")
-    for width in (700, "100%"):
-        html = g.plot(backend="viewer", seed=1, color_by="c", width=width)._repr_html_()
-        layer = re.search(r'<div class="ec-legend-layer"[^>]*><svg [^>]*>', html).group(0)
+    pad = svg_renderer._LEGEND_PAD
+
+    def layer_size(html):
+        layer = re.search(r'<div class="ec-legend-layer"([^>]*)><svg [^>]*>', html)
+        # At the bottom left
+        assert "left:0;bottom:0" in layer.group(1)
         # In pixels, the same whatever the plot's size, for the viewer to fold when it's small
-        size = re.search(r'width="(\d+)" height="(\d+)" viewBox="0 0 (\d+) (\d+)"', layer)
+        size = re.search(r'width="(\d+)" height="(\d+)" viewBox="0 0 (\d+) (\d+)"', layer.group(0))
         lw, lh = int(size.group(1)), int(size.group(2))
         assert (size.group(3), size.group(4)) == (str(lw), str(lh))
-        # A title and a row for each community
-        rows = 1 + html.split("ec-legend-layer")[1].count("<circle")
-        assert 40 < lw < 200 and lh > rows * svg_renderer._LEGEND_ROW
+        return lw, lh
+
+    for width in (700, "100%"):
+        html = g.plot(backend="viewer", seed=1, color_by="c", width=width)._repr_html_()
+        # The title and the communities after it, in a row
+        lw, lh = layer_size(html)
+        swatches = html.split("ec-legend-layer")[1].count("<circle")
+        assert swatches > 2 and swatches * 40 < lw < 700 and lh == 2 * pad
+    # A narrow plot's wraps
+    lw, lh = layer_size(g.plot(backend="viewer", seed=1, color_by="c", width=120)._repr_html_())
+    assert lw <= 120 and lh >= 2 * pad + svg_renderer._LEGEND_ROW
     # Without a legend there's no layer
     html = ec.karate_club().plot(backend="viewer", seed=1)._repr_html_()
     assert 'class="ec-legend-layer"' not in html
+
+
+def _legend_place(svg):
+    vb = [float(v) for v in re.search(r'viewBox="([^"]+)"', svg).group(1).split()]
+    move = re.search(r'class="ec-legend" transform="translate\(([-\d.]+) ([-\d.]+)\) scale', svg)
+    drawing = svg.split('class="ec-legend"')[0]
+    bottom = max(
+        float(cy) + float(r)
+        for cy, r in re.findall(r'<circle cx="[-\d.]+" cy="([-\d.]+)" r="([\d.]+)"', drawing)
+    )
+    return vb, float(move.group(1)), float(move.group(2)), bottom
+
+
+def test_the_viewers_legend_is_a_band_below_the_drawing():
+    g = ec.karate_club()
+    viewer = g.plot(backend="viewer", seed=1, color_by="faction")
+    vb, x, y, bottom = _legend_place(viewer.svg)
+    unit = vb[3] / 500
+    pad = svg_renderer._LEGEND_PAD
+    # At the bottom left of the viewer's SVG, as the viewer has it, below the nodes
+    assert x == pytest.approx(vb[0] + pad * unit, abs=0.1)
+    assert y == pytest.approx(vb[1] + vb[3] - 2 * pad * unit, abs=0.1)
+    assert bottom < y
+    # and the home view frames the drawing above it
+    assert viewer.view == viewer._home and viewer.view["zoom"] == 1
+    # The static SVG keeps it at the top right
+    vb, x, y, _ = _legend_place(g.plot(backend="svg", seed=1, color_by="faction").svg)
+    assert y == pytest.approx(vb[1], abs=0.1) and x > vb[0] + vb[2] / 2
+
+
+def test_the_legend_row_wraps():
+    items = [
+        ("node", ("#111111", "#eeeeee"), "business"),
+        ("node", ("#222222", "#dddddd"), "private person"),
+    ]
+    swatches = {"kind": "swatches", "title": "kind", "items": items}
+    ramp = {"kind": "ramp", "title": "degree", "scale": "diverging", "ends": (1, 17, 8)}
+    ramp["missing"] = True
+    pad = svg_renderer._LEGEND_PAD
+    marks, w, h = svg_renderer._legend_row([swatches, ramp], 1000)
+    # A row, the ramp's values in order along it: low, its two halves split by the midpoint, high
+    assert h == 2 * pad and w < 1000 and {m[2] for m in marks if m[0] == "text"} == {pad}
+    texts = [m[3] for m in marks if m[0] == "text"]
+    assert texts == ["kind", "business", "private person", "degree", "1", "8", "17", "no value"]
+    bars = [m for m in marks if m[0] == "bar"]
+    x = {m[3]: m[1] for m in marks if m[0] == "text"}
+    assert x["1"] < bars[0][1] < bars[0][2] < x["8"] < bars[1][1] < bars[1][2] < x["17"]
+    # (which share one gradient from the first's start to the second's end)
+    assert bars[0][5:] == bars[1][5:] == (bars[0][1], bars[1][2])
+    colors = svg_renderer._Colors("light")
+    svg = svg_renderer._svg_legend(marks, colors, colors.theme)
+    assert svg.count("<linearGradient") == 1 and svg.count('fill="url(#ec-ramp-') == 2
+    # Narrow, a block's items wrap to go on under its first
+    marks, w, h = svg_renderer._legend_row([swatches, ramp], 230)
+    assert w <= 230 and h > 2 * pad + svg_renderer._LEGEND_ROW
+    business, person = [m for m in marks if m[0] == "node"]
+    assert business[3] == person[3] > 0 and person[1] == business[1] + svg_renderer._LEGEND_ROW
+    # As keys, each swatch's box is around it
+    keys = svg_renderer._svg_legend(marks, colors, colors.theme, keys=True)
+    assert f'<rect x="{business[3] - 4:g}"' in keys and keys.count('class="ec-key"') == 2
+
+
+def test_the_viewers_look():
+    js = (Path(svg_renderer.__file__).parent / "static" / "viewer.js").read_text()
+    style = js[js.index("const STYLE") :]
+    # A light border, controls of glass over the drawing until the plot is hovered, and the
+    # panel's tabs marked as changed without growing
+    assert ".ec-viewer::after" in style and "--ec-glass" in style and "backdrop-filter" in style
+    assert ":is(:hover, :focus-within) .ec-controls button" in style
+    assert "[role=tab].ec-changed::after" in style and "position: absolute" in style
+    # The legend's folding and the hint over it
+    assert "LEGEND_SHARE * canvas.clientHeight" in js and "--ec-legend-h" in js
+    # Zoomed in, the arrowheads grow and darken, no longer than their nodes are across, and a
+    # border is at most half its node's radius
+    shader = js[js.index("const LINK_VS") : js.index("const LINK_FS")]
+    assert "HEAD_GROW" in shader and "HEAD_GAIN" in shader and "rb / (4.0 * base)" in shader
+    points = js[js.index("const POINT_VS") : js.index("const POINT_FS")]
+    assert "min(st.y, 0.5 * nd.z)" in points
 
 
 def test_the_viewer_shows_full_screen():
