@@ -5,7 +5,7 @@
 // geometry
 use super::geometry::{self, Head};
 use super::palette;
-use super::Scene;
+use super::{shade, Scene};
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use rayon::prelude::*;
@@ -64,6 +64,8 @@ pub struct Style {
     /// Whether the edges are drawn, and the nodes
     pub edges: bool,
     pub nodes: bool,
+    /// Whether the nodes are shaded as spheres (see `shade.rs`)
+    pub shade: bool,
     /// What goes over them, as premultiplied RGBA from 0 to 255 (see `overlay::draw()`), of the
     /// image's size
     pub overlay: Option<Vec<u8>>,
@@ -584,7 +586,14 @@ fn over(px: &mut [f32; 4], color: &Rgb, a: f32) {
 }
 
 /// The nodes over a band of premultiplied pixels, from row `y0`
-fn draw_discs(band: &mut [[f32; 4]], y0: usize, width: usize, discs: &[Disc], colors: &[Rgb]) {
+fn draw_discs(
+    band: &mut [[f32; 4]],
+    y0: usize,
+    width: usize,
+    discs: &[Disc],
+    colors: &[Rgb],
+    shade: bool,
+) {
     let rows = band.len() / width;
     for disc in discs {
         // A node or border thinner than a pixel is drawn a pixel across, as faint as it is small
@@ -613,6 +622,11 @@ fn draw_discs(band: &mut [[f32; 4]], y0: usize, width: usize, discs: &[Disc], co
             continue;
         }
         let (fill, border) = (&colors[disc.fill as usize], &colors[disc.border as usize]);
+        // Shaded, the fill is the gradient's color at each pixel, from its highlight
+        let [fr, fg, fb] = *fill;
+        let stops = shade::stops([fr, fg, fb, 1.0]);
+        let h = shade::HIGHLIGHT as f32 * disc.r;
+        let reach_shade = shade::REACH as f32 * disc.r.max(f32::MIN_POSITIVE);
         for j in j0..=j1 as usize {
             let dy = j as f32 + 0.5 - disc.y;
             let row = &mut band[(j - y0) * width..(j - y0 + 1) * width];
@@ -620,7 +634,11 @@ fn draw_discs(band: &mut [[f32; 4]], y0: usize, width: usize, discs: &[Disc], co
                 let dx = i as f32 + 0.5 - disc.x;
                 let d = (dx * dx + dy * dy).sqrt();
                 let a = (r + 0.5 - d).clamp(0.0, 1.0) * fill_gain;
-                if a > 0.0 {
+                if a > 0.0 && shade {
+                    let t = (dx - h).hypot(dy - h) / reach_shade;
+                    let [r, g, b, _] = shade::at([fr, fg, fb, 1.0], stops, t as f64);
+                    over(px, &[r, g, b], a);
+                } else if a > 0.0 {
                     over(px, fill, a);
                 }
                 if border_gain > 0.0 {
@@ -744,7 +762,7 @@ pub fn draw(scene: &Scene, style: &Style) -> Image {
                     *px = [px[1] / d * a, px[2] / d * a, px[3] / d * a, a];
                 }
             }
-            draw_discs(band, k * BAND, w, &shapes.discs, colors);
+            draw_discs(band, k * BAND, w, &shapes.discs, colors, style.shade);
             if let Some(overlay) = &style.overlay {
                 let start = k * BAND * w * 4;
                 for (px, o) in band.iter_mut().zip(overlay[start..].chunks_exact(4)) {
