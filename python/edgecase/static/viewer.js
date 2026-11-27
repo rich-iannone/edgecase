@@ -3021,36 +3021,153 @@ class GraphElement extends HTMLElement {
 }
 if (!customElements.get("ec-graph")) customElements.define("ec-graph", GraphElement);
 
-// The notebook's widget (see `_widget_class()` in `svg_renderer.py`), whose module this code is,
-// once for each widget: a view of it is its plot's `<ec-graph>` (the element defined first, as
-// another widget's module or the page may have defined it), whose state follows the widget's,
-// and the widget the element's. Each view's element has an ID of its own, as the panel's fields
-// are named after it
-function render({ model, el }) {
-  const html = model.get("html");
+// A plot's HTML put in `el` (an element or a shadow root), as its `<ec-graph>`, upgraded at once
+// for its state's setters, as `el` may not be on the page yet. Each copy of a plot has an ID of
+// its own, as the panel's fields are named after it
+function place(el, html) {
   // Read from inert markup, which doesn't make the element
   const inert = document.createElement("template");
   inert.innerHTML = html;
   const id = inert.content.querySelector("ec-graph")?.id;
   el.innerHTML = id ? html.replaceAll(id, `${id}-${Math.random().toString(36).slice(2, 8)}`) : html;
   const plot = el.querySelector("ec-graph");
-  if (!plot) return undefined;
-  // Upgraded now, as the view may not be on the page yet, for its state's setters
-  customElements.upgrade(plot);
-  const follow = STATES.map((name) => {
-    const f = () => { plot[name] = model.get(name); };
-    f();
-    model.on(`change:${name}`, f);
-    return [name, f];
-  });
+  if (plot) customElements.upgrade(plot);
+  return plot;
+}
+
+// The notebook's widget (see `_widget_class()` in `svg_renderer.py`) and Panel's `GraphPane`,
+// whose module this code is, once for each widget: a view of it is its plot's `<ec-graph>` (the
+// element defined first, as another widget's module or the page may have defined it), whose
+// state follows the widget's, and the widget the element's. A new plot replaces it, and takes
+// the widget's state
+function render({ model, el }) {
+  let plot = null;
   const told = (e) => {
     model.set(e.detail.name, e.detail.value);
     model.save_changes();
   };
-  plot.addEventListener("ec-change", told);
+  const draw = () => {
+    plot = place(el, model.get("html"));
+    if (!plot) return;
+    for (const name of STATES) plot[name] = model.get(name);
+    plot.addEventListener("ec-change", told);
+  };
+  draw();
+  model.on("change:html", draw);
+  const follow = STATES.map((name) => {
+    const f = () => { if (plot) plot[name] = model.get(name); };
+    model.on(`change:${name}`, f);
+    return [name, f];
+  });
   return () => {
+    model.off("change:html", draw);
     for (const [name, f] of follow) model.off(`change:${name}`, f);
-    plot.removeEventListener("ec-change", told);
+    plot?.removeEventListener("ec-change", told);
   };
 }
-export default { render };
+
+// Streamlit's component (see `st_graph()` in `streamlit.py`), whose module this code is, run on
+// each of the script's runs with its `data`: the plot's `html`, the app's `key` for it, the state
+// to start with, and what the script sets. The app's state is kept here by its key, as the
+// script runs again, and a new plot starts with it. What the script sets is set once, until it
+// sets something else. A change of the selection or the filters runs the script again, with the
+// state as the component's "state", while one of the view waits for them
+const apps = new Map();
+function streamlit({ data, parentElement, setStateValue }) {
+  const { html, key, state, set } = data;
+  let app = apps.get(key);
+  if (!app) {
+    app = { state: { ...state }, given: {}, html: null, box: null };
+    for (const name in set) app.given[name] = JSON.stringify(set[name]);
+    apps.set(key, app);
+  }
+  // Of a shadow root, which `:scope` doesn't match
+  let box = [...parentElement.children].find((e) => e.classList.contains("ec-app"));
+  if (!box) {
+    box = document.createElement("div");
+    box.className = "ec-app";
+    parentElement.append(box);
+  }
+  let plot = box.querySelector("ec-graph");
+  const fresh = !plot || app.box !== box || app.html !== html;
+  if (fresh) {
+    plot = place(box, html);
+    [app.box, app.html] = [box, html];
+    if (!plot) return undefined;
+  }
+  // What the viewer tells as it takes what is set here waits for the rest of it
+  let quiet = true, changed = false;
+  const tell = () => setStateValue("state", { ...app.state });
+  const told = (e) => {
+    app.state[e.detail.name] = e.detail.value;
+    if (e.detail.name === "view") return;
+    if (quiet) changed = true;
+    else tell();
+  };
+  plot.addEventListener("ec-change", told);
+  if (fresh) for (const name of STATES) plot[name] = app.state[name];
+  for (const name in set) {
+    const text = JSON.stringify(set[name]);
+    if (app.given[name] === text) continue;
+    app.given[name] = text;
+    // A view that leaves out some of the camera's keys keeps them
+    app.state[name] = name === "view" && set.view ? { ...app.state.view, ...set.view } : set[name];
+    changed ||= name !== "view";
+    plot[name] = app.state[name];
+  }
+  quiet = false;
+  if (changed) tell();
+  return () => plot.removeEventListener("ec-change", told);
+}
+
+// The module's default export, for anywidget, Panel and marimo, which call it without arguments,
+// and for Streamlit, which calls it with its component
+export default function host(component) {
+  return component?.parentElement ? streamlit(component) : { render };
+}
+
+// Shiny's output of a plot (see `render_graph` in `shiny.py`), on a page that has this code
+// (`output_graph()` adds it), whose state is the inputs `<id>_selection`, `<id>_view` and
+// `<id>_filters`, and which `update_graph()` sets, with the message "edgecase-graph". Set up by
+// the copy of this code that defines `<ec-graph>`
+const shiny = window.Shiny;
+if (shiny?.OutputBinding && customElements.get("ec-graph") === GraphElement) {
+  const tell = (el, name, value) => {
+    (el.ecState ??= {})[name] = value;
+    // As Python reads it (see `edgecase.shiny`)
+    shiny.setInputValue(`${el.id}_${name}:edgecase.${name}`, value);
+  };
+  class GraphOutput extends shiny.OutputBinding {
+    find(scope) { return window.jQuery(scope).find(".ec-graph-output"); }
+    renderValue(el, data) {
+      const plot = place(el, data.html);
+      if (!plot) return;
+      for (const name of STATES) {
+        tell(el, name, data.state[name]);
+        plot[name] = data.state[name];
+      }
+      plot.addEventListener("ec-change", (e) => tell(el, e.detail.name, e.detail.value));
+    }
+  }
+  shiny.outputBindings.register(new GraphOutput(), "edgecase.graph");
+  shiny.addCustomMessageHandler("edgecase-graph", (msg) => {
+    const el = document.getElementById(msg.id);
+    const plot = el?.querySelector("ec-graph");
+    if (!plot) return;
+    for (const name of STATES) {
+      if (!Object.hasOwn(msg, name)) continue;
+      // A view that leaves out some of the camera's keys keeps them, and none is the one that
+      // fits the graph, which the viewer tells
+      if (name === "view" && msg.view === null) {
+        plot.view = null;
+        continue;
+      }
+      // Told first, as the viewer tells what it holds of it instead, at once
+      const value = name === "view" ? { ...el.ecState?.view, ...msg.view } : msg[name];
+      tell(el, name, value);
+      plot[name] = value;
+    }
+  });
+  // For outputs on the page before this code, as when this code came with them
+  if (shiny.shinyapp?.isConnected?.()) shiny.bindAll(document.documentElement);
+}
