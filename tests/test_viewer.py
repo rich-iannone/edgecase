@@ -539,6 +539,104 @@ def test_the_payload_has_the_legends_keys():
     assert "node_key" not in columns and "node_key" not in header["constants"]
 
 
+def _filters(header, columns):
+    """The payload's filters by name, each with its values, NaN for none."""
+    out = {}
+    for f in header["filters"]:
+        count = header[f["of"]]
+        values = columns.get(f["column"]) or (header["constants"][f["column"]],) * count
+        out[f["name"]] = {**f, "values": [v + f["min"] for v in values]}
+    return out
+
+
+def test_the_payload_has_the_numeric_attributes_to_filter_by():
+    g = ec.karate_club()
+    ids = g.get_node_ids(limit=None)
+    for i in ids:
+        if i % 7:
+            g.set_node_attrs("age", 18 + i, nodes=[i])
+        g.set_node_attrs("score", 0.5 * i, nodes=[i])
+        g.set_node_attrs("vip", i % 2 == 0, nodes=[i])
+        g.set_node_attrs("group", "a" if i % 2 else "b", nodes=[i])
+        g.set_node_attrs("mixed", i if i > 1 else "one", nodes=[i])
+        g.set_node_attrs("huge", 10**400 if i == 1 else i, nodes=[i])
+        g.set_node_attrs(
+            "odd", float("nan") if i == 1 else float("inf") if i == 2 else 1.0 * i, nodes=[i]
+        )
+    for e in g.get_edge_ids(limit=None):
+        g.set_edge_attrs("eid", e, edge_ids=[e])
+        g.set_edge_attrs("same", 3, edge_ids=[e])
+    header, columns = _html_payload(g.plot(backend="viewer", seed=1)._repr_html_())
+    found = _filters(header, columns)
+    # The nodes' degree, then their attributes and the edges' in the order they first appear,
+    # those of ints or floats (not bools) with two values or more
+    assert list(found) == ["degree", "faction", "age", "score", "odd", "eid"]
+    assert [found[k]["of"] for k in found] == ["nodes"] * 5 + ["edges"]
+    assert [f["column"] for f in header["filters"]] == [f"filter_{k}" for k in range(6)]
+    assert [found[k]["integer"] for k in found] == [True, True, True, False, False, True]
+    # Each node's value, in the nodes' order, none for a value that is missing or not finite
+    order = columns["node_id"]
+    age = found["age"]
+    assert (age["min"], age["max"], age["missing"]) == (19, 52, 4)
+    assert [None if v != v else v for v in age["values"]] == [
+        None if i % 7 == 0 else 18 + i for i in order
+    ]
+    assert found["score"]["values"] == [0.5 * i for i in order]
+    assert found["odd"]["missing"] == 2 and found["odd"]["min"] == 3
+    assert found["degree"]["values"] == [g.get_degree(i) for i in order]
+    # The edges' in the order drawn, as their tooltips are
+    assert found["eid"]["values"] == [
+        tip["id"] for tip in _tips(g.plot(backend="viewer", seed=1)._repr_html_())[1]
+    ]
+    # A float far from 0 keeps its precision, as the column holds it less the least
+    g = ec.Graph().add_nodes(["a", "b", "c"]).add_edges([("a", "b"), ("b", "c")])
+    g.set_node_attrs("t", [1e9 + 0.25, 1e9 + 0.5, 1e9 + 0.75], nodes=["a", "b", "c"])
+    found = _filters(*_html_payload(g.plot(backend="viewer", seed=1)._repr_html_()))
+    assert sorted(found["t"]["values"]) == [1e9 + 0.25, 1e9 + 0.5, 1e9 + 0.75]
+    # A directed graph's degree counts the edges in and out
+    g = ec.Graph(directed=True).add_nodes(["a", "b", "c"])
+    g.add_edges([("a", "b"), ("a", "c"), ("b", "a")])
+    header, columns = _html_payload(g.plot(backend="viewer", seed=1)._repr_html_())
+    degree = dict(zip(columns["node_id"], _filters(header, columns)["degree"]["values"]))
+    assert sorted(degree.values()) == [1, 2, 3]
+    assert degree == {
+        i: g.get_in_degree(i) + g.get_out_degree(i) for i in g.get_node_ids(limit=None)
+    }
+
+
+def test_the_payload_filters_by_degree_and_weight_unless_attributes_have_their_names():
+    g = ec.les_miserables()
+    found = _filters(*_html_payload(g.plot(backend="viewer", seed=1)._repr_html_()))
+    assert list(found) == ["degree", "weight"]
+    # Whole weights are ints
+    assert (found["weight"]["of"], found["weight"]["integer"]) == ("edges", True)
+    assert (found["weight"]["min"], found["weight"]["max"]) == (1, 31)
+    g = ec.Graph().add_nodes(["a", "b", "c"]).add_edges([("a", "b"), ("b", "c"), ("c", "a")])
+    g.set_edge_attrs("weight", [0.5, 1.5, 2.0], edge_ids=g.get_edge_ids(limit=None))
+    found = _filters(*_html_payload(g.plot(backend="viewer", seed=1)._repr_html_()))
+    # Every node's degree is 2, which leaves nothing to filter by
+    assert list(found) == ["weight"] and found["weight"]["integer"] is False
+    # An attribute named for them takes their place, here as one that isn't a number
+    g.add_nodes(["d"]).add_edges([("a", "d")])
+    g.set_node_attrs("degree", ["low", "high", "low", "low"], nodes=["a", "b", "c", "d"])
+    found = _filters(*_html_payload(g.plot(backend="viewer", seed=1)._repr_html_()))
+    assert "degree" not in found
+    # None for a scene that isn't a plot's, and none at all for a graph without numbers
+    assert _payload(_scene().payload())[0]["filters"] is None
+    g = ec.Graph().add_nodes(["a", "b", "c", "d"])
+    g.add_edges([("a", "b"), ("b", "c"), ("c", "d"), ("d", "a")])
+    assert _html_payload(g.plot(backend="viewer", seed=1)._repr_html_())[0]["filters"] == []
+
+
+def test_the_viewer_has_a_filter_tab():
+    js = (Path(svg_renderer.__file__).parent / "static" / "viewer.js").read_text()
+    # Each filter is a column, a range and a histogram that brushes it, and hides what is out
+    # of it, as the legend's swatches do; neither is in the copied code
+    assert "function filterTab(" in js and "ec-hist" in js and "ec-brush" in js
+    assert "Add a filter" in js and "hidden while filtered" in js
+    assert "The filters aren't in the code" in js and "The filters and the legend's aren't" in js
+
+
 def test_the_viewer_selects_searches_and_filters():
     js = (Path(svg_renderer.__file__).parent / "static" / "viewer.js").read_text()
     # A click or a lasso selects, drawn as highlight= draws it, and written as it
