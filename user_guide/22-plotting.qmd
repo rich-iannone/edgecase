@@ -436,12 +436,30 @@ labels that had no room in the whole view. An edge's label is written along it, 
 enough on screen.
 
 The viewer draws arrowheads and self-loops as the SVG does, but doesn't route edges around nodes.
-The legend is drawn over it as SVG. The HTML holds the viewer's
-code, the drawing's data, the labels and the tooltips, compressed, about 2.8 MB for the wiki-vote
-network, and
-the viewer stays quick with hundreds of thousands of edges, in any browser with WebGL 2. The plot's `svg`
-property and `.svg` file hold the SVG elements, and its `.png` file is an image as for the other
-backends.
+The legend is drawn over it as SVG. The HTML holds the drawing's data, the labels and the tooltips,
+compressed, about 2.8 MB for the wiki-vote network, and the viewer's code, and the viewer stays
+quick with hundreds of thousands of edges, in any browser with WebGL 2. The plot's `svg` property
+and `.svg` file hold the SVG elements, and its `.png` file is an image as for the other backends.
+
+Each plot is an `<ec-graph>` element, and the viewer's code (about 135 kB) is its runtime, which a
+page needs only once. A plot carries it unless told otherwise, so that a saved file or a lone
+output works by itself. For a page or a notebook of several plots, `ec.runtime_tags()` gives the
+`<script>` to put in the page's `<head>`, with a `nonce=` for a Content Security Policy or a `src=`
+for a file that `ec.write_runtime()` writes, and `as_raw_html(runtime="none")` gives a plot
+without it. `ec.set_runtime("none")` leaves it out of every plot's HTML, the notebook's included,
+for a notebook or a Quarto page that shows `HTML(ec.runtime_tags())` (from `IPython.display`) once,
+at the top; `save()` always puts it in:
+
+```{python}
+#| eval: false
+ec.write_runtime("ec-graph.js")  # in the site's root
+head = ec.runtime_tags(src="/ec-graph.js")
+body = "".join(g.plot(seed=1, backend="viewer").as_raw_html(runtime="none") for g in graphs)
+```
+
+A browser keeps only about 16 WebGL contexts on a page, so a plot lets its context go while it is
+out of view, and the plots in view hold 12 at most. A plot without its context shows a still image
+of its last frame, and draws again as it comes back into view or the pointer moves over it.
 
 For graphs the size of the jazz network and larger, several strategies help:
 
