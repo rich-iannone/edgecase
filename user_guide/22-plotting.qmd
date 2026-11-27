@@ -442,7 +442,7 @@ compressed, about 2.8 MB for the wiki-vote network, and the viewer's code, and t
 quick with hundreds of thousands of edges, in any browser with WebGL 2. The plot's `svg` property
 and `.svg` file hold the SVG elements, and its `.png` file is an image as for the other backends.
 
-Each plot is an `<ec-graph>` element, and the viewer's code (about 150 kB) is its runtime, which a
+Each plot is an `<ec-graph>` element, and the viewer's code (about 100 kB) is its runtime, which a
 page needs only once. A plot carries it unless told otherwise, so that a saved file or a lone
 output works by itself. For a page or a notebook of several plots, `ec.runtime_tags()` gives the
 `<script>` to put in the page's `<head>`, with a `nonce=` for a Content Security Policy or a `src=`
