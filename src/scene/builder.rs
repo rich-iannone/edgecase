@@ -1693,6 +1693,18 @@ impl SceneBuilder {
         } else {
             None
         };
+        // For the viewer's cluster force, the groups of a categorical `color_by=`
+        let cluster = match (&enc.node_groups, &self.color_by) {
+            (Some(groups), Some(name)) if viewer => {
+                let ranks = groups.ranks(py)?;
+                let of = groups
+                    .of
+                    .iter()
+                    .map(|g| g.map_or(0, |g| ranks[g] as u32 + 1));
+                Some((name.bind(py).str()?.to_string(), of.collect()))
+            }
+            _ => None,
+        };
         let controls = selection.map(|selection| Controls {
             node_size: enc.node_size,
             edge_width: enc.edge_width,
@@ -1700,6 +1712,7 @@ impl SceneBuilder {
             highlight: levels.map(|(_, edge_level)| (edge_level.clone(), enc.widths.clone())),
             selection,
             filters,
+            cluster,
         });
 
         Ok(Scene {
