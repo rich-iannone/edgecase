@@ -7,7 +7,7 @@ use super::color::{darken, mix, Pair, Scale, Stop};
 use super::geometry::{fit_viewbox, py_max, py_min};
 use super::labels;
 use super::tips::{Cell, Tips};
-use super::{Base, Controls, Edges, Labels, Nodes, Scene, Selection};
+use super::{Base, Controls, Edges, Filter, Labels, Nodes, Scene, Selection};
 use crate::graph::Graph;
 use crate::layout::routing::route_edges;
 use pyo3::exceptions::{PyKeyError, PyTypeError, PyValueError};
@@ -306,6 +306,8 @@ pub struct SceneBuilder {
     colors: SceneColors,
     directed: bool,
     ids: Vec<u64>,
+    // Each node's degree, its in- and out-degree together in a directed graph
+    degrees: Vec<usize>,
     names: Vec<String>,
     index: FxHashMap<u64, usize>,
     node_labels: Vec<Option<String>>,
@@ -347,6 +349,90 @@ fn non_empty(py: Python<'_>, attrs: Option<&Py<PyDict>>) -> Option<Py<PyDict>> {
     attrs
         .filter(|a| !a.bind(py).is_empty())
         .map(|a| a.clone_ref(py))
+}
+
+/// The numeric attributes in `attrs` (each node's or edge's), in the order they first appear,
+/// as filters for the viewer: those whose values are all ints or floats (not bools), and that
+/// have two values or more. A value that isn't finite, or None, counts as none
+fn numeric_attrs(
+    py: Python<'_>,
+    attrs: &[Option<Py<PyDict>>],
+    edges: bool,
+) -> PyResult<Vec<Filter>> {
+    // Each name's place among them, and whether its values are numbers so far
+    let mut place: FxHashMap<String, usize> = FxHashMap::default();
+    let mut found: Vec<(Filter, bool)> = Vec::new();
+    for (i, a) in attrs.iter().enumerate() {
+        let Some(a) = a else { continue };
+        for (key, v) in a.bind(py).iter() {
+            let Ok(key) = key.downcast::<PyString>() else {
+                continue;
+            };
+            let name = key.to_str()?;
+            let p = match place.get(name) {
+                Some(&p) => p,
+                None => {
+                    place.insert(name.to_string(), found.len());
+                    let values = vec![f64::NAN; attrs.len()];
+                    found.push((filter(name.to_string(), edges, values), true));
+                    found.len() - 1
+                }
+            };
+            let (f, numeric) = &mut found[p];
+            if !*numeric || v.is_none() {
+                continue;
+            }
+            if v.is_instance_of::<PyBool>() {
+                *numeric = false;
+            } else if v.is_instance_of::<PyInt>() {
+                // An int too large for a float isn't one to filter by
+                match v.extract::<f64>() {
+                    Ok(x) => f.values[i] = x,
+                    Err(_) => *numeric = false,
+                }
+            } else if v.is_instance_of::<PyFloat>() {
+                f.integer = false;
+                let x: f64 = v.extract()?;
+                if x.is_finite() {
+                    f.values[i] = x;
+                }
+            } else {
+                *numeric = false;
+            }
+            if !*numeric {
+                f.values = Vec::new();
+            }
+        }
+    }
+    Ok(found
+        .into_iter()
+        .filter(|(_, numeric)| *numeric)
+        .filter_map(|(f, _)| ranged(f))
+        .collect())
+}
+
+fn filter(name: String, edges: bool, values: Vec<f64>) -> Filter {
+    Filter {
+        name,
+        edges,
+        min: 0.0,
+        max: 0.0,
+        integer: true,
+        values,
+    }
+}
+
+/// `f` with the least and the most of its values, if they differ
+fn ranged(mut f: Filter) -> Option<Filter> {
+    let (mut min, mut max) = (f64::INFINITY, f64::NEG_INFINITY);
+    for &v in f.values.iter().filter(|v| !v.is_nan()) {
+        min = min.min(v);
+        max = max.max(v);
+    }
+    (min < max).then(|| {
+        (f.min, f.max) = (min, max);
+        f
+    })
 }
 
 fn truthy(key: &Option<Bound<PyAny>>) -> PyResult<bool> {
@@ -414,7 +500,6 @@ impl SceneBuilder {
     fn node_values(
         &self,
         py: Python<'_>,
-        graph: &Graph,
         key: Option<&Bound<PyAny>>,
         param: &str,
     ) -> PyResult<Values> {
@@ -460,16 +545,9 @@ impl SceneBuilder {
         }
         if key.eq("degree")? {
             return self
-                .ids
+                .degrees
                 .iter()
-                .map(|&id| {
-                    let degree = if self.directed {
-                        graph.get_in_degree(id) + graph.get_out_degree(id)
-                    } else {
-                        graph.degree_rust(id)
-                    };
-                    Ok(Some(degree.into_pyobject(py)?.into_any().unbind()))
-                })
+                .map(|&degree| Ok(Some(degree.into_pyobject(py)?.into_any().unbind())))
                 .collect();
         }
         let key = key.repr()?;
@@ -698,6 +776,17 @@ impl SceneBuilder {
         let ids = graph.get_node_ids();
         let names: Vec<String> = ids.iter().map(u64::to_string).collect();
         let index = ids.iter().enumerate().map(|(k, &id)| (id, k)).collect();
+        let directed = graph.is_directed();
+        let degrees = ids
+            .iter()
+            .map(|&id| {
+                if directed {
+                    graph.get_in_degree(id) + graph.get_out_degree(id)
+                } else {
+                    graph.degree_rust(id)
+                }
+            })
+            .collect();
         let mut node_labels = Vec::with_capacity(ids.len());
         let mut node_attrs = Vec::with_capacity(ids.len());
         for &id in &ids {
@@ -707,8 +796,9 @@ impl SceneBuilder {
         }
         let mut b = SceneBuilder {
             colors,
-            directed: graph.is_directed(),
+            directed,
             ids,
+            degrees,
             names,
             index,
             node_labels,
@@ -730,9 +820,9 @@ impl SceneBuilder {
             enc: None,
             levels: None,
         };
-        let label_values = b.node_values(py, &graph, label_by.as_ref(), "label_by")?;
-        let size_values = b.node_values(py, &graph, size_by.as_ref(), "size_by")?;
-        b.color_values = b.node_values(py, &graph, color_by.as_ref(), "color_by")?;
+        let label_values = b.node_values(py, label_by.as_ref(), "label_by")?;
+        let size_values = b.node_values(py, size_by.as_ref(), "size_by")?;
+        b.color_values = b.node_values(py, color_by.as_ref(), "color_by")?;
         let mut labels = Vec::with_capacity(b.ids.len());
         for (name, v) in b.names.iter().zip(&label_values) {
             labels.push(match v {
@@ -753,9 +843,7 @@ impl SceneBuilder {
         {
             b.edge_color = match b.edge_values(py, key)? {
                 Some(values) => EdgeColorBy::Edges(values),
-                None => {
-                    EdgeColorBy::Nodes(b.node_values(py, &graph, Some(key), "edge_color_by")?)
-                }
+                None => EdgeColorBy::Nodes(b.node_values(py, Some(key), "edge_color_by")?),
             };
         }
         if let Some(key) = edge_width_by
@@ -1518,6 +1606,33 @@ impl SceneBuilder {
             None
         };
 
+        // For the viewer's filters, the numeric attributes, with the nodes' degree unless an
+        // attribute has its name, as `color_by=` takes it, and the edges' weight likewise
+        let mut filters = Vec::new();
+        if viewer {
+            let has = |attrs: &[Option<Py<PyDict>>], key: &str| -> PyResult<bool> {
+                for a in attrs.iter().flatten() {
+                    if a.bind(py).contains(key)? {
+                        return Ok(true);
+                    }
+                }
+                Ok(false)
+            };
+            if !has(&self.node_attrs, "degree")? {
+                let values = self.degrees.iter().map(|&d| d as f64).collect();
+                filters.extend(ranged(filter("degree".into(), false, values)));
+            }
+            filters.extend(numeric_attrs(py, &self.node_attrs, false)?);
+            if !has(&self.edge_attrs, "weight")? {
+                let values = self.weights.iter().map(|w| w.unwrap_or(f64::NAN)).collect();
+                // The weights are floats, whatever they were given as, so whole ones are ints
+                let mut weight = filter("weight".into(), true, values);
+                weight.integer = weight.values.iter().all(|w| w.is_nan() || w.fract() == 0.0);
+                filters.extend(ranged(weight));
+            }
+            filters.extend(numeric_attrs(py, &self.edge_attrs, true)?);
+        }
+
         // Tooltips: a node's ID, and its label as well when it differs from the ID, since
         // either may be drawn under the node, then its attributes; an edge's ID, ends (named as
         // their labels are drawn, and in the order stored) and weight, then its attributes
@@ -1569,6 +1684,7 @@ impl SceneBuilder {
             edge_opacity: enc.opacity,
             highlight: levels.map(|(_, edge_level)| (edge_level.clone(), enc.widths.clone())),
             selection,
+            filters,
         });
 
         Ok(Scene {
