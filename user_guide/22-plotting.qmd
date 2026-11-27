@@ -391,6 +391,28 @@ into a button that shows it.
 Hovering over a node or an edge outlines it and shows its tooltip, the same as in the SVG; on a
 touch screen, tap it. Dragging hides the tooltip until the drag ends.
 
+Clicking a node or an edge selects it, and the viewer draws the selection as `highlight=` and
+`highlight_edges=` would: the selected nodes, and the ends of the selected edges, in the accent
+color (or their own, with `color_by=`), and the rest muted. Shift and a click adds a node or an
+edge to the selection, or takes it out; a loop drawn with Shift held, or with the lasso button
+below the zoom buttons, adds the nodes inside it. `Esc`, or a click on nothing, clears the
+selection and brings back the plot's own highlighting. "Copy as code" writes the selection as those
+two arguments, so the selection can be pasted back:
+
+```{python}
+#| eval: false
+ec.karate_club().plot(highlight={1, 34}, highlight_edges=[(1, 2)], seed=1, backend="viewer")
+```
+
+The search, the small pill beside the zoom buttons (or the `/` key), finds a node by its ID or its
+label as it is typed; choosing one, with the arrow keys and Enter or with a click, flies to the
+node and selects it.
+
+The legend is a control too: clicking a swatch hides its nodes, or its edges, along with the edges
+of the hidden nodes, and clicking it again shows them. Alt (Option) and a click shows the swatch's
+group alone, and again shows them all. The filters belong to the view, not to `plot()`, so "Copy as
+code" leaves them out and the panel says so.
+
 The labels stay the same size as the view zooms, and the viewer chooses them again, by the same
 rule as the SVG, for the part of the graph in view: zooming in on a crowded region shows the
 labels that had no room in the whole view. An edge's label is written along it, where it is long
