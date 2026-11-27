@@ -1,7 +1,7 @@
 // A scene drawn as SVG
 use super::geometry::{self, py_min, Head};
 use super::pyfmt::{Escaped, General, Px, Repr, F1};
-use super::Scene;
+use super::{shade, Scene};
 use std::collections::HashMap;
 use std::fmt::Write;
 
@@ -16,6 +16,9 @@ pub struct Style<'a> {
     /// The markup of the edges' layer and of the nodes' as images, drawn in place of the edges
     /// and of the nodes
     pub raster: Option<(&'a str, &'a str)>,
+    /// To shade the nodes as spheres (see `shade.rs`): for each color of the table, the id of
+    /// its gradient and the colors of its highlight and its far side
+    pub shade: Option<&'a [(String, String, String)]>,
 }
 
 /// The SVG's parts, a line each
@@ -131,6 +134,9 @@ pub fn draw(scene: &Scene, style: &Style<'_>) -> String {
         F1(h),
         style.bg
     );
+    if style.raster.is_none() {
+        draw_gradients(scene, style, &mut out);
+    }
     // The painter's algorithm: edges first, nodes over them and labels over those
     match style.raster {
         Some((edges, _)) => out.push(edges),
@@ -596,12 +602,42 @@ fn draw_edge_labels(scene: &Scene, style: &Style<'_>, out: &mut Parts) {
     }
 }
 
+/// The gradients of the nodes' fills, shaded, in the order of the color table
+fn draw_gradients(scene: &Scene, style: &Style<'_>, out: &mut Parts) {
+    let Some(shade) = style.shade else {
+        return;
+    };
+    let mut used = vec![false; style.colors.len()];
+    scene.nodes.fill.iter().for_each(|&c| used[c] = true);
+    let buf = out.part();
+    buf.push_str("<defs>");
+    // Its box is the node's, so that one gradient serves every node of the color
+    let center = General((1.0 + shade::HIGHLIGHT) / 2.0);
+    let reach = General(shade::REACH / 2.0);
+    for (k, (id, hi, lo)) in shade.iter().enumerate().filter(|&(k, _)| used[k]) {
+        let _ = write!(
+            buf,
+            "<radialGradient id=\"{id}\" cx=\"{center}\" cy=\"{center}\" r=\"{reach}\">\
+             <stop offset=\"0\" stop-color=\"{hi}\"/><stop offset=\"{}\" stop-color=\"{}\"/>\
+             <stop offset=\"1\" stop-color=\"{lo}\"/></radialGradient>",
+            General(shade::MID),
+            style.colors[k]
+        );
+    }
+    buf.push_str("</defs>");
+}
+
 fn draw_nodes(scene: &Scene, style: &Style<'_>, out: &mut Parts) {
     let nodes = &scene.nodes;
     let mut runs = Runs::default();
+    // Shaded, each fill is its gradient
+    let fills: Vec<String> = match style.shade {
+        Some(shade) => shade.iter().map(|(id, ..)| format!("url(#{id})")).collect(),
+        None => style.colors.to_vec(),
+    };
     for &k in &nodes.order {
         let (x, y, r) = (F1(nodes.x[k]), F1(nodes.y[k]), F1(nodes.r[k]));
-        let fill = &style.colors[nodes.fill[k]];
+        let fill = &fills[nodes.fill[k]];
         let border = &style.colors[nodes.border[k]];
         let border_width = General(nodes.border_width[k]);
         let border_opacity = Repr(nodes.border_opacity[k]);
