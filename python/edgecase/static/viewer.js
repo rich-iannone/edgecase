@@ -10,7 +10,9 @@
 // the opacity that SVG strokes of the same opacity stacked up would have. The raster backend
 // draws edges the same way. Since the density adds up, a view can be drawn progressively: a
 // moving view draws a share of the edges, scaled up to stand for all of them, and the rest are
-// added over the frames that follow once it stops.
+// added over the frames that follow once it stops. With the log tone, as the raster's, the pass
+// shows the density by its logarithm instead, opaque at the view's densest pixel, which a pyramid
+// of maxima finds on the GPU.
 
 const TEX_W = 2048; // texels per row; the shaders shift by 11
 const BUDGET = 150000; // the edges that a frame of a moving view draws
@@ -57,64 +59,166 @@ export function parse(buffer) {
     return new (c.type === "f32" ? Float32Array : Uint32Array)(buffer, c.offset, c.length);
   };
   const names = ["x", "y", "r", "fill", "border", "border_width", "border_opacity", "order",
-    "src", "tgt", "color", "width", "opacity", "bow", "level", "base_width", "label_order", "label_color"];
+    "src", "tgt", "color", "width", "opacity", "bow", "loop_size", "level", "base_width", "label_order",
+    "label_color"];
   return { header, ...Object.fromEntries(names.map((name) => [name, column(name)])) };
 }
 
 const LINK_VS = `#version 300 es
 precision highp float;
 precision highp int;
-in vec2 a_corner;            // x: t along the edge, y: side, -1 or 1
+in vec2 a_corner;            // x: t along the edge, y: side, -1 or 1; or x 2 at the arrowhead's corner y
 in uint a_src, a_tgt, a_color;
-in float a_width, a_opacity, a_bow;
+in float a_width, a_opacity, a_bow, a_loop_size;
 uniform highp sampler2D u_nodes, u_colors;
 uniform vec2 u_scale, u_offset, u_viewport;
 uniform float u_unit;        // pixels per unit of the scene's width
+uniform float u_radius;      // pixels per unit of the scene's radii
 uniform float u_fringe;
+uniform bool u_directed;
 out vec3 v_color;
-out float v_dist, v_line, v_gain;
+out vec3 v_side;             // how far in from each side of the stroke, or of the arrowhead, in pixels
+out vec3 v_head;             // on the stroke, how far in from each side of the arrowhead
+out float v_gain;
 vec4 texel(highp sampler2D t, uint i) { return texelFetch(t, ivec2(int(i & 2047u), int(i >> 11)), 0); }
+vec2 quad(vec2 a, vec2 b, vec2 c, float k) { return mix(mix(a, b, k), mix(b, c, k), k); }
+vec2 cubic(vec2 a, vec2 b, vec2 c, vec2 d, float k) { return quad(mix(a, b, k), mix(b, c, k), mix(c, d, k), k); }
+// How far p is from the line through a and b, on c's side
+float inside(vec2 p, vec2 a, vec2 b, vec2 c) {
+  vec2 e = b - a;
+  float side = e.x * (c.y - a.y) - e.y * (c.x - a.x);
+  return sign(side) * (e.x * (p.y - a.y) - e.y * (p.x - a.x)) / max(length(e), 1e-6);
+}
+// sin(0.45) and cos(0.45), where a self-loop meets its node
+const float LOOP_SIN = 0.43496553, LOOP_COS = 0.90044710;
+const vec4 HIDDEN = vec4(2.0, 2.0, 2.0, 1.0);
 void main() {
-  vec2 s = texel(u_nodes, a_src).xy, t = texel(u_nodes, a_tgt).xy;
-  // Self-loops aren't drawn yet
-  if (a_src == a_tgt) { gl_Position = vec4(2.0, 2.0, 2.0, 1.0); return; }
-  // The control point, out from the middle by the bow's share of the length, as the SVG has it
-  vec2 d = t - s;
-  vec2 c = 0.5 * (s + t) + vec2(-d.y, d.x) * a_bow;
+  vec4 sn = texel(u_nodes, a_src), tn = texel(u_nodes, a_tgt);
   vec2 half_vp = 0.5 * u_viewport;
-  vec2 a = (s * u_scale + u_offset) * half_vp, b = (t * u_scale + u_offset) * half_vp;
-  vec2 m = (c * u_scale + u_offset) * half_vp;
+  // In pixels from the center, y up
+  vec2 a = (sn.xy * u_scale + u_offset) * half_vp, b = (tn.xy * u_scale + u_offset) * half_vp;
+  float ra = sn.z * u_radius, rb = tn.z * u_radius;
   // A stroke thinner than a pixel is drawn a pixel wide, as faint as it is thin
   float line = a_width * u_unit;
   vec4 col = texel(u_colors, a_color);
-  v_gain = col.a * a_opacity * min(line, 1.0);
+  float gain = col.a * a_opacity;
+  v_gain = gain * min(line, 1.0);
   line = max(line, 1.0);
   float w = line + u_fringe;
-  // Edges whose curve's hull is off screen collapse to nothing
-  vec2 lo = min(min(a, b), m) - w, hi = max(max(a, b), m) + w;
+  // The arrowhead grows with the edge's width, as the SVG's does
+  float grow = max(a_width / 1.2, 0.6) * u_unit;
+  float head_len = 8.0 * grow, head_wid = 5.0 * grow;
+  // The path, as the SVG has it: a self-loop's two cubic curves above its node, p[0] to p[6],
+  // or the quadratic curve p[0], p[1], p[2] between the nodes' borders
+  bool loop = a_src == a_tgt;
+  vec2 p[7];
+  vec2 lo, hi;
+  if (loop) {
+    float lr = 1.2 * ra * a_loop_size, cp = 1.6 * lr;
+    vec2 top = a + vec2(0.0, ra + lr);
+    p[0] = a + ra * vec2(-LOOP_SIN, LOOP_COS);
+    p[1] = p[0] + vec2(-0.3 * cp, cp);
+    p[2] = top - vec2(lr, 0.0);
+    p[3] = top + vec2(0.0, 0.2 * lr);
+    p[4] = top + vec2(lr, 0.0);
+    p[6] = a + ra * vec2(LOOP_SIN, LOOP_COS);
+    p[5] = p[6] + vec2(0.3 * cp, cp);
+    lo = p[0];
+    hi = p[0];
+    for (int i = 1; i < 7; i++) {
+      lo = min(lo, p[i]);
+      hi = max(hi, p[i]);
+    }
+  } else {
+    // The control point, out from the middle by the bow's share of the length
+    vec2 d = tn.xy - sn.xy;
+    if (length(d) < 1e-6) { gl_Position = HIDDEN; return; }
+    vec2 m = ((0.5 * (sn.xy + tn.xy) + vec2(-d.y, d.x) * a_bow) * u_scale + u_offset) * half_vp;
+    lo = min(min(a, b), m);
+    hi = max(max(a, b), m);
+    vec2 s = length(m - a) > 1e-6 ? a + normalize(m - a) * ra : a;
+    vec2 e = length(b - m) > 1e-6 ? b - normalize(b - m) * rb : b;
+    p[0] = s;
+    p[1] = a_bow == 0.0 ? 0.5 * (s + e) : m;
+    p[2] = e;
+  }
+  // Edges whose hull is off screen collapse to nothing
+  lo -= max(w, u_directed ? head_wid : 0.0);
+  hi += max(w, u_directed ? head_wid : 0.0);
   if (v_gain <= 0.0 || any(greaterThan(lo, half_vp)) || any(lessThan(hi, -half_vp))) {
-    gl_Position = vec4(2.0, 2.0, 2.0, 1.0);
+    gl_Position = HIDDEN;
+    return;
+  }
+  v_color = col.rgb;
+  vec2 tip = loop ? p[6] : p[2];
+  vec2 dir = loop ? p[6] - p[5] : p[2] - p[1];
+  bool head = u_directed && length(dir) > 1e-6;
+  vec2 q0, q1, q2;
+  if (head) {
+    vec2 u = normalize(dir);
+    vec2 base = tip - u * head_len, across = vec2(-u.y, u.x) * 0.5 * head_wid;
+    q0 = tip;
+    q1 = base + across;
+    q2 = base - across;
+  }
+  if (a_corner.x > 1.5) {
+    // The arrowhead, grown about its incenter so that its sides fade out over a pixel
+    if (!head) { gl_Position = HIDDEN; return; }
+    float l0 = length(q1 - q2), l1 = length(q2 - q0), l2 = length(q0 - q1);
+    float around = l0 + l1 + l2;
+    vec2 center = (l0 * q0 + l1 * q1 + l2 * q2) / around;
+    float inner = head_len * head_wid / around;
+    int k = int(a_corner.y);
+    vec2 q = k == 0 ? q0 : k == 1 ? q1 : q2;
+    vec2 pt = center + (q - center) * (inner + 1.0) / inner;
+    v_side = vec3(inside(pt, q0, q1, q2), inside(pt, q1, q2, q0), inside(pt, q2, q0, q1));
+    v_head = vec3(-1e4);
+    v_gain = gain;
+    gl_Position = vec4(pt / half_vp, 0.0, 1.0);
     return;
   }
   float k = a_corner.x;
-  vec2 p = mix(mix(a, m, k), mix(m, b, k), k);
-  vec2 tan = (1.0 - k) * (m - a) + k * (b - m);
+  vec2 pt, tan;
+  if (loop) {
+    if (k < 0.5) {
+      pt = cubic(p[0], p[1], p[2], p[3], 2.0 * k);
+      tan = quad(p[1] - p[0], p[2] - p[1], p[3] - p[2], 2.0 * k);
+    } else if (k > 0.5) {
+      pt = cubic(p[3], p[4], p[5], p[6], 2.0 * k - 1.0);
+      tan = quad(p[4] - p[3], p[5] - p[4], p[6] - p[5], 2.0 * k - 1.0);
+    } else {
+      // Where the two meet, at an angle
+      pt = p[3];
+      tan = normalize(p[3] - p[2]) + normalize(p[4] - p[3]);
+    }
+  } else {
+    // A straight edge stops at its arrowhead's base, and a curve runs on to the tip
+    if (head && a_bow == 0.0) k *= max(0.0, 1.0 - head_len / length(2.0 * dir));
+    pt = quad(p[0], p[1], p[2], k);
+    tan = mix(p[1] - p[0], p[2] - p[1], k);
+  }
   float tl = length(tan);
   vec2 side = tl > 0.0 ? vec2(-tan.y, tan.x) / tl : vec2(0.0, 1.0);
-  v_dist = a_corner.y * 0.5 * w;
-  v_line = line;
-  v_color = col.rgb;
-  gl_Position = vec4((p + side * v_dist) / half_vp, 0.0, 1.0);
+  float dist = a_corner.y * 0.5 * w;
+  v_side = vec3(0.5 * line + dist, 0.5 * line - dist, 1e4);
+  pt += side * dist;
+  // The stroke gives way where the arrowhead covers it, so that the two are drawn as one shape,
+  // as the SVG's group draws them
+  v_head = head
+    ? vec3(inside(pt, q0, q1, q2), inside(pt, q1, q2, q0), inside(pt, q2, q0, q1))
+    : vec3(-1e4);
+  gl_Position = vec4(pt / half_vp, 0.0, 1.0);
 }`;
 
 const LINK_FS = `#version 300 es
 precision highp float;
-in vec3 v_color;
-in float v_dist, v_line, v_gain;
+in vec3 v_color, v_side, v_head;
+in float v_gain;
 uniform bool u_density;
 out vec4 o;
+float cover(vec3 s) { return clamp(0.5 + min(min(s.x, s.y), s.z), 0.0, 1.0); }
 void main() {
-  float a = v_gain * clamp(0.5 * v_line + 0.5 - abs(v_dist), 0.0, 1.0);
+  float a = v_gain * cover(v_side) * (1.0 - cover(v_head));
   if (a <= 0.0) discard;
   // The density, or else the stroke over what's under it
   float d = u_density ? -log(1.0 - min(a, 0.999)) : a;
@@ -149,6 +253,7 @@ void main() {
   gl_Position = vec4(c + v_uv / (0.5 * u_viewport), 0.0, 1.0);
 }`;
 
+// Shaded, a node is the gradient of `src/scene/shade.rs`, as the SVG and the PNG draw it
 const POINT_FS = `#version 300 es
 precision highp float;
 in vec2 v_uv;
@@ -163,14 +268,11 @@ void main() {
   if (af <= 0.0 && ab <= 0.0) discard;
   vec3 fill = v_fill;
   if (u_shade) {
-    // Shaded as a sphere lit from the upper left (y runs down), more so the larger it is drawn
-    vec2 q = v_uv / v_r;
-    vec3 n = vec3(q, sqrt(max(0.0, 1.0 - dot(q, q))));
-    vec3 l = normalize(vec3(-0.45, 0.55, 0.7));
-    float diff = max(dot(n, l), 0.0);
-    float spec = pow(max(dot(reflect(-l, n), vec3(0.0, 0.0, 1.0)), 0.0), 24.0);
-    vec3 lit = v_fill * (0.55 + 0.55 * diff) + 0.25 * spec;
-    fill = mix(v_fill, min(lit, 1.0), smoothstep(1.5, 4.0, v_r));
+    // From the highlight, up and to the left (y runs up), lighter there and darker past it
+    float t = min(length(v_uv - vec2(-0.35, 0.35) * v_r) / (1.5 * v_r), 1.0);
+    fill = t < 0.45
+      ? mix(mix(v_fill, vec3(1.0), 0.5), v_fill, t / 0.45)
+      : mix(v_fill, 0.65 * v_fill, (t - 0.45) / 0.55);
   }
   vec4 c = vec4(fill * af, af);
   c = vec4(v_border * ab, ab) + c * (1.0 - ab);
@@ -183,17 +285,45 @@ void main() {
   gl_Position = vec4(p, 0.0, 1.0);
 }`;
 
+// The density as opacity: as SVG strokes stack up, or with the log tone (`u_lone` above 0), so
+// up to a lone edge's density and from there by the density's logarithm, opaque at the view's
+// densest pixel (or past it), as the raster's `ToneMap` has it
 const TONE_FS = `#version 300 es
 precision highp float;
-uniform sampler2D u_density;
+uniform sampler2D u_density, u_peak;
 uniform vec2 u_size;
-uniform float u_gain;
+uniform float u_gain, u_lone;
 out vec4 o;
 void main() {
   vec4 d = u_gain * texture(u_density, gl_FragCoord.xy / u_size);
   if (d.a <= 0.0) discard;
   float a = 1.0 - exp(-d.a);
+  if (u_lone > 0.0 && d.a > u_lone) {
+    float top = max(max(u_gain * texelFetch(u_peak, ivec2(0), 0).r, 3.912), u_lone * 1.01);
+    float lone_a = 1.0 - exp(-u_lone);
+    a = lone_a + (1.0 - lone_a) * min(log(d.a / u_lone) / log(top / u_lone), 1.0);
+  }
   o = vec4(d.rgb / d.a * a, a);
+}`;
+
+// A level of the pyramid of maxima: each pixel the most of a 4 by 4 block of the level below,
+// whose density is its alpha (the first) or its red
+const PEAK_FS = `#version 300 es
+precision highp float;
+uniform sampler2D u_from;
+uniform ivec2 u_from_size;
+uniform bool u_first;
+out vec4 o;
+void main() {
+  ivec2 base = 4 * ivec2(gl_FragCoord.xy);
+  float most = 0.0;
+  for (int j = 0; j < 4; j++) {
+    for (int i = 0; i < 4; i++) {
+      vec4 t = texelFetch(u_from, min(base + ivec2(i, j), u_from_size - 1), 0);
+      most = max(most, u_first ? t.a : t.r);
+    }
+  }
+  o = vec4(most, 0.0, 0.0, 1.0);
 }`;
 
 function compile(gl, vs, fs) {
@@ -233,11 +363,28 @@ const at = (col, i) => (typeof col === "number" ? col : col[i]);
 
 const isCurved = (data) => typeof data.bow !== "number" || data.bow !== 0;
 
+// A self-loop above its node at (x, y), of radius r and drawn `size` times the usual size, as
+// `self_loop_points()` in `src/scene/geometry.rs` has it (y runs down): where it leaves the node,
+// then the control points and the end of each of its two cubic curves, as [x0, y0, x1, ...]
+const LOOP_SIN = 0.43496553411123023, LOOP_COS = 0.9004471023526769;
+function loopPoints(x, y, r, size) {
+  const lr = 1.2 * r * size, cp = 1.6 * lr, top = y - r - lr;
+  const sx = x - r * LOOP_SIN, ex = x + r * LOOP_SIN, ey = y - r * LOOP_COS;
+  return [sx, ey, sx - 0.3 * cp, ey - cp, x - lr, top, x, top - 0.2 * lr, x + lr, top, ex + 0.3 * cp, ey - cp, ex, ey];
+}
+
+const hasLoops = (data) => {
+  const { src, tgt } = data, m = data.header.edges;
+  for (let j = 0; j < m; j++) if (at(src, j) === at(tgt, j)) return true;
+  return false;
+};
+
 // The drawing: `draw(view, count)` draws a view with the first `count` edges, `refine(chunk)`
-// adds the next ones, `setColors(colors, bg)` changes the color table and the background, and
-// `update(names)` reads the columns of `data` with those names again. With `shade`, nodes are
-// shaded as spheres; the SVG and PNG draw them flat
-function renderer(canvas, data, shade) {
+// adds the next ones, `setColors(colors, bg)` changes the color table and the background,
+// `update(names)` reads the columns of `data` with those names again, `setShade(on)` shades the
+// nodes as spheres or not, and `setTone(tone)` tones the edges, "over" or "log" (which needs
+// the density buffer, as `density` says)
+function renderer(canvas, data) {
   const gl = canvas.getContext("webgl2", { antialias: false, alpha: false, depth: false, preserveDrawingBuffer: true });
   if (!gl) return null;
   const { header } = data;
@@ -249,10 +396,12 @@ function renderer(canvas, data, shade) {
   const styles = table(gl, n, (t, j, i) => t.set([at(data.border, i), at(data.border_width, i), at(data.border_opacity, i), 0], j));
   let colors = null;
 
-  // Edges: a strip per instance, along a quadratic curve in pieces. A long thin triangle costs
-  // as much as the box around it, so a straight edge is split too
+  // Edges: a strip per instance, along a quadratic curve (or a self-loop's two cubic ones) in
+  // pieces, then for a directed graph its arrowhead, after a turn of empty triangles. A long
+  // thin triangle costs as much as the box around it, so a straight edge is split too
   const link = compile(gl, LINK_VS, LINK_FS);
-  let segments = 0;
+  const loops = hasLoops(data);
+  let segments = 0, corners = 0;
   const linkVao = gl.createVertexArray();
   const stripBuf = gl.createBuffer();
   gl.bindVertexArray(linkVao);
@@ -260,16 +409,19 @@ function renderer(canvas, data, shade) {
   gl.enableVertexAttribArray(link.a("a_corner"));
   gl.vertexAttribPointer(link.a("a_corner"), 2, gl.FLOAT, false, 0, 0);
   function stripFor() {
-    segments = isCurved(data) ? 16 : 8;
-    const strip = new Float32Array((segments + 1) * 4);
+    segments = isCurved(data) || loops ? 16 : 8;
+    const head = header.directed ? [1, 1, 2, 0, 2, 0, 2, 1, 2, 2] : [];
+    const strip = new Float32Array((segments + 1) * 4 + head.length);
     for (let s = 0; s <= segments; s++) strip.set([s / segments, -1, s / segments, 1], 4 * s);
+    strip.set(head, (segments + 1) * 4);
+    corners = strip.length / 2;
     gl.bindBuffer(gl.ARRAY_BUFFER, stripBuf);
     gl.bufferData(gl.ARRAY_BUFFER, strip, gl.STATIC_DRAW);
   }
   stripFor();
   // A column per instance, or one value for all
   const linkCols = [];
-  for (const [name, int] of [["src", 1], ["tgt", 1], ["color", 1], ["width", 0], ["opacity", 0], ["bow", 0]]) {
+  for (const [name, int] of [["src", 1], ["tgt", 1], ["color", 1], ["width", 0], ["opacity", 0], ["bow", 0], ["loop_size", 0]]) {
     const loc = link.a("a_" + name);
     if (loc >= 0) linkCols.push({ name, loc, int, buf: null, value: 0 });
   }
@@ -328,25 +480,77 @@ function renderer(canvas, data, shade) {
   gl.bindVertexArray(null);
 
   const tone = compile(gl, TONE_VS, TONE_FS);
+  const peak = compile(gl, TONE_VS, PEAK_FS);
   const emptyVao = gl.createVertexArray();
-  let fbo = null, fboTex = null, fboSize = [0, 0];
-  function target(w, h) {
-    if (fboSize[0] === w && fboSize[1] === h) return;
-    if (fbo) { gl.deleteFramebuffer(fbo); gl.deleteTexture(fboTex); }
-    fboTex = gl.createTexture();
-    gl.bindTexture(gl.TEXTURE_2D, fboTex);
-    gl.texStorage2D(gl.TEXTURE_2D, 1, gl.RGBA16F, w, h);
+  // The density buffer, and for the log tone the pyramid of its maxima down to a pixel
+  let fbo = null, fboTex = null, fboSize = [0, 0], levels = [];
+  function texture(format, w, h) {
+    const tex = gl.createTexture();
+    gl.bindTexture(gl.TEXTURE_2D, tex);
+    gl.texStorage2D(gl.TEXTURE_2D, 1, format, w, h);
     for (const p of [gl.TEXTURE_MIN_FILTER, gl.TEXTURE_MAG_FILTER]) gl.texParameteri(gl.TEXTURE_2D, p, gl.NEAREST);
     for (const p of [gl.TEXTURE_WRAP_S, gl.TEXTURE_WRAP_T]) gl.texParameteri(gl.TEXTURE_2D, p, gl.CLAMP_TO_EDGE);
-    fbo = gl.createFramebuffer();
-    gl.bindFramebuffer(gl.FRAMEBUFFER, fbo);
-    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, fboTex, 0);
+    const fb = gl.createFramebuffer();
+    gl.bindFramebuffer(gl.FRAMEBUFFER, fb);
+    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, tex, 0);
     gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+    return { tex, fb, w, h };
+  }
+  function target(w, h) {
+    if (fboSize[0] === w && fboSize[1] === h) return;
+    for (const t of [{ tex: fboTex, fb: fbo }, ...levels]) {
+      if (t.fb) { gl.deleteFramebuffer(t.fb); gl.deleteTexture(t.tex); }
+    }
+    ({ tex: fboTex, fb: fbo } = texture(gl.RGBA16F, w, h));
+    levels = [];
+    let lw = w, lh = h;
+    do {
+      lw = Math.ceil(lw / 4);
+      lh = Math.ceil(lh / 4);
+      levels.push(texture(gl.R16F, lw, lh));
+    } while (lw > 1 || lh > 1);
     fboSize = [w, h];
   }
+  // The view's densest pixel, into the pyramid's last level
+  function reduce(v) {
+    gl.disable(gl.BLEND);
+    gl.useProgram(peak.prog);
+    gl.bindVertexArray(emptyVao);
+    gl.activeTexture(gl.TEXTURE0);
+    gl.uniform1i(peak.u.u_from, 0);
+    let from = { tex: fboTex, w: v.w, h: v.h };
+    for (const level of levels) {
+      gl.bindFramebuffer(gl.FRAMEBUFFER, level.fb);
+      gl.viewport(0, 0, level.w, level.h);
+      gl.bindTexture(gl.TEXTURE_2D, from.tex);
+      gl.uniform2i(peak.u.u_from_size, from.w, from.h);
+      gl.uniform1i(peak.u.u_first, from.tex === fboTex ? 1 : 0);
+      gl.drawArrays(gl.TRIANGLES, 0, 3);
+      from = level;
+    }
+    gl.bindVertexArray(null);
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+    gl.enable(gl.BLEND);
+    return from.tex;
+  }
 
-  let bg = [1, 1, 1];
-  let drawn = 0, view = null;
+  let bg = [1, 1, 1], alphas = [];
+  let drawn = 0, view = null, shade = false, log = false;
+  // A lone edge's density, for the log tone: the median edge's, as the raster has it, over up to
+  // 4096 of the edges evenly spread; kept until the unit, the widths, the opacities or the
+  // colors change
+  let lone = null;
+  function loneAt(unit) {
+    if (lone && lone.unit === unit) return lone.value;
+    const step = Math.max(1, Math.floor(m / 4096)), ds = [];
+    for (let j = 0; j < m; j += step) {
+      const gain = (alphas[at(data.color, j)] ?? 1) * at(data.opacity, j) * Math.min(at(data.width, j) * unit, 1);
+      if (gain > 0) ds.push(-Math.log(1 - Math.min(gain, 0.999)));
+    }
+    ds.sort((a, b) => a - b);
+    lone = { unit, value: Math.max(ds.length ? ds[ds.length >> 1] : 0, 1e-3) };
+    return lone.value;
+  }
 
   function bind(prog, v) {
     gl.useProgram(prog.prog);
@@ -378,11 +582,13 @@ function renderer(canvas, data, shade) {
     gl.enable(gl.BLEND);
     bind(link, v);
     gl.uniform1f(link.u.u_unit, v.unit);
+    gl.uniform1f(link.u.u_radius, v.radius);
     gl.uniform1f(link.u.u_fringe, 1.5);
+    gl.uniform1i(link.u.u_directed, header.directed ? 1 : 0);
     gl.uniform1i(link.u.u_density, density ? 1 : 0);
     gl.bindVertexArray(linkVao);
     pointEdges(from);
-    if (to > from) gl.drawArraysInstanced(gl.TRIANGLE_STRIP, 0, (segments + 1) * 2, to - from);
+    if (to > from) gl.drawArraysInstanced(gl.TRIANGLE_STRIP, 0, corners, to - from);
     gl.bindVertexArray(null);
     gl.bindFramebuffer(gl.FRAMEBUFFER, null);
     drawn = clear ? to : drawn + (to - from);
@@ -390,19 +596,26 @@ function renderer(canvas, data, shade) {
 
   // The density over the background, as if every edge were drawn, then the nodes
   function finish(v) {
-    gl.viewport(0, 0, v.w, v.h);
     if (density) {
+      const top = log && m ? reduce(v) : null;
+      gl.viewport(0, 0, v.w, v.h);
       gl.clearColor(...bg, 1);
       gl.clear(gl.COLOR_BUFFER_BIT);
       gl.useProgram(tone.prog);
       gl.activeTexture(gl.TEXTURE0);
       gl.bindTexture(gl.TEXTURE_2D, fboTex);
       gl.uniform1i(tone.u.u_density, 0);
+      gl.activeTexture(gl.TEXTURE1);
+      gl.bindTexture(gl.TEXTURE_2D, top ?? fboTex);
+      gl.uniform1i(tone.u.u_peak, 1);
+      gl.uniform1f(tone.u.u_lone, top ? loneAt(v.unit) : 0);
       gl.uniform2f(tone.u.u_size, v.w, v.h);
       gl.uniform1f(tone.u.u_gain, m / Math.max(drawn, 1));
       gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
       gl.bindVertexArray(emptyVao);
       gl.drawArrays(gl.TRIANGLES, 0, 3);
+    } else {
+      gl.viewport(0, 0, v.w, v.h);
     }
     bind(point, v);
     gl.activeTexture(gl.TEXTURE2);
@@ -423,9 +636,18 @@ function renderer(canvas, data, shade) {
     setColors(table4, background) {
       if (colors) gl.deleteTexture(colors);
       colors = table(gl, table4.length, (t, j, i) => t.set(table4[i], j));
+      alphas = table4.map((c) => c[3]);
+      lone = null;
       bg = background;
     },
+    setShade(on) {
+      shade = on;
+    },
+    setTone(name) {
+      log = density && name === "log";
+    },
     update(names) {
+      if (["width", "opacity", "color"].some((name) => names.includes(name))) lone = null;
       if (names.includes("r")) {
         gl.deleteTexture(nodes);
         nodes = nodeTable();
@@ -670,7 +892,8 @@ function themeOf(root, theme) {
 // - call, the `plot()` call, for "Copy as code": `args`, [name, Python source] for each argument
 //   given, and `params`, the parameters' names in order; and moves, true where `plot()` lays
 //   the nodes out for their size
-// - shade, for nodes shaded as spheres
+// - tone, the edges' tone that `plot()` was given (`value`: "auto", "over" or "log") and what
+//   "auto" is for this plot (`auto`), and shade, true for nodes shaded as spheres
 // The plot's background is `root`'s
 export function mount(root, buffer, options = {}) {
   const data = parse(buffer);
@@ -690,7 +913,7 @@ export function mount(root, buffer, options = {}) {
   // A moved view draws `BUDGET` edges at once, so they go in a random order, to be a fair share;
   // `edgeRow` is each one's place in the scene's order, its row of the tooltips
   const edgeRow = header.edges > BUDGET ? shuffleEdges(data) : null;
-  const r = renderer(canvas, data, options.shade);
+  const r = renderer(canvas, data);
   if (!r) {
     canvas.remove();
     const msg = document.createElement("div");
@@ -741,6 +964,10 @@ export function mount(root, buffer, options = {}) {
     return true;
   }
   applyTheme();
+  const tones = options.tone ?? { value: "auto", auto: "over" };
+  const toneOf = (value) => (value === "auto" ? tones.auto : value);
+  r.setTone(toneOf(tones.value));
+  r.setShade(Boolean(options.shade));
 
   // A moved view draws `BUDGET` edges at once, and the rest over the frames that follow
   let pending = false, refining = 0;
@@ -859,9 +1086,14 @@ export function mount(root, buffer, options = {}) {
     } else {
       const j = hovered.edge, s = at(data.src, j), t = at(data.tgt, j);
       const sx = at(data.x, s), sy = at(data.y, s), tx = at(data.x, t), ty = at(data.y, t);
-      const bow = at(data.bow, j);
-      const cx = (sx + tx) / 2 - (ty - sy) * bow, cy = (sy + ty) / 2 + (tx - sx) * bow;
-      outline.setAttribute("d", `M${X(sx)} ${Y(sy)}Q${X(cx)} ${Y(cy)} ${X(tx)} ${Y(ty)}`);
+      if (s === t) {
+        const p = loopPoints(+X(sx), +Y(sy), at(data.r, s) * grow, at(data.loop_size, j)).map((c) => c.toFixed(1));
+        outline.setAttribute("d", `M${p[0]} ${p[1]}C${p.slice(2, 8).join(" ")}C${p.slice(8).join(" ")}`);
+      } else {
+        const bow = at(data.bow, j);
+        const cx = (sx + tx) / 2 - (ty - sy) * bow, cy = (sy + ty) / 2 + (tx - sx) * bow;
+        outline.setAttribute("d", `M${X(sx)} ${Y(sy)}Q${X(cx)} ${Y(cy)} ${X(tx)} ${Y(ty)}`);
+      }
       outline.setAttribute("stroke-width", String(Math.max(at(data.width, j) * unit, 1) + 1));
       key = `e${j}`;
     }
@@ -1117,6 +1349,14 @@ export function mount(root, buffer, options = {}) {
         { name: "curved_edges", tab: "Edges", label: "Curved", kind: "check", start: style.curved, code: (v) => (v ? "True" : null) },
       );
     }
+    list.push({ name: "shade", tab: "Nodes", label: "Shaded", kind: "check", start: Boolean(options.shade), code: (v) => (v ? "True" : null) });
+    // The log tone needs the density buffer
+    if (r.density && m) {
+      const name = (t) => (t === "log" ? "Log" : "Over");
+      list.push({ name: "edge_tone", tab: "Edges", more: true, label: "Tone", kind: "choice", start: tones.value,
+        choices: [["auto", `Auto (${name(tones.auto)})`], ["over", "Over"], ["log", "Log"]],
+        code: (v) => (v === "auto" ? null : JSON.stringify(v)) });
+    }
     // The labels: whether they're shown, and the most of them, by steps up to the nodes' count
     const info = header.labels;
     if (info) {
@@ -1180,6 +1420,12 @@ export function mount(root, buffer, options = {}) {
         recolor();
       } else if (c.name === "legend") {
         root.classList.toggle("ec-legend-off", !c.value);
+      } else if (c.name === "shade") {
+        r.setShade(c.value);
+        redraw();
+      } else if (c.name === "edge_tone") {
+        r.setTone(toneOf(c.value));
+        redraw();
       } else if (c.name === "show_labels" || c.name === "max_labels") {
         const most = byName.max_labels.value;
         Object.assign(words.state, { show: byName.show_labels.value, limit: most === null ? info.auto : most });
@@ -1441,7 +1687,7 @@ function shuffleEdges(data) {
     const j = (s >>> 0) % (i + 1);
     const t = perm[i]; perm[i] = perm[j]; perm[j] = t;
   }
-  for (const name of ["src", "tgt", "color", "width", "opacity", "bow", "level", "base_width"]) {
+  for (const name of ["src", "tgt", "color", "width", "opacity", "bow", "loop_size", "level", "base_width"]) {
     const col = data[name];
     if (col === null || typeof col === "number") continue;
     const out = new col.constructor(m);
@@ -1499,18 +1745,35 @@ function grid(frame, cols, rows, count, visit) {
 //
 // It looks in grids over the scene, built when first wanted: of the nodes' centers, and of the
 // edges' curves, in straight pieces about as long as a cell is wide. Curves are taken in
-// `segments` pieces, as the shader draws them
+// `segments` pieces, as the shader draws them, and self-loops, which grow with the nodes as the
+// view zooms, in `LOOP_PIECES`, each in the box of the largest it's drawn
+const LOOP_PIECES = 16;
 function picker(data, segments) {
   const { header } = data;
   const n = header.nodes, m = header.edges;
   const [, , vw, vh] = header.viewbox;
   const frame = header.viewbox;
-  const pts = new Float64Array(2 * (segments + 1));
-  // Edge j's curve, into `pts`; false for one that isn't drawn: a self-loop or an invisible edge
-  function curve(j) {
+  const pts = new Float64Array(2 * (Math.max(segments, LOOP_PIECES) + 1));
+  // Edge j's curve, into `pts`, with its node's radius `f` times the scene's for a self-loop; the
+  // pieces it's in, 0 for one that isn't drawn
+  function curve(j, f) {
     const s = at(data.src, j), t = at(data.tgt, j);
-    if (s === t || at(data.opacity, j) <= 0) return false;
+    if (at(data.opacity, j) <= 0) return 0;
     const sx = at(data.x, s), sy = at(data.y, s), tx = at(data.x, t), ty = at(data.y, t);
+    if (s === t) {
+      const q = loopPoints(sx, sy, at(data.r, s) * f, at(data.loop_size, j));
+      const half = LOOP_PIECES / 2;
+      for (let h = 0; h < 2; h++) {
+        for (let k = 0; k <= half; k++) {
+          const u = k / half, a = (1 - u) ** 3, b = 3 * u * (1 - u) ** 2, c = 3 * u * u * (1 - u), d = u ** 3;
+          for (let e = 0; e < 2; e++) {
+            const o = 6 * h + e;
+            pts[2 * (h * half + k) + e] = a * q[o] + b * q[o + 2] + c * q[o + 4] + d * q[o + 6];
+          }
+        }
+      }
+      return LOOP_PIECES;
+    }
     const bow = at(data.bow, j);
     const cx = (sx + tx) / 2 - (ty - sy) * bow, cy = (sy + ty) / 2 + (tx - sx) * bow;
     for (let k = 0; k <= segments; k++) {
@@ -1518,7 +1781,7 @@ function picker(data, segments) {
       pts[2 * k] = a * sx + b * cx + c * tx;
       pts[2 * k + 1] = a * sy + b * cy + c * ty;
     }
-    return true;
+    return segments;
   }
   const side = (size) => [
     Math.max(1, Math.min(1024, Math.ceil(vw / size))),
@@ -1544,17 +1807,27 @@ function picker(data, segments) {
     let length = 0;
     for (let j = 0; j < m; j++) {
       wmax = Math.max(wmax, at(data.width, j));
-      if (!curve(j)) continue;
-      for (let k = 0; k < segments; k++) {
+      if (at(data.src, j) === at(data.tgt, j)) continue;
+      const count = curve(j);
+      for (let k = 0; k < count; k++) {
         length += Math.hypot(pts[2 * k + 2] - pts[2 * k], pts[2 * k + 3] - pts[2 * k + 1]);
       }
     }
     const size = Math.max(length / (2 * Math.max(m, 1)), Math.sqrt(vw * vh) / 1024);
     const [cols, rows] = side(size);
     const cell = Math.min(vw / cols, vh / rows) || 1;
+    // The smallest zoom draws the nodes the largest, twice the scene's radii
+    const largest = 1 / Math.sqrt(ZOOM_MIN);
     edges = grid(frame, cols, rows, m, (j, add) => {
-      if (!curve(j)) return;
-      for (let k = 0; k < segments; k++) {
+      const s = at(data.src, j);
+      if (s === at(data.tgt, j)) {
+        if (!curve(j, largest)) return;
+        const xs = pts.filter((_, k) => k % 2 === 0), ys = pts.filter((_, k) => k % 2 === 1);
+        add(Math.min(...xs), Math.min(...ys), Math.max(...xs), Math.max(at(data.y, s), ...ys));
+        return;
+      }
+      const count = curve(j);
+      for (let k = 0; k < count; k++) {
         const x0 = pts[2 * k], y0 = pts[2 * k + 1], x1 = pts[2 * k + 2], y1 = pts[2 * k + 3];
         const parts = Math.max(1, Math.ceil(Math.hypot(x1 - x0, y1 - y0) / cell));
         for (let p = 0; p < parts; p++) {
@@ -1568,10 +1841,10 @@ function picker(data, segments) {
     seen = new Uint32Array(m);
   }
 
-  // The distance from (x, y) to the curve in `pts`
-  function distance(x, y) {
+  // The distance from (x, y) to the curve in `pts`, in `count` pieces
+  function distance(x, y, count) {
     let best = Infinity;
-    for (let k = 0; k < segments; k++) {
+    for (let k = 0; k < count; k++) {
       const x0 = pts[2 * k], y0 = pts[2 * k + 1];
       const dx = pts[2 * k + 2] - x0, dy = pts[2 * k + 3] - y0;
       const len = dx * dx + dy * dy;
@@ -1601,8 +1874,9 @@ function picker(data, segments) {
     edges(x - reach, y - reach, x + reach, y + reach, (j) => {
       if (seen[j] === stamp) return;
       seen[j] = stamp;
-      if (!curve(j)) return;
-      const d = distance(x, y) * v.px - Math.max(at(data.width, j) * v.unit, v.thin) / 2;
+      const count = curve(j, v.radius / v.px);
+      if (!count) return;
+      const d = distance(x, y, count) * v.px - Math.max(at(data.width, j) * v.unit, v.thin) / 2;
       if (d < egap) [edge, egap] = [j, d];
     });
     if (Math.min(gap, egap) > HIT) return null;
