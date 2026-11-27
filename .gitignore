@@ -237,3 +237,10 @@ docs/_site/
 
 # Generated SVG gallery (make gallery)
 svg_gallery.html
+
+# Viewer spike: npm packages, payloads (export.py), bundle (esbuild) and bench.py output
+docs_plan/viewer_spike/node_modules/
+docs_plan/viewer_spike/data/
+docs_plan/viewer_spike/shots/
+docs_plan/viewer_spike/cosmos_bundle.js
+docs_plan/viewer_spike/results.json
