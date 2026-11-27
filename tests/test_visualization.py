@@ -1090,3 +1090,51 @@ class TestEdgeAesthetics:
     def test_edge_width_by_unknown_raises(self):
         with pytest.raises(ValueError, match="no edge has an attribute"):
             ec.pipeline().plot(edge_width_by="nope")
+
+
+_NODE_LABEL = re.compile(
+    r'<text x="([\d.-]+)" y="([\d.-]+)" text-anchor="middle" [^>]*?font-size="([\d.]+)" '
+    r'fill="[^"]*" pointer-events="none">([^<]*)</text>'
+)
+
+
+def _node_labels(svg: str) -> list[tuple[float, float, float, str]]:
+    """The node labels drawn: each one's spot, font size and text (not the edges' labels)."""
+    return [(float(x), float(y), float(s), t) for x, y, s, t in _NODE_LABEL.findall(svg)]
+
+
+class TestLabelBudget:
+    def test_a_small_graph_has_every_label(self):
+        assert len(_node_labels(ec.karate_club().plot(seed=1).svg)) == 34
+        assert len(_node_labels(ec.karate_club().plot(seed=1, max_labels=5).svg)) == 5
+
+    def test_a_larger_graph_has_some_of_them(self):
+        g = ec.les_miserables()
+        svg = g.plot(seed=1, label_by="label").svg
+        drawn = _node_labels(svg)
+        assert len(drawn) == 30
+        # The best joined nodes' first
+        assert "Valjean" in {t for *_, t in drawn}
+        # And no two of them overlap, as wide as the plot takes them to be
+        half = [len(t) * s * 0.58 / 2 for _, _, s, t in drawn]
+        boxes = [(x - w, y - s, x + w, y + s / 4) for (x, y, s, _), w in zip(drawn, half)]
+        for i, a in enumerate(boxes):
+            for b in boxes[i + 1 :]:
+                assert a[2] <= b[0] or b[2] <= a[0] or a[3] <= b[1] or b[3] <= a[1]
+        # As many as fit, without overlapping
+        assert 30 < len(_node_labels(g.plot(seed=1, label_by="label", max_labels=1000).svg)) <= 77
+        assert _node_labels(g.plot(seed=1, max_labels=0).svg) == []
+        # The PNG draws the same ones
+        assert g.plot(seed=1, max_labels=0)._repr_png_() != g.plot(seed=1)._repr_png_()
+
+    def test_highlighted_nodes_have_their_labels_first(self):
+        g = ec.les_miserables()
+        napoleon = g.get_id_from_label("Napoleon")
+        assert "Napoleon" not in {t for *_, t in _node_labels(g.plot(seed=1, label_by="label").svg)}
+        svg = g.plot(seed=1, label_by="label", highlight=[napoleon], max_labels=1).svg
+        assert [t for *_, t in _node_labels(svg)] == ["Napoleon"]
+
+    def test_max_labels_is_a_count(self):
+        for bad in (-1, 2.5, True, "3"):
+            with pytest.raises(ValueError, match="max_labels must be None or a whole number"):
+                ec.karate_club().plot(max_labels=bad)
