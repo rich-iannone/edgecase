@@ -581,3 +581,49 @@ def test_an_empty_graph_is_a_png():
     image = _decode(png)
     bg = _rgb(svg_renderer.LIGHT.bg)
     assert any(_pixel(image, x, 490)[:3] != bg for x in range(600, 800))
+
+
+def test_shaded_nodes_are_lit_from_the_upper_left():
+    from edgecase._core import shade_stops
+
+    flat = _decode(_scene().png(LIGHTS, bg=BG, scale=1.0))
+    shaded = _decode(_scene().png(LIGHTS, bg=BG, scale=1.0, shade=True))
+    assert _pixel(flat, 16, 46) == _pixel(flat, 23, 53) == _rgb(FILL)
+    # The highlight, a third of the radius up and to the left of node a's center at (20, 50),
+    # and darker than the node's color toward the far side
+    hi, lo = shade_stops(FILL)
+    assert all(abs(p - c) <= 1 for p, c in zip(_pixel(shaded, 16, 46), _rgb(hi)))
+    far = _pixel(shaded, 25, 55)
+    assert all(lo_c <= p < f for p, f, lo_c in zip(far, _rgb(FILL), _rgb(lo)) if f > 0)
+    # And the edges are as they were
+    assert _pixel(shaded, 100, 50) == _pixel(flat, 100, 50)
+
+
+def test_plot_takes_the_edges_tone_and_the_shading():
+    g = ec.karate_club()
+    # backend="auto" draws images for the log tone, which the SVG can't draw
+    assert "<image" not in g.plot(seed=1)._repr_html_()
+    assert _images(g.plot(seed=1, edge_tone="log")._repr_html_())
+    with pytest.raises(ValueError, match="edge_tone='log' needs the edges drawn as an image"):
+        g.plot(backend="svg", edge_tone="log")
+    with pytest.raises(ValueError, match="Unknown edge_tone 'linear'; use one of 'auto', 'over'"):
+        g.plot(edge_tone="linear")
+    # The images' tone is "log" unless it's given
+    log, over = (
+        g.plot(seed=1, backend="png", edge_tone=t)._repr_png_()[0] for t in ("auto", "over")
+    )
+    assert log != over == g.plot(seed=1, backend="png", edge_tone="over")._repr_png_()[0]
+    assert g.plot(seed=1, backend="png", edge_tone="log")._repr_png_()[0] == log
+    # Shaded nodes are a gradient in the SVG, one for each of their colors, and in the PNG
+    flat, shaded = g.plot(seed=1, theme="light"), g.plot(seed=1, theme="light", shade=True)
+    assert "<radialGradient" not in flat.svg
+    ids = set(re.findall(r'<radialGradient id="(ec-shade-[0-9a-f]{8})"', shaded.svg))
+    assert len(ids) == 1 and f'fill="url(#{ids.pop()})"' in shaded.svg
+    assert shaded._repr_png_()[0] != flat._repr_png_()[0]
+    # In the automatic theme, the stops of colors that differ by theme follow the page's scheme
+    auto = g.plot(seed=1, highlight=[1, 2], shade=True).svg
+    assert len(set(re.findall(r'<radialGradient id="(ec-shade-[0-9a-f]{8})"', auto))) == 2
+    hi = re.search(r'<stop offset="0" stop-color="var\((--ect-[0-9a-f]{8})\)"', auto).group(1)
+    assert f"{hi}:" in auto
+    # The images have them drawn in
+    assert "<radialGradient" not in g.plot(seed=1, backend="png", shade=True).svg
