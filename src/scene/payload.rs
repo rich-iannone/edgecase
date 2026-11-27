@@ -22,6 +22,12 @@
 // none, else the swatch's place plus 1). The nodes' IDs are the columns "node_id" and
 // "node_id_hi", their low and high 32 bits.
 //
+// For its filters, "filters" has the numeric attributes of the nodes and of the edges: each one's
+// name, whose it is ("nodes" or "edges"), its column, the least and the most of its values,
+// whether they are all ints, and how many have none. The column "filter_<k>" has each node's or
+// edge's value less the least, which keeps a float's precision for values far from 0, and NaN
+// for none.
+//
 // With node labels, "labels" has their font size, whether they are shown, the most of them that
 // are drawn ("limit", null for all) and what that is when `max_labels=` doesn't say ("auto"), and
 // the columns "label_order", the nodes in order of priority (see `labels.rs`), and "label_color".
@@ -109,6 +115,17 @@ pub fn payload(scene: &Scene) -> PyResult<Vec<u8>> {
         let level: Vec<usize> = order.iter().map(|&i| level[i] as usize).collect();
         columns.push(("level", u32s(&level)));
         columns.push(("base_width", f32s(&in_order(base_width, order))));
+    }
+    let filters = controls.map_or(&[][..], |c| c.filters.as_slice());
+    let filter_names: Vec<String> = (0..filters.len()).map(|k| format!("filter_{k}")).collect();
+    for (f, name) in filters.iter().zip(&filter_names) {
+        let values = if f.edges {
+            in_order(&f.values, order)
+        } else {
+            f.values.clone()
+        };
+        let column = values.iter().map(|&v| (v - f.min) as f32).collect();
+        columns.push((name, Column::F32(column)));
     }
     let selection = controls.map(|c| &c.selection);
     if let Some(sel) = selection {
@@ -209,6 +226,15 @@ pub fn payload(scene: &Scene) -> PyResult<Vec<u8>> {
                 "node_colors": s.node_colors,
                 "edge_colors": s.edge_colors,
             })),
+            "filters": controls.map(|_| filters.iter().zip(&filter_names).map(|(f, name)| json!({
+                "name": f.name,
+                "of": if f.edges { "edges" } else { "nodes" },
+                "column": name,
+                "min": f.min,
+                "max": f.max,
+                "integer": f.integer,
+                "missing": f.values.iter().filter(|v| v.is_nan()).count(),
+            })).collect::<Vec<_>>()),
             "constants": constants,
             "columns": cols,
         })
