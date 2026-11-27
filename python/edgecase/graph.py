@@ -4535,7 +4535,8 @@ class Graph:
         graph with ten thousand edges to a megabyte or two. Where the SVG would pass 10 MB or
         20,000 elements, more than a notebook or a web page should hold, the edges and nodes
         are drawn as images instead, which stay small however many there are, under labels and
-        a legend that remain text; `backend=` makes either choice for any graph.
+        a legend that remain text; `backend=` makes either choice for any graph, or has them
+        drawn by the viewer, with WebGL in the browser, to pan and zoom.
 
         Aesthetics can be mapped from attributes: `color_by=` for node colors (a palette for
         groups, a color scale for numbers), `size_by=` for numeric node sizes, `label_by=` for the
@@ -4628,8 +4629,8 @@ class Graph:
         node_size
             Base node circle radius in pixels. The default value, `16.0`, acts as "automatic": the
             radius is then derived from the canvas area and the number of nodes (between `3.5` and
-            `16` pixels, or from `1` when they are drawn as images, see `backend=`) so that nodes
-            don't crowd each other. Any other value is used as given.
+            `16` pixels, or from `1` when they are drawn as images or by the viewer, see
+            `backend=`) so that nodes don't crowd each other. Any other value is used as given.
         edge_width
             Edge stroke width in pixels. The default value, `1.2`, acts as "automatic": small
             graphs get thicker edges (up to about 3 pixels) and large graphs thinner ones. Any
@@ -4653,7 +4654,8 @@ class Graph:
             draws direct lines in drawings too crowded for that; `"around"` always bends them,
             `"straight"` draws direct lines, and a number always bends them with that clearance
             margin (in px). Routing only applies to graphs with at least 3 nodes and is skipped
-            when `curved_edges=` is `True`. Any other string raises `ValueError`.
+            when `curved_edges=` is `True` or `backend=` is `"viewer"`. Any other string raises
+            `ValueError`.
         show_labels
             Whether to display node labels (see `label_by=`). Default is `True`.
         output
@@ -4716,7 +4718,14 @@ class Graph:
             and `"png"` for graphs whose SVG would pass either. The labels and the legend are
             SVG text either way. The images keep the output to a few megabytes whatever the size
             of the graph, but nodes and edges have no tooltips. A graph whose SVG would pass
-            200 MB can only be plotted as images. Any other value raises `ValueError`.
+            200 MB can only be plotted as images or by the viewer. `"viewer"` draws the edges
+            and nodes with WebGL in the browser, with the edges by their density, to pan (drag)
+            and zoom (the buttons, the keys `+`, `-` and `0`, a double click, or the wheel once
+            the plot has been clicked), with hundreds of thousands of edges. The legend stays
+            SVG, over it; there are no labels, tooltips, arrowheads or self-loops yet, and edges
+            aren't routed. The HTML holds the viewer's code (about 30 kB) and the drawing's
+            data, about 11 MB for 600,000 edges, and the browser needs WebGL 2. Any other value
+            raises `ValueError`.
 
         Returns
         -------
@@ -4724,9 +4733,9 @@ class Graph:
             Interactive visualization that auto-renders in Jupyter notebooks (via `_repr_html_`,
             with a PNG image for where HTML doesn't show) and can be saved with `.save(path)`,
             as `.html`, `.svg` or `.png` like `output=`. The raw SVG markup is available as its
-            `.svg` property. When `backend="auto"` drew images, the SVG and a `.svg` file hold
-            the edges and nodes as SVG elements, drawn when they are first wanted, with a
-            warning when they pass 10 MB.
+            `.svg` property. When `backend="auto"` drew images, or with `backend="viewer"`, the
+            SVG and a `.svg` file hold the edges and nodes as SVG elements, drawn when they are
+            first wanted, with a warning when they pass 10 MB.
 
         Raises
         ------
@@ -4740,13 +4749,14 @@ class Graph:
             attribute the graph doesn't have, `edge_routing=` or `backend=` is unknown,
             `output=` has an extension other than `.html`, `.svg` or `.png`, or the graph is so
             large that its SVG would pass 200 MB (with `backend="svg"`, or for the `.svg` of a
-            plot that `backend="auto"` drew as images).
+            plot that `backend="auto"` drew as images or that the viewer draws).
 
         Warns
         -----
         UserWarning
             If the output is more than 10 MB, past what a notebook output should stay within,
-            or the SVG of a plot that `backend="auto"` drew as images is.
+            or the SVG of a plot that `backend="auto"` drew as images or that the viewer draws
+            is.
 
         See Also
         --------
