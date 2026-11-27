@@ -4779,7 +4779,11 @@ class Graph:
             as `.html`, `.svg` or `.png` like `output=`. The raw SVG markup is available as its
             `.svg` property. When `backend="auto"` drew images, or with `backend="viewer"`, the
             SVG and a `.svg` file hold the edges and nodes as SVG elements, drawn when they are
-            first wanted, with a warning when they pass 10 MB.
+            first wanted, with a warning when they pass 10 MB. With `backend="viewer"`, in a
+            notebook's kernel (and in marimo), it shows as a widget, whose `.selection`, `.view`
+            and `.filters` follow the viewer and move it when set, with `.on_change()` to call a
+            function as they change; the selection is also the graph's, for
+            `highlight="selection"`.
 
         Raises
         ------
