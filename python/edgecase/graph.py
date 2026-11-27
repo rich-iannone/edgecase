@@ -4726,11 +4726,13 @@ class Graph:
             and nodes with WebGL in the browser, with the edges by their density, to pan (drag)
             and zoom (the buttons, the keys `+`, `-` and `0`, a double click, or the wheel once
             the plot has been clicked), with hundreds of thousands of edges, and to show full
-            screen (its button, or the key `F`). The legend stays SVG, over it, and folds into
-            a button when the plot is too small for it; there are no labels, tooltips,
-            arrowheads or self-loops yet, and edges aren't routed. The HTML holds the viewer's code (about 30 kB) and the drawing's
-            data, about 11 MB for 600,000 edges, and the browser needs WebGL 2. Any other value
-            raises `ValueError`.
+            screen (its button, or the key `F`). Hovering over a node or an edge (or tapping it)
+            shows its tooltip, as in the SVG. The legend stays SVG, over it, and folds into a
+            button when the plot is too small for it; there are no labels, arrowheads or
+            self-loops yet, and edges aren't routed. The HTML holds the viewer's code (about
+            45 kB), the drawing's data and the tooltips, about 15 MB for 600,000 edges, half of
+            it the tooltips, and the browser needs WebGL 2. Any other value raises
+            `ValueError`.
 
         Returns
         -------
