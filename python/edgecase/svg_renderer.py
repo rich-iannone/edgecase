@@ -195,10 +195,11 @@ class _Colors:
         output: Optional[str],
         png: Optional[Callable[[], bytes]] = None,
         svg: Optional[Callable[[], str]] = None,
+        viewer: bool = False,
     ) -> "StepPlayer":
         """The `StepPlayer` for the rendering, saved to `output=` when that is given. `png` makes
         its PNG image, if it has one, and `svg` the SVG that it holds, when that isn't the one
-        that the HTML shows."""
+        that the HTML shows. `viewer` says that the HTML is the viewer's, without its runtime."""
         for_files = None
         if self.save_light:
             for_files = (self._for_file(svg_str), self._for_file(html_str))
@@ -213,7 +214,7 @@ class _Colors:
                 drawn = svg()
                 return self._own(drawn), self._for_file(drawn) if self.save_light else None
 
-        result = StepPlayer(self._own(svg_str), html_str, for_files, png, own_svg)
+        result = StepPlayer(self._own(svg_str), html_str, for_files, png, own_svg, viewer)
         if output:
             result.save(output)
         return result
@@ -258,7 +259,7 @@ class StepPlayer:
 
     Returned by `Graph.play()`, `Graph.plot()`, and `Graph.plot_traversal()`. Renders inline in
     Jupyter via `_repr_html_`, with a PNG image of a plot (`_repr_png_`) for where HTML doesn't
-    show, and can be saved with `.save()`.
+    show, and can be saved with `.save()`. `.as_raw_html()` gives the HTML for a page of one's own.
     """
 
     def __init__(
@@ -268,9 +269,12 @@ class StepPlayer:
         for_files: Optional[Tuple[str, str]] = None,
         png: Optional[Callable[[], bytes]] = None,
         svg: Optional[Callable[[], Tuple[str, Optional[str]]]] = None,
+        viewer: bool = False,
     ) -> None:
         self._svg = svg_str
+        # Without the viewer's runtime, for a plot of the viewer's
         self._html = html_str
+        self._viewer = viewer
         # The SVG and HTML that `save()` writes instead, if they differ (for the default theme)
         self._for_files = for_files
         # What makes the PNG image, when it's first wanted, and the image
@@ -299,7 +303,44 @@ class StepPlayer:
     # A notebook keeps every output: the HTML, and the PNG image for where HTML doesn't show.
     # Not the SVG, which would double what the HTML takes
     def _repr_html_(self) -> str:
-        return self._html
+        return self.as_raw_html()
+
+    def as_raw_html(self, runtime: Optional[str] = None) -> str:
+        """The HTML of the rendering, to put in a page.
+
+        A plot drawn with `backend="viewer"` is an `<ec-graph>` element, which the viewer's
+        runtime draws (see `runtime_tags()`). With the runtime, the HTML works wherever it goes;
+        a page that has the runtime once can take its plots without it, about 135 kB smaller
+        each. The other renderings hold their own code, and `runtime=` doesn't change them.
+
+        Parameters
+        ----------
+        runtime
+            `"inline"` for the runtime after the element, or `"none"` for the element alone.
+            Default is `None`, for what `set_runtime()` last set, at first `"inline"`. Any other
+            value raises `ValueError`.
+
+        Returns
+        -------
+        str
+            The HTML.
+
+        Examples
+        --------
+        ```python
+        import edgecase as ec
+
+        plot = ec.karate_club().plot(backend="viewer")
+        len(plot.as_raw_html()) - len(plot.as_raw_html(runtime="none"))
+        ```
+        """
+        return self._with_runtime(self._html, runtime)
+
+    def _with_runtime(self, html_str: str, runtime: Optional[str] = None) -> str:
+        runtime = _runtime if runtime is None else _check_runtime(runtime)
+        if self._viewer and runtime == "inline":
+            return f"{html_str}\n{runtime_tags()}"
+        return html_str
 
     def _repr_png_(self) -> Optional[Tuple[bytes, Dict[str, int]]]:
         # The image has more pixels than the plot, for high-density screens, and shows at its size
@@ -319,7 +360,7 @@ class StepPlayer:
             self._draw_svg()
         svg_str, html_str = self._for_files or (self._svg, self._html)
         if suffix in (".html", ".htm"):
-            p.write_text(html_str, encoding="utf-8")
+            p.write_text(self._with_runtime(html_str, "inline"), encoding="utf-8")
         elif suffix == ".svg":
             p.write_text(svg_str, encoding="utf-8")
         elif suffix == ".png":
@@ -1524,9 +1565,11 @@ def render_plot(
         tone = auto_tone if edge_tone == "auto" else edge_tone
         look = {"tone": {"value": edge_tone, "auto": auto_tone}, "shade": shade}
         html_str = emit_viewer(scene, colors, css_width, call, moves, look)
-        if len(html_str) > NOTEBOOK_BYTES_MAX:
+        # With the runtime, as a notebook has it
+        total = len(html_str) + len(_runtime_js())
+        if total > NOTEBOOK_BYTES_MAX:
             warnings.warn(
-                f"The plot is {len(html_str) / 1e6:,.0f} MB, past the "
+                f"The plot is {total / 1e6:,.0f} MB, past the "
                 f"{NOTEBOOK_BYTES_MAX / 1e6:.0f} MB a notebook output should stay within. "
                 "backend='png' makes it smaller, as does plotting a part of the graph, such as "
                 "what k_core() or ego_graph() returns",
@@ -1541,6 +1584,7 @@ def render_plot(
             output,
             png=lambda: plot_png(scene, theme, tone, shade),
             svg=vector,
+            viewer=True,
         )
     picked = built
     if built == "auto":
@@ -1847,6 +1891,128 @@ def _legend_height(marks: List[Tuple[Any, ...]]) -> float:
 
 _viewer_counter = 0
 _viewer_js: Optional[str] = None
+# What a viewer's plot does with the runtime where nothing says otherwise (see `set_runtime()`)
+RUNTIMES = ("inline", "none")
+_runtime = "inline"
+
+
+def _runtime_js() -> str:
+    """The viewer's code (`static/viewer.js`), the runtime that defines `<ec-graph>`."""
+    global _viewer_js
+    if _viewer_js is None:
+        _viewer_js = (Path(__file__).parent / "static" / "viewer.js").read_text(encoding="utf-8")
+    return _viewer_js
+
+
+def _check_runtime(runtime: str) -> str:
+    if runtime not in RUNTIMES:
+        raise ValueError(
+            f"Unknown runtime {runtime!r}; use one of {', '.join(map(repr, RUNTIMES))}"
+        )
+    return runtime
+
+
+def runtime_tags(nonce: Optional[str] = None, src: Optional[str] = None) -> str:
+    """The `<script>` tag that puts the viewer's runtime on a page, once for all its plots.
+
+    A plot drawn with `plot(backend="viewer")` is an `<ec-graph>` element, and the runtime is
+    the code that defines the element and draws it, about 135 kB. A plot carries the runtime
+    itself unless told otherwise, so that a saved file or a lone output works; a page that has
+    the runtime in its `<head>` can leave it out of each plot, with
+    `StepPlayer.as_raw_html(runtime="none")` or `set_runtime("none")`. Copies of it on the same
+    page don't clash: the first to run defines the element for every plot.
+
+    Parameters
+    ----------
+    nonce
+        A nonce for the page's Content Security Policy, given to the tag as its `nonce=`
+        attribute, so that a policy that allows only the scripts it names runs it. The plots
+        themselves hold no code to run when they leave the runtime out. Default is `None`, for
+        no nonce.
+    src
+        The runtime's URL, where it is a file on a site or a CDN (see `write_runtime()`), for a
+        tag that loads it from there, which the browser then caches across the site's pages. A
+        browser loads a module from a server, and not from a file opened from the disk. Default
+        is `None`, for the code inline in the tag.
+
+    Returns
+    -------
+    str
+        A `<script type="module">` tag.
+
+    Examples
+    --------
+    A page of several plots can carry the runtime once, in its `<head>`, and each plot without
+    it:
+
+    ```python
+    import edgecase as ec
+
+    g = ec.karate_club()
+    plots = [g.plot(layout=name, backend="viewer") for name in ["force", "circular"]]
+    body = "\\n".join(p.as_raw_html(runtime="none") for p in plots)
+    page = f"<html><head>{ec.runtime_tags()}</head><body>{body}</body></html>"
+    ```
+    """
+    attrs = "" if nonce is None else f' nonce="{html_mod.escape(nonce)}"'
+    if src is not None:
+        return f'<script type="module" src="{html_mod.escape(src)}"{attrs}></script>'
+    return f'<script type="module"{attrs}>\n{_runtime_js()}</script>'
+
+
+def write_runtime(path: str) -> None:
+    """Write the viewer's runtime to `path`, as a JavaScript module for a site or a CDN to serve.
+
+    Pages then load it with `runtime_tags(src=...)`, from the URL that it is served at, and
+    their plots leave it out (see `runtime_tags()`). It is the version of this release of
+    EdgeCase, so a site that upgrades EdgeCase writes it again.
+
+    Parameters
+    ----------
+    path
+        The file to write, such as `"assets/ec-graph.js"`.
+
+    Examples
+    --------
+    ```python
+    import edgecase as ec
+
+    ec.write_runtime("ec-graph.js")
+    ec.runtime_tags(src="/ec-graph.js")
+    ```
+    """
+    Path(path).write_text(_runtime_js(), encoding="utf-8")
+
+
+def set_runtime(runtime: str) -> None:
+    """Whether the viewer's plots carry its runtime from now on, where they aren't told.
+
+    This sets what `StepPlayer.as_raw_html()` does without `runtime=`, and so what a notebook,
+    or a page that Quarto renders from one, shows: with `"none"`, the plots leave the runtime
+    out, and the page has to have it once, from `runtime_tags()`. A file that
+    `StepPlayer.save()` writes always has it.
+
+    Parameters
+    ----------
+    runtime
+        `"inline"`, the default, for plots that carry the runtime, or `"none"` for plots without
+        it. Any other value raises `ValueError`.
+
+    Examples
+    --------
+    In a Quarto page, a hidden cell at the top can put the runtime on the page once, for the
+    plots that follow:
+
+    ```python
+    import edgecase as ec
+    from IPython.display import HTML
+
+    ec.set_runtime("none")
+    HTML(ec.runtime_tags())
+    ```
+    """
+    global _runtime
+    _runtime = _check_runtime(runtime)
 
 
 def plot_call(method: Callable[..., Any], given: Dict[str, Any]) -> Dict[str, Any]:
@@ -1890,9 +2056,11 @@ def emit_viewer(
     look: Optional[Dict[str, Any]] = None,
 ) -> str:
     """The HTML that shows `scene` in the viewer (`static/viewer.js`), in the colors of
-    `colors`'s theme: WebGL draws its edges and nodes, from `Scene.payload()`, to pan and zoom,
-    under the legend as SVG. It holds the viewer's code, the payload and the tooltips (in
-    base64), so that it works on its own, in a notebook or a page or a file.
+    `colors`'s theme: an `<ec-graph>` element, in which WebGL draws its edges and nodes, from
+    `Scene.payload()`, to pan and zoom, under the legend as SVG. It holds the payload, the
+    tooltips and the labels' texts (in base64) and the viewer's options, and not the viewer's
+    code, the runtime that defines the element, which goes once on a page (see
+    `StepPlayer.as_raw_html()`).
 
     The viewer is `scene`'s size, or `css_width` wide (a CSS length) and `scene`'s height. Its
     legend keeps its size in pixels, at the top right, and the viewer folds it into a button
@@ -1907,9 +2075,7 @@ def emit_viewer(
     holds "light" or "dark"), so that it follows the page by the same rules as the legend's
     colors, and a saved file is in the light theme, as for SVG. Its own colors are variables
     that its theme control can switch (see `_Colors.scoped()`)."""
-    global _viewer_counter, _viewer_js
-    if _viewer_js is None:
-        _viewer_js = (Path(__file__).parent / "static" / "viewer.js").read_text(encoding="utf-8")
+    global _viewer_counter
     payload = scene.payload()
     _viewer_counter += 1
     # Unique on the page, even among the outputs of notebooks run in other sessions
@@ -1923,7 +2089,7 @@ def emit_viewer(
     else:
         size = f"width:{css_width};height:{scene.height:g}px"
     box = (
-        f"position:relative;{size};max-width:100%;margin:1em auto;"
+        f"display:block;position:relative;{size};max-width:100%;margin:1em auto;"
         f"background:{th.bg};color:{th.label_color};color-scheme:{chrome.scheme()}"
     )
     # The legend, over the drawing and fixed as it pans and zooms
@@ -1953,6 +2119,7 @@ def emit_viewer(
     if scene.label_texts is not None:
         texts += packed("labels", scene.label_texts)
     encoded = base64.b64encode(payload).decode("ascii")
+    # In a script, where "</" would end it
     options = json.dumps(
         {
             "theme": colors.pick("light", "dark"),
@@ -1963,21 +2130,13 @@ def emit_viewer(
             "moves": moves,
             **(look or {"tone": {"value": "auto", "auto": "over"}, "shade": False}),
         }
-    )
-    return f"""<div class="ec-viewer" id="{root_id}" style="{box}">
+    ).replace("<", "\\u003c")
+    return f"""<ec-graph id="{root_id}" style="{box}">
 <style>{chrome.scoped("#" + root_id, colors)}</style>
 {legend}
 <script type="application/octet-stream" class="ec-payload">{encoded}</script>
-{texts}<script type="module">
-{_viewer_js}
-const root = document.getElementById("{root_id}");
-const text = root.querySelector("script.ec-payload").textContent;
-const bytes = Uint8Array.fromBase64
-  ? Uint8Array.fromBase64(text)
-  : Uint8Array.from(atob(text), (c) => c.charCodeAt(0));
-mount(root, bytes.buffer, {options});
-</script>
-</div>"""
+{texts}<script type="application/json" class="ec-options">{options}</script>
+</ec-graph>"""
 
 
 def plot_png(
