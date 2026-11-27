@@ -1320,6 +1320,10 @@ RASTER_SCALE = 2.0
 # The least radius of the automatic node size, as SVG and as an image or in the viewer, whose
 # nodes can be smaller since they don't each take an element
 _NODE_SIZE_MIN = {"svg": 3.5, "png": 1.0, "viewer": 1.0}
+# The CSS lengths that the viewer's width can be, such as "100%" or "40em"
+_CSS_LENGTH_RE = re.compile(r"(\d+(\.\d+)?|\.\d+)(px|%|em|rem|vw|vh|ch)")
+# The shape of the default canvas, which the viewer's layout keeps for a CSS width
+_DEFAULT_ASPECT = 700 / 500
 
 
 _PACKAGE_DIR = str(Path(__file__).parent) + os.sep
@@ -1400,6 +1404,23 @@ def render_plot(
         raise ValueError(
             f"Unknown backend {backend!r}; use one of {', '.join(map(repr, BACKENDS))}"
         )
+    # A CSS width has the viewer fill its container, or a part of it. The layout is then drawn
+    # in the default canvas's shape at the plot's height, and the viewer fits it to its box
+    css_width = options.get("width")
+    if isinstance(css_width, str):
+        if backend != "viewer":
+            raise ValueError(
+                f"width={css_width!r} needs backend='viewer'; the other backends take a width "
+                "in pixels"
+            )
+        if not _CSS_LENGTH_RE.fullmatch(css_width):
+            raise ValueError(
+                f"width={css_width!r} isn't a CSS length; use a number of pixels, or a length "
+                "such as '100%' or '40em'"
+            )
+        options["width"] = round(options.get("height", 500) * _DEFAULT_ASPECT)
+    else:
+        css_width = None
     colors = _Colors(theme)
     # The SVG and HTML for backend="auto", if they fit
     fitting: List[Tuple[str, str]] = []
@@ -1431,7 +1452,7 @@ def render_plot(
         return svg_str
 
     if backend == "viewer" and scene.node_count:
-        html_str = emit_viewer(scene, colors)
+        html_str = emit_viewer(scene, colors, css_width)
         if len(html_str) > NOTEBOOK_BYTES_MAX:
             warnings.warn(
                 f"The plot is {len(html_str) / 1e6:,.0f} MB, past the "
@@ -1683,15 +1704,30 @@ def _legend_markup(scene: Scene, colors: "_Colors") -> Optional[str]:
     )
 
 
+def _legend_height(marks: List[Tuple[Any, ...]]) -> float:
+    """The height of the legend of `marks` (from `_legend_layout()`), with as much room below
+    its last row as above its first."""
+    bottom = 0.0
+    for kind, *mark in marks:
+        bottom = max(bottom, mark[1] if kind == "text" else mark[0])
+        if kind == "ramp":
+            bottom = max(bottom, mark[0] + _LEGEND_RAMP)
+    return bottom + _LEGEND_PAD
+
+
 _viewer_counter = 0
 _viewer_js: Optional[str] = None
 
 
-def emit_viewer(scene: Scene, colors: "_Colors") -> str:
+def emit_viewer(scene: Scene, colors: "_Colors", css_width: Optional[str] = None) -> str:
     """The HTML that shows `scene` in the viewer (`static/viewer.js`), in the colors of
     `colors`'s theme: WebGL draws its edges and nodes, from `Scene.payload()`, to pan and zoom,
     under the legend as SVG. It holds the viewer's code and the payload (in base64), so that it
     works on its own, in a notebook or a page or a file.
+
+    The viewer is `scene`'s size, or `css_width` wide (a CSS length) and `scene`'s height. Its
+    legend keeps its size in pixels, at the top right, and the viewer folds it into a button
+    when the box is too small for it.
 
     In the automatic theme, the viewer reads its theme from a variable of `colors` (one that
     holds "light" or "dark"), so that it follows the page by the same rules as the legend's
@@ -1704,20 +1740,28 @@ def emit_viewer(scene: Scene, colors: "_Colors") -> str:
     # Unique on the page, even among the outputs of notebooks run in other sessions
     root_id = f"ec-viewer-{_viewer_counter}-{hashlib.sha1(payload).hexdigest()[:8]}"
     th = colors.theme
-    # Centered and scaled down, keeping its shape, where the page is narrower, as the SVG is
+    # Centered and scaled down, keeping its shape, where the page is narrower, as the SVG is.
+    # With a CSS width, it keeps its height instead
+    if css_width is None:
+        size = f"width:{scene.width:g}px;aspect-ratio:{scene.width:g}/{scene.height:g}"
+    else:
+        size = f"width:{css_width};height:{scene.height:g}px"
     box = (
-        f"position:relative;width:{scene.width}px;max-width:100%;"
-        f"aspect-ratio:{scene.width}/{scene.height};margin:1em auto;"
+        f"position:relative;{size};max-width:100%;margin:1em auto;"
         f"background:{th.bg};color:{th.label_color};color-scheme:{colors.scheme()}"
     )
     # The legend, over the drawing and fixed as it pans and zooms
-    vb = " ".join(f"{v:.3f}" for v in scene.viewbox)
-    legend = (
-        f'<svg class="ec-legend-layer" xmlns="http://www.w3.org/2000/svg" viewBox="{vb}" '
-        'preserveAspectRatio="xMidYMid meet" '
-        'style="position:absolute;inset:0;width:100%;height:100%;pointer-events:none">'
-        f"{_legend_markup(scene, colors) or ''}</svg>"
-    )
+    legend = ""
+    if scene.legend:
+        lw, lh = math.ceil(scene.legend_w), math.ceil(_legend_height(scene.legend))
+        legend = (
+            '<div class="ec-legend-layer" style="position:absolute;top:0;right:0;'
+            'pointer-events:none">'
+            f'<svg xmlns="http://www.w3.org/2000/svg" width="{lw}" height="{lh}" '
+            f'viewBox="0 0 {lw} {lh}" style="display:block">'
+            f'<g class="ec-legend" transform="translate({_LEGEND_PAD:g} 0)">'
+            f"{_svg_legend(scene.legend, colors, th)}</g></svg></div>"
+        )
     encoded = base64.b64encode(payload).decode("ascii")
     options = json.dumps({"theme": colors.pick("light", "dark")})
     return f"""<div class="ec-viewer" id="{root_id}" style="{box}">
