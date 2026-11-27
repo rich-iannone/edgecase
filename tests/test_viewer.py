@@ -5,6 +5,8 @@ The viewer itself runs in a browser, so these tests read what it's given, and no
 """
 
 import base64
+import gzip
+import html as html_mod
 import json
 import re
 import struct
@@ -115,15 +117,80 @@ def test_the_viewer_backend_holds_the_viewer_and_the_payload():
     # The viewer's code, and the legend over it, as SVG
     assert '<script type="module">' in html and "export function mount(" in html
     assert 'class="ec-legend-layer"' in html and 'class="ec-legend"' in html
-    # Not the SVG's nodes and edges, or their tooltips
+    # Not the SVG's nodes and edges, whose tooltips are in a table of their own
     drawing = html.split('class="ec-legend"')[0]
     assert "<circle" not in drawing and "<line" not in drawing and "data-attrs" not in html
+    assert 'class="ec-tips"' in html
     # Each plot's root is its own
     ids = re.findall(r'<div class="ec-viewer" id="([^"]+)"', html)
     again = g.plot(backend="viewer", seed=1, color_by="c")._repr_html_()
     assert len(ids) == 1 and ids != re.findall(r'<div class="ec-viewer" id="([^"]+)"', again)
     with pytest.raises(ValueError, match="use one of 'auto', 'svg', 'png', 'viewer'"):
         g.plot(backend="webgl")
+
+
+def _tips(html):
+    """The viewer's tooltips: a dict for each node, in the nodes' order, and for each edge, in the
+    order drawn."""
+    packed = re.search(r'<script type="application/octet-stream" class="ec-tips">([^<]+)<', html)
+    tables = json.loads(gzip.decompress(base64.b64decode(packed.group(1))))
+
+    def rows(table):
+        count = max((len(c) for c in table["c"] if isinstance(c, list)), default=0)
+        return [
+            {k: c[i] if isinstance(c, list) else c[str(i)] for k, c in zip(table["k"], table["c"])
+             if isinstance(c, list) or str(i) in c}
+            for i in range(count)
+        ]  # fmt: skip
+
+    return rows(tables["nodes"]), rows(tables["edges"])
+
+
+def _svg_tips(svg, kind):
+    found = re.findall(rf" data-{kind}=\"[^\"]*\" data-attrs='([^']*)'", svg)
+    return [json.loads(html_mod.unescape(attrs)) for attrs in found]
+
+
+def test_the_viewer_has_the_svgs_tooltips(monkeypatch):
+    g = ec.karate_club().cmty_louvain(attr_name="c")
+    g.set_edge_attrs("kind", "tie", edge_ids=[1, 2])
+    opts = {"seed": 1, "theme": "light", "edge_routing": "straight", "color_by": "c"}
+    html = g.plot(backend="viewer", **opts)._repr_html_()
+    nodes, edges = _tips(html)
+    svg = g.plot(backend="svg", **opts).svg
+    by_id = {tip["id"]: tip for tip in nodes}
+    assert len(by_id) == 34 and by_id == {tip["id"]: tip for tip in _svg_tips(svg, "node")}
+    in_svg = _svg_tips(svg, "edge")
+    assert sorted(edges, key=lambda tip: tip["id"]) == sorted(in_svg, key=lambda tip: tip["id"])
+    assert by_id["1"] == {"id": "1", "label": "0", "faction": 1, "role": "Instructor", "c": 0}
+    assert {"id": 2, "edge": "1 — 3", "kind": "tie"} in edges
+    # The edges' rows are in the order they're drawn, which puts highlighted edges last
+    html = g.plot(backend="viewer", seed=1, highlight=[30, 34])._repr_html_()
+    nodes, edges = _tips(html)
+    _, columns = _html_payload(html)
+    # (whose ends the tooltip names in the order stored)
+    ends = [{nodes[a]["id"], nodes[b]["id"]} for a, b in zip(columns["src"], columns["tgt"])]
+    assert [set(tip["edge"].split(" — ")) for tip in edges] == ends
+    assert ends[-1] == {"30", "34"}
+    # A lean plot's too, whose SVG keeps the edges' tooltips in a table of its own
+    full = _tips(g.plot(backend="viewer", **opts)._repr_html_())
+    monkeypatch.setattr(svg_renderer, "LEAN_MIN", 10)
+    plot = g.plot(backend="viewer", **opts)
+    assert _tips(plot._repr_html_()) == full
+    assert plot.svg == g.plot(backend="svg", **opts).svg and ' data-e="' in plot.svg
+
+
+def test_the_viewers_tooltips_are_text():
+    g = ec.Graph().add_nodes(["a", "b"]).add_edges([("a", "b")])
+    g.set_node_attrs("note", {"a": "</script><img src=x onerror=alert(1)>"})
+    html = g.plot(backend="viewer", seed=1)._repr_html_()
+    # Gzipped in the page, so no markup of the graph's can end the script
+    notes = [tip.get("note") for tip in _tips(html)[0]]
+    assert "<img" not in html and "</script><img src=x onerror=alert(1)>" in notes
+    # And shown as text
+    js = (Path(svg_renderer.__file__).parent / "static" / "viewer.js").read_text()
+    hover = js[js.index("function hover()") : js.index("// Pointers")]
+    assert "name.textContent = k" in hover and "innerHTML" not in hover
 
 
 def test_the_viewer_follows_the_theme(tmp_path):
