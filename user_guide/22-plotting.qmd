@@ -385,8 +385,8 @@ ec.wiki_vote().plot(show_labels=False, seed=1, backend="viewer", width="100%", h
 ```
 
 The layout then keeps the default canvas's shape at that height, and the viewer fits it to the
-box. The legend keeps its size, at the top right, and where the plot is too small for it, it folds
-into a button that shows it.
+box. The legend keeps its size, laid across the bottom left, in a band of its own below the
+drawing, and where the plot is too small for it, it folds into a button that shows it.
 
 Hovering over a node or an edge outlines it and shows its tooltip, the same as in the SVG; on a
 touch screen, tap it. Dragging hides the tooltip until the drag ends.
@@ -435,8 +435,9 @@ rule as the SVG, for the part of the graph in view: zooming in on a crowded regi
 labels that had no room in the whole view. An edge's label is written along it, where it is long
 enough on screen.
 
-The viewer draws arrowheads and self-loops as the SVG does, but doesn't route edges around nodes.
-The legend is drawn over it as SVG. The HTML holds the drawing's data, the labels and the tooltips,
+The viewer draws arrowheads and self-loops as the SVG does, but doesn't route edges around nodes,
+and zoomed in, its arrowheads grow with the nodes, up to three times their size, and darken, so
+that the edges' directions stand out. The legend is drawn over it as SVG. The HTML holds the drawing's data, the labels and the tooltips,
 compressed, about 2.8 MB for the wiki-vote network, and the viewer's code, and the viewer stays
 quick with hundreds of thousands of edges, in any browser with WebGL 2. The plot's `svg` property
 and `.svg` file hold the SVG elements, and its `.png` file is an image as for the other backends.
