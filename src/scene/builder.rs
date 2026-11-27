@@ -244,10 +244,11 @@ enum Key {
 
 /// A block of the legend
 enum Block {
-    /// `(shape, color, text, key)` items
+    /// `(shape, color, text, key, value)` items, the value being the group's (None for none,
+    /// and for the edges between groups)
     Swatches {
         title: PyObject,
-        items: Vec<(&'static str, usize, PyObject, Key)>,
+        items: Vec<(&'static str, usize, PyObject, Key, PyObject)>,
     },
     /// A numeric scale, labelled with the values its `ends` (low, high, midpoint) stand for
     Ramp {
@@ -284,8 +285,10 @@ struct Encoded {
     radii: Vec<f64>,
     node_size: f64,
     edge_width: f64,
-    // What the legend's swatches stand for, in the order it draws them
+    // What the legend's swatches stand for, in the order it draws them, and for each, its
+    // block's title, whether it stands for nodes or edges, and its value
     keys: Vec<Key>,
+    entries: Vec<(PyObject, &'static str, PyObject)>,
 }
 
 /// How the edges are colored by `edge_color_by=`
@@ -682,6 +685,35 @@ impl SceneBuilder {
         (node_key, edge_key)
     }
 
+    /// The numeric attributes that the viewer's filters and `filters=` filter by, with the
+    /// nodes' degree unless an attribute has its name, as `color_by=` takes it, and the edges'
+    /// weight likewise
+    fn filter_columns(&self, py: Python<'_>) -> PyResult<Vec<Filter>> {
+        let mut filters = Vec::new();
+        let has = |attrs: &[Option<Py<PyDict>>], key: &str| -> PyResult<bool> {
+            for a in attrs.iter().flatten() {
+                if a.bind(py).contains(key)? {
+                    return Ok(true);
+                }
+            }
+            Ok(false)
+        };
+        if !has(&self.node_attrs, "degree")? {
+            let values = self.degrees.iter().map(|&d| d as f64).collect();
+            filters.extend(ranged(filter("degree".into(), false, values)));
+        }
+        filters.extend(numeric_attrs(py, &self.node_attrs, false)?);
+        if !has(&self.edge_attrs, "weight")? {
+            let values = self.weights.iter().map(|w| w.unwrap_or(f64::NAN)).collect();
+            // The weights are floats, whatever they were given as, so whole ones are ints
+            let mut weight = filter("weight".into(), true, values);
+            weight.integer = weight.values.iter().all(|w| w.is_nan() || w.fract() == 0.0);
+            filters.extend(ranged(weight));
+        }
+        filters.extend(numeric_attrs(py, &self.edge_attrs, true)?);
+        Ok(filters)
+    }
+
     fn push_edge(
         &mut self,
         src: usize,
@@ -904,6 +936,24 @@ impl SceneBuilder {
         }
     }
 
+    /// The legend's swatches, once encoded, in the order it draws them, as `filters=` names
+    /// them: each one's block's title (the attribute), `"nodes"` or `"edges"` for what it stands
+    /// for, and its group's value, None for the nodes without one and for the edges between
+    /// groups
+    #[getter]
+    fn legend_entries(&self, py: Python<'_>) -> PyResult<Vec<(PyObject, &'static str, PyObject)>> {
+        match &self.enc {
+            Some(enc) => Ok(enc
+                .entries
+                .iter()
+                .map(|(title, of, value)| (title.clone_ref(py), *of, value.clone_ref(py)))
+                .collect()),
+            None => Err(PyValueError::new_err(
+                "the legend's entries come from encode()",
+            )),
+        }
+    }
+
     /// Map the values to colors (from `palette`, or on a numeric scale), sizes and widths, and
     /// return the legend's blocks: those that can tell their values apart with no more than
     /// `legend_max` items, or none for None
@@ -975,10 +1025,11 @@ impl SceneBuilder {
                         colors[g],
                         text(&groups.firsts[g])?,
                         Key::Nodes(Some(g)),
+                        groups.firsts[g].clone_ref(py),
                     ));
                 }
                 if groups.of.iter().any(Option::is_none) {
-                    items.push(("node", missing, no_value(), Key::Nodes(None)));
+                    items.push(("node", missing, no_value(), Key::Nodes(None), py.None()));
                 }
                 blocks.push(Block::Swatches {
                     title: title(&self.color_by),
@@ -1026,8 +1077,8 @@ impl SceneBuilder {
                         .collect();
                     let mut items = Vec::new();
                     for g in groups.sorted(&ranks) {
-                        let key = Key::EdgeColor(colors[g]);
-                        items.push(("edge", colors[g], text(&groups.firsts[g])?, key));
+                        let (key, value) = (Key::EdgeColor(colors[g]), &groups.firsts[g]);
+                        items.push(("edge", colors[g], text(value)?, key, value.clone_ref(py)));
                     }
                     blocks.push(Block::Swatches {
                         title: title(&self.edge_color_by),
@@ -1073,6 +1124,7 @@ impl SceneBuilder {
                         cross,
                         PyString::new(py, "between groups").into_any().unbind(),
                         Key::Cross,
+                        py.None(),
                     )
                 };
                 let same_key = match (&self.edge_color_by, &self.color_by) {
@@ -1089,6 +1141,7 @@ impl SceneBuilder {
                                 colors[g],
                                 text(&groups.firsts[g])?,
                                 Key::Within(g),
+                                groups.firsts[g].clone_ref(py),
                             ));
                         }
                         items.push(cross_item());
@@ -1162,7 +1215,7 @@ impl SceneBuilder {
         // Legends are shown only for what they can tell apart: a palette's colors repeat after
         // its length, so a categorical block with more values than that is left out
         let out = PyList::empty(py);
-        let mut keys = Vec::new();
+        let (mut keys, mut entries) = (Vec::new(), Vec::new());
         if let Some(max) = legend_max {
             let n_colors = if color_by_on || edge_color_by_on {
                 palette.len()
@@ -1175,7 +1228,7 @@ impl SceneBuilder {
                     Block::Swatches { title, items } => {
                         let count = items
                             .iter()
-                            .filter(|(_, _, t, _)| {
+                            .filter(|(_, _, t, ..)| {
                                 !t.bind(py).eq("between groups").unwrap_or(false)
                             })
                             .count();
@@ -1185,8 +1238,10 @@ impl SceneBuilder {
                         dict.set_item("title", title)?;
                         dict.set_item("kind", "swatches")?;
                         let list = PyList::empty(py);
-                        for (shape, color, text, key) in items {
+                        for (shape, color, text, key, value) in items {
                             keys.push(*key);
+                            let of = if *shape == "node" { "nodes" } else { "edges" };
+                            entries.push((title.clone_ref(py), of, value.clone_ref(py)));
                             let pair = &pairs.list[*color];
                             list.append(PyTuple::new(
                                 py,
@@ -1231,6 +1286,7 @@ impl SceneBuilder {
             node_size,
             edge_width,
             keys,
+            entries,
         });
         Ok(out)
     }
@@ -1285,6 +1341,9 @@ impl SceneBuilder {
         lean_min=2000,
         viewer=false,
         legend_h=0.0,
+        camera=None,
+        filters=Vec::new(),
+        off=Vec::new(),
     ))]
     #[allow(clippy::too_many_arguments)]
     fn scene(
@@ -1302,6 +1361,9 @@ impl SceneBuilder {
         lean_min: usize,
         viewer: bool,
         legend_h: f64,
+        camera: Option<(Option<f64>, Option<f64>, f64)>,
+        filters: Vec<(String, Option<bool>, f64, f64)>,
+        off: Vec<usize>,
     ) -> PyResult<Scene> {
         let Some(enc) = &self.enc else {
             return Err(PyValueError::new_err("encode() comes before scene()"));
@@ -1403,6 +1465,78 @@ impl SceneBuilder {
         }
         let legend_w = if legend_h > 0.0 { legend_w } else { column };
 
+        // What `filters` hide, as the viewer's filters do: each a numeric attribute's name, of
+        // the edges or not (None for the nodes' attribute of the name, or else the edges'), and
+        // the range shown, in the attribute's own; and with `off`, the legend's swatches turned
+        // off, by their places among them. The viewer has them as its state, to hide them itself
+        let columns = if viewer || !filters.is_empty() {
+            self.filter_columns(py)?
+        } else {
+            Vec::new()
+        };
+        let mut ranges: Vec<(usize, f64, f64)> = Vec::new();
+        for (name, edges, lo, hi) in &filters {
+            let find = |e: bool| columns.iter().position(|c| c.name == *name && c.edges == e);
+            let found = match edges {
+                Some(e) => find(*e),
+                None => find(false).or_else(|| find(true)),
+            };
+            let Some(k) = found else {
+                let of = match edges {
+                    Some(true) => "edges",
+                    Some(false) => "nodes",
+                    None => "nodes or edges",
+                };
+                return Err(PyValueError::new_err(format!(
+                    "filters: the {of} have no attribute {} with numbers (two values or more) to \
+                     filter by",
+                    PyString::new(py, name).repr()?
+                )));
+            };
+            // Each attribute once, and within its values, as the viewer takes them
+            if ranges.iter().any(|&(j, ..)| j == k) {
+                continue;
+            }
+            let c = &columns[k];
+            let lo = py_max(c.min, py_min(c.max, *lo));
+            ranges.push((k, lo, py_max(lo, py_min(c.max, *hi))));
+        }
+        let keys_on = legend.is_truthy()? && !enc.keys.is_empty();
+        let n_keys = if keys_on { enc.keys.len() } else { 0 };
+        if let Some(k) = off.iter().find(|&&k| k >= n_keys) {
+            return Err(PyValueError::new_err(format!(
+                "off has the swatch {k}, past the legend's {n_keys}"
+            )));
+        }
+        // Those that narrow, in the payload's floats, as the viewer tests them
+        ranges.retain(|&(k, lo, hi)| lo > columns[k].min || hi < columns[k].max);
+        let within = |&(k, lo, hi): &(usize, f64, f64), i: usize| {
+            let c = &columns[k];
+            let v = (c.values[i] - c.min) as f32;
+            v >= (lo - c.min) as f32 && v <= (hi - c.min) as f32
+        };
+        let mut node_hidden = vec![false; n];
+        let mut edge_hidden = vec![false; m];
+        if !viewer && (!ranges.is_empty() || !off.is_empty()) {
+            let (node_key, edge_key) = if off.is_empty() {
+                (vec![0; n], vec![0; m])
+            } else {
+                self.legend_keys(&enc.keys)
+            };
+            let is_off = |key: u32| key > 0 && off.contains(&(key as usize - 1));
+            let (node_ranges, edge_ranges): (Vec<_>, Vec<_>) =
+                ranges.iter().partition(|&&(k, ..)| !columns[k].edges);
+            for k in 0..n {
+                node_hidden[k] = is_off(node_key[k]) || !node_ranges.iter().all(|r| within(r, k));
+            }
+            for i in 0..m {
+                edge_hidden[i] = is_off(edge_key[i])
+                    || node_hidden[self.src[i]]
+                    || node_hidden[self.tgt[i]]
+                    || !edge_ranges.iter().all(|r| within(r, i));
+            }
+        }
+
         // Edges routed around the nodes in their way, once for each pair of ends however many
         // edges join them
         let mut routes: Vec<Option<Vec<(f64, f64)>>> = vec![None; m];
@@ -1435,6 +1569,42 @@ impl SceneBuilder {
             }
         }
         let (bows, loop_sizes) = fans(&self.names, &self.src, &self.tgt);
+
+        // At `camera`, (x, y, zoom), the scene point at the middle (None for the frame's) and
+        // the zoom, the scene is drawn as the viewer draws it there, the viewbox staying as it
+        // is: moved and scaled about the frame's middle, the nodes grown by the square root of
+        // the zoom and the edges keeping their width. `u` is the frame's units per pixel, as the
+        // viewer fits it to the canvas, and `seen` the box in sight
+        let (hx, hy) = (viewbox.0 + viewbox.2 / 2.0, viewbox.1 + viewbox.3 / 2.0);
+        let u = py_max(viewbox.2 / width, viewbox.3 / height);
+        let seen = (
+            hx - width * u / 2.0,
+            hy - height * u / 2.0,
+            hx + width * u / 2.0,
+            hy + height * u / 2.0,
+        );
+        let camera = camera
+            .filter(|_| !viewer)
+            .map(|(x, y, zoom)| (x.unwrap_or(hx), y.unwrap_or(hy), zoom));
+        let mut radii = enc.radii.clone();
+        if let Some((cx, cy, zoom)) = camera {
+            if !(zoom.is_finite() && zoom > 0.0 && cx.is_finite() && cy.is_finite()) {
+                return Err(PyValueError::new_err(format!(
+                    "the camera is at a finite point with a zoom more than 0, not {:?}",
+                    (cx, cy, zoom)
+                )));
+            }
+            let at = |x: f64, y: f64| (hx + (x - cx) * zoom, hy + (y - cy) * zoom);
+            for k in 0..n {
+                (xs[k], ys[k]) = at(xs[k], ys[k]);
+                radii[k] *= zoom.sqrt();
+            }
+            for route in routes.iter_mut().flatten() {
+                for p in route.iter_mut() {
+                    *p = at(p.0, p.1);
+                }
+            }
+        }
 
         // The colors, as indexes into the scene's table of those it uses
         let mut pairs = enc.pairs.clone();
@@ -1517,6 +1687,27 @@ impl SceneBuilder {
             edge_width.push(w);
             edge_opacity.push(opacity);
         }
+        // Zoomed in, the arrowheads grow with the nodes, as the viewer's do (see `LINK_VS` in
+        // `static/viewer.js`): by the square root of the zoom, up to three times, though no
+        // longer than their nodes are across
+        let mut head = Vec::new();
+        if let (Some((_, _, zoom)), true) = (camera, self.directed) {
+            head = (0..m)
+                .map(|i| {
+                    let w = edge_width[i];
+                    let base = py_max(w / 1.2, 0.6);
+                    let zoomed = zoom
+                        .sqrt()
+                        .min(radii[self.tgt[i]] / (4.0 * base))
+                        .clamp(1.0, 3.0);
+                    if zoomed > 1.0 {
+                        1.2 * base * zoomed
+                    } else {
+                        w
+                    }
+                })
+                .collect();
+        }
         // Highlighted elements are drawn over the muted ones, and accent over soft
         let mut edge_order: Vec<usize> = (0..m).collect();
         if let Some((_, edge_level)) = levels {
@@ -1565,6 +1756,11 @@ impl SceneBuilder {
                 None => darker(&mut pairs, &mut darkened, c)?,
             };
             border.push(table.index(&pairs, edge));
+            // The viewer's borders are at most half as wide as the nodes' radii, and grow with
+            // them
+            if let Some((_, _, zoom)) = camera {
+                bw = py_min(bw, 0.5 * enc.radii[k]) * zoom.sqrt();
+            }
             border_width.push(bw);
             border_opacity.push(bo);
         }
@@ -1576,6 +1772,83 @@ impl SceneBuilder {
         for k in 0..n {
             let muted = levels.is_some_and(|(node_level, _)| node_level[k] == 0);
             label_colors.push(table.index(&pairs, if muted { muted_label } else { label }));
+        }
+
+        // What is hidden isn't drawn, nor at a camera is what is out of sight, and the labels are
+        // chosen again from those of the nodes shown, at the camera in their size in pixels, as
+        // the viewer chooses them
+        let mut shown = shown;
+        let mut label_font = font_size;
+        let mut edge_labels = self.edge_labels.clone();
+        if camera.is_some() || node_hidden.contains(&true) || edge_hidden.contains(&true) {
+            let font = if camera.is_some() {
+                font_size * u
+            } else {
+                font_size
+            };
+            let overlaps = |x0: f64, y0: f64, x1: f64, y1: f64| {
+                x1 >= seen.0 && x0 <= seen.2 && y1 >= seen.1 && y0 <= seen.3
+            };
+            let in_sight = |k: usize| {
+                let r = radii[k] + border_width[k];
+                camera.is_none() || overlaps(xs[k] - r, ys[k] - r, xs[k] + r, ys[k] + r)
+            };
+            let edge_in_sight = |i: usize| {
+                if camera.is_none() {
+                    return true;
+                }
+                let (a, b) = (self.src[i], self.tgt[i]);
+                let (mut x0, mut x1) = (py_min(xs[a], xs[b]), py_max(xs[a], xs[b]));
+                let (mut y0, mut y1) = (py_min(ys[a], ys[b]), py_max(ys[a], ys[b]));
+                for &(x, y) in routes[i].iter().flatten() {
+                    (x0, x1, y0, y1) = (py_min(x0, x), py_max(x1, x), py_min(y0, y), py_max(y1, y));
+                }
+                // How far a curve or a loop can reach past its ends
+                let pad = if a == b {
+                    radii[a] * (1.0 + 5.0 * loop_sizes[i])
+                } else {
+                    let bow = if curved { 0.2 + bows[i] } else { bows[i] };
+                    (xs[a] - xs[b]).hypot(ys[a] - ys[b]) * bow.abs()
+                } + edge_width[i]
+                    + 1.0;
+                overlaps(x0 - pad, y0 - pad, x1 + pad, y1 + pad)
+            };
+            if show_labels {
+                let masked: Vec<String> = (0..n)
+                    .map(|k| {
+                        let text = &self.labels[k];
+                        if node_hidden[k] {
+                            return String::new();
+                        }
+                        if camera.is_some() {
+                            let half = text.chars().count() as f64 * font * labels::CHAR_W / 2.0;
+                            let top = ys[k] + radii[k] + 2.0;
+                            if !overlaps(xs[k] - half, top, xs[k] + half, top + 1.25 * font) {
+                                return String::new();
+                            }
+                        }
+                        text.clone()
+                    })
+                    .collect();
+                shown = labels::choose(&masked, &xs, &ys, &radii, font, &label_order, label_limit);
+                for (s, text) in shown.iter_mut().zip(&masked) {
+                    *s &= !text.is_empty();
+                }
+                label_font = font;
+            }
+            node_order.retain(|&k| !node_hidden[k] && in_sight(k));
+            let mut drawn = vec![false; m];
+            edge_order.retain(|&i| !edge_hidden[i] && edge_in_sight(i));
+            for &i in &edge_order {
+                drawn[i] = true;
+            }
+            if let Some(texts) = &mut edge_labels {
+                for (text, drawn) in texts.iter_mut().zip(drawn) {
+                    if !drawn {
+                        *text = None;
+                    }
+                }
+            }
         }
 
         // For the viewer's selection, the colors it draws with, after those the scene uses
@@ -1621,37 +1894,13 @@ impl SceneBuilder {
             None
         };
 
-        // For the viewer's filters, the numeric attributes, with the nodes' degree unless an
-        // attribute has its name, as `color_by=` takes it, and the edges' weight likewise
-        let mut filters = Vec::new();
-        if viewer {
-            let has = |attrs: &[Option<Py<PyDict>>], key: &str| -> PyResult<bool> {
-                for a in attrs.iter().flatten() {
-                    if a.bind(py).contains(key)? {
-                        return Ok(true);
-                    }
-                }
-                Ok(false)
-            };
-            if !has(&self.node_attrs, "degree")? {
-                let values = self.degrees.iter().map(|&d| d as f64).collect();
-                filters.extend(ranged(filter("degree".into(), false, values)));
-            }
-            filters.extend(numeric_attrs(py, &self.node_attrs, false)?);
-            if !has(&self.edge_attrs, "weight")? {
-                let values = self.weights.iter().map(|w| w.unwrap_or(f64::NAN)).collect();
-                // The weights are floats, whatever they were given as, so whole ones are ints
-                let mut weight = filter("weight".into(), true, values);
-                weight.integer = weight.values.iter().all(|w| w.is_nan() || w.fract() == 0.0);
-                filters.extend(ranged(weight));
-            }
-            filters.extend(numeric_attrs(py, &self.edge_attrs, true)?);
-        }
+        // For the viewer's filters, the numeric attributes
+        let filters = if viewer { columns } else { Vec::new() };
 
         // Tooltips: a node's ID, and its label as well when it differs from the ID, since
         // either may be drawn under the node, then its attributes; an edge's ID, ends (named as
         // their labels are drawn, and in the order stored) and weight, then its attributes
-        let lean = n > lean_min || m > lean_min;
+        let lean = node_order.len() > lean_min || edge_order.len() > lean_min;
         let mut node_tips = Tips::new(py);
         let (id_key, label_key) = (intern!(py, "id").as_any(), intern!(py, "label").as_any());
         for k in 0..n {
@@ -1728,12 +1977,21 @@ impl SceneBuilder {
             legend_h,
             edge_tip_table,
             tip_tables,
+            legend_off: if viewer { Vec::new() } else { off },
+            entries: if viewer && keys_on {
+                enc.entries
+                    .iter()
+                    .map(|(title, of, value)| (title.clone_ref(py), *of, value.clone_ref(py)))
+                    .collect()
+            } else {
+                Vec::new()
+            },
             controls,
             nodes: Nodes {
                 ids: self.names.clone(),
                 x: xs,
                 y: ys,
-                r: enc.radii.clone(),
+                r: radii,
                 fill,
                 border,
                 border_width,
@@ -1745,7 +2003,7 @@ impl SceneBuilder {
             labels: (show_labels || viewer).then(|| Labels {
                 texts: self.labels.clone(),
                 colors: label_colors,
-                font_size,
+                font_size: label_font,
                 show: show_labels,
                 order: label_order,
                 limit: label_limit,
@@ -1763,8 +2021,9 @@ impl SceneBuilder {
                 route: routes,
                 order: edge_order,
                 tips: edge_tip_json,
+                head,
             },
-            edge_labels: self.edge_labels.clone(),
+            edge_labels,
         })
     }
 }
