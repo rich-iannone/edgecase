@@ -86,6 +86,12 @@ all = [
     "edgecase[dev,bio,networkx,docs]",
 ]
 
+[project.entry-points."networkx.backends"]
+edgecase = "edgecase.nx_backend.interface:backend_interface"
+
+[project.entry-points."networkx.backend_info"]
+edgecase = "_nx_edgecase:get_info"
+
 [project.urls]
 Homepage = "https://github.com/rich-iannone/edgecase"
 Repository = "https://github.com/rich-iannone/edgecase"
@@ -95,6 +101,8 @@ Issues = "https://github.com/rich-iannone/edgecase/issues"
 [tool.maturin]
 python-source = "python"
 module-name = "edgecase._core"
+# `_nx_edgecase` is the tiny package NetworkX imports at startup for the backend's metadata
+python-packages = ["_nx_edgecase"]
 features = ["pyo3/extension-module"]
 include = [
     "python/edgecase/static/*",

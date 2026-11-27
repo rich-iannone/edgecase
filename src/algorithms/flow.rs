@@ -60,11 +60,12 @@ pub fn max_flow(
         ));
     }
 
-    let (_, edge_flows, _) = edmonds_karp(graph, source, sink, capacity)?;
+    let (_, edge_flows, _, _) = edmonds_karp(graph, source, sink, capacity)?;
 
-    // Only report edges that carry flow
+    // Only report edges that carry flow (either way along an undirected edge)
     Ok(edge_flows
         .into_iter()
+        .map(|(edge, flow)| (edge, flow.abs()))
         .filter(|&(_, flow)| flow > 1e-10)
         .collect())
 }
@@ -98,8 +99,32 @@ pub fn max_flow_value(
         ));
     }
 
-    let (total_flow, _, _) = edmonds_karp(graph, source, sink, capacity)?;
+    let (total_flow, _, _, _) = edmonds_karp(graph, source, sink, capacity)?;
     Ok(total_flow)
+}
+
+/// The whole result of a maximum flow (Edmonds-Karp): `(value, flows, source_side,
+/// sink_side)`, with each edge's signed net flow and both extreme minimum cuts (see
+/// `edmonds_karp`). Used by the NetworkX backend's `maximum_flow` and `minimum_cut`.
+#[pyfunction]
+#[pyo3(signature = (graph, source, sink, capacity=None))]
+pub fn max_flow_details(
+    graph: &Graph,
+    source: u64,
+    sink: u64,
+    capacity: Option<&str>,
+) -> PyResult<(f64, Vec<(u64, f64)>, Vec<u64>, Vec<u64>)> {
+    if !graph.has_node_id(source) || !graph.has_node_id(sink) {
+        return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
+            "source and sink must be nodes of the graph",
+        ));
+    }
+    if source == sink {
+        return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
+            "Source and target must be different nodes",
+        ));
+    }
+    edmonds_karp(graph, source, sink, capacity)
 }
 
 /// Compute minimum cost flow from source to sink.
@@ -472,13 +497,17 @@ pub(crate) fn get_edge_capacity(
 /// reported flow is the magnitude of its net flow.
 ///
 /// Also returns the source side of a minimum cut: the nodes still reachable from `source`
-/// in the final residual network.
+/// in the final residual network, and the sink side of the other extreme minimum cut: the
+/// nodes that can still reach `sink` (both are the same for every maximum flow).
+///
+/// Each edge's flow is signed: the net flow from its source to its target (negative when an
+/// undirected edge carries flow the other way).
 pub(crate) fn edmonds_karp(
     graph: &Graph,
     source: u64,
     sink: u64,
     capacity: Option<&str>,
-) -> PyResult<(f64, Vec<(u64, f64)>, Vec<u64>)> {
+) -> PyResult<(f64, Vec<(u64, f64)>, Vec<u64>, Vec<u64>)> {
     let edges = graph.get_edges_internal();
     let is_directed = graph.is_directed();
 
@@ -544,7 +573,7 @@ pub(crate) fn edmonds_karp(
 
     let edge_flows = edge_arcs
         .into_iter()
-        .map(|(edge_id, forward, edge_cap)| (edge_id, (edge_cap - arcs[forward].residual).abs()))
+        .map(|(edge_id, forward, edge_cap)| (edge_id, edge_cap - arcs[forward].residual))
         .collect();
 
     // Source side of the minimum cut: everything reachable through residual capacity
@@ -567,7 +596,30 @@ pub(crate) fn edmonds_karp(
         .collect();
     source_side.sort_unstable();
 
-    Ok((total_flow, edge_flows, source_side))
+    // Sink side: everything that can still reach the sink through residual capacity (an arc
+    // a -> b has residual capacity when `residual > 0`; walk them backwards from the sink)
+    let mut reaches = vec![false; out_arcs.len()];
+    let mut queue: VecDeque<usize> = VecDeque::from([sink_idx]);
+    reaches[sink_idx] = true;
+    while let Some(v) = queue.pop_front() {
+        for &a in &out_arcs[v] {
+            // `a` leaves v; its paired arc enters v from `arcs[a].to`
+            let into_v = &arcs[arcs[a].rev];
+            let from = arcs[a].to;
+            if into_v.residual > 1e-10 && !reaches[from] {
+                reaches[from] = true;
+                queue.push_back(from);
+            }
+        }
+    }
+    let mut sink_side: Vec<u64> = node_index
+        .iter()
+        .filter(|(_, &i)| reaches[i])
+        .map(|(&id, _)| id)
+        .collect();
+    sink_side.sort_unstable();
+
+    Ok((total_flow, edge_flows, source_side, sink_side))
 }
 
 /// BFS for a shortest augmenting path over arcs with positive residual capacity.

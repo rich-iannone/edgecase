@@ -809,13 +809,18 @@ pub(crate) fn louvain_partition(
 /// The partition of the base nodes after each aggregation level of a Louvain run (`leiden=false`)
 /// or a single Leiden run from singletons (`leiden=true`), coarsest last. Each level is returned
 /// as labels in node ID order, numbered in order of the lowest node ID in each community.
+///
+/// Leiden can optimize modularity (`objective="modularity"`, the default) or the Constant
+/// Potts Model (`"cpm"`, as `leiden()` does), with refinement randomness `theta`.
 #[pyfunction]
-#[pyo3(signature = (graph, leiden=false, resolution=1.0, seed=None))]
+#[pyo3(signature = (graph, leiden=false, resolution=1.0, seed=None, objective="modularity", theta=THETA))]
 pub fn community_levels(
     graph: &Graph,
     leiden: bool,
     resolution: f64,
     seed: Option<Seed>,
+    objective: &str,
+    theta: f64,
 ) -> PyResult<(Vec<u64>, Vec<Vec<usize>>)> {
     let seed = seed.map(u64::from);
     if leiden && graph.is_directed() {
@@ -823,7 +828,23 @@ pub fn community_levels(
             "Leiden algorithm requires an undirected graph",
         ));
     }
+    let cpm = match objective {
+        "modularity" => false,
+        "cpm" if leiden => true,
+        _ => {
+            return Err(pyo3::exceptions::PyValueError::new_err(format!(
+                "objective must be 'modularity' (or 'cpm' with leiden=True), got '{}'",
+                objective
+            )))
+        }
+    };
+    if !(theta > 0.0 && theta.is_finite()) {
+        return Err(pyo3::exceptions::PyValueError::new_err(
+            "theta must be a positive number",
+        ));
+    }
     let (base, ids) = WGraph::from_graph(graph);
+    let base = if cpm { base.into_cpm() } else { base };
     let n = base.n();
     let mut rng = rng_from(seed);
     let mut g = base;
@@ -846,7 +867,7 @@ pub fn community_levels(
             break;
         }
         let (aggregate_by, kr) = if leiden {
-            let mut refined = refine(&g, &part, resolution, THETA, &mut rng);
+            let mut refined = refine(&g, &part, resolution, theta, &mut rng);
             let kr = renumber(&mut refined);
             if kr == g.n() {
                 (flat.clone(), k)

@@ -474,6 +474,83 @@ routes = ec.from_pandas_edgelist(flights, source="from", target="to", edge_attr=
 
 `from_pandas_edgelist()` takes Polars DataFrames as well as Pandas ones.
 
+## Use EdgeCase as a NetworkX backend
+
+EdgeCase is also a [NetworkX backend](https://networkx.org/documentation/stable/backends.html):
+installed alongside NetworkX, it lets existing NetworkX code run on EdgeCase's Rust core without
+changing anything but how the call is dispatched. Installing `edgecase` registers the backend; no
+extra package is needed.
+
+```python
+import networkx as nx
+
+G = nx.karate_club_graph()
+
+# Ask for EdgeCase in a single call
+nx.betweenness_centrality(G, backend="edgecase")
+
+# Or prefer EdgeCase for every call that it implements
+nx.config.backend_priority.algos = ["edgecase"]
+nx.community.louvain_communities(G, seed=42)
+```
+
+The environment variable `NETWORKX_BACKEND_PRIORITY=edgecase` does the same as the configuration
+line. NetworkX converts each graph to EdgeCase on first use and caches the conversion on the
+graph, so further calls on an unchanged graph skip it. To keep a converted graph yourself, use
+`edgecase.nx_backend.from_networkx(G, preserve_edge_attrs=True, preserve_node_attrs=True,
+preserve_graph_attrs=True)`; NetworkX functions given that graph run on EdgeCase directly.
+
+**What it covers.** Over 200 NetworkX functions: components, traversal and DAG ordering,
+shortest paths and distance measures, centralities (betweenness, closeness, PageRank, HITS and
+more), clustering and triangles, k-cores, community detection (Louvain, label propagation, greedy
+modularity, Leiden) and quality measures, flows and cuts, matchings, spanning trees,
+assortativity, link prediction, Weisfeiler-Lehman hashes, relabeling and ego graphs, and
+adjacency and Laplacian matrices. The full list is in
+`nx.utils.backends.backend_info["edgecase"]["functions"]`, and each of these functions' NetworkX
+docstring gains a *Backends* section naming EdgeCase. Functions EdgeCase does not implement run
+in NetworkX as usual; to pass a converted EdgeCase graph to one of them, set
+`nx.config.fallback_to_nx = True` so NetworkX converts it back.
+
+**Same answers as NetworkX.** The backend reproduces NetworkX's results, including the order of
+dictionaries, lists and generators and the values of floating-point sums, and raises NetworkX's
+errors. Randomized algorithms (Louvain, asynchronous label propagation) draw the same random
+numbers from `seed` as NetworkX does and return the same partitions. The known differences:
+
+- Leiden finds its own valid partition for a given `seed` (NetworkX's depends on the iteration
+  order of Python sets).
+- Where several matchings have the same maximum weight, `max_weight_matching` may pick another.
+- `maximum_flow` returns a valid maximum flow, which can differ from the one NetworkX's chosen
+  algorithm finds; the flow value and `minimum_cut` are the same.
+- `adamic_adar_index`, `resource_allocation_index` and `ra_index_soundarajan_hopcroft` can
+  differ from NetworkX in the last bit when two nodes have three or more common neighbors:
+  NetworkX adds over a Python set, whose order for string nodes changes with `PYTHONHASHSEED`.
+- `generalized_degree` returns equal `Counter`s whose keys can be in another order.
+- On graphs that mix integer and float weights, shortest-path lengths are floats where NetworkX
+  keeps integers on all-integer paths (the values are equal).
+- `find_cliques`, the set-ordered `greedy_color` strategies, `maximal_independent_set` and
+  `dominating_set` reproduce NetworkX's order by modelling CPython's set iteration; outside
+  CPython 3.10-3.14 NetworkX runs them instead.
+
+**When it pays off.** EdgeCase's speedups are largest for algorithms that do a lot of work per
+edge. Some measurements on random graphs (including the conversion unless noted):
+
+| Function | Graph | NetworkX | EdgeCase |
+| :-- | :-- | --: | --: |
+| `betweenness_centrality` | 2,000 nodes, 10,000 edges | 3.5 s | 0.015 s |
+| `louvain_communities` | 20,000 nodes, 100,000 edges | 9.7 s | 0.49 s |
+| `greedy_modularity_communities` | 5,000 nodes, 25,000 edges | 8.5 s | 0.35 s |
+| `pagerank` (graph already converted) | 200,000 nodes, 2,000,000 edges | 1.0 s | 0.034 s |
+
+For functions that take about as long as the conversion itself (connected components,
+traversals, most single-source searches, matrix exports), automatic dispatch uses EdgeCase only
+when the graph is already converted; `backend="edgecase"` always uses it.
+
+**Testing against NetworkX's own test suite.** `scripts/run_nx_tests.sh` runs NetworkX's test
+suite with EdgeCase as the backend (`NETWORKX_TEST_BACKEND=edgecase`): every NetworkX call that
+EdgeCase implements is converted and run on EdgeCase, and the tests check the results. The suite
+passes, with a few tests marked as expected failures, each with its reason (in
+`python/edgecase/nx_backend/_testing.py`).
+
 ## What's inside
 
 <details>

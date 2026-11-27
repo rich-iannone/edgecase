@@ -69,8 +69,22 @@ pub fn descendants(graph: &Graph, node: u64) -> PyResult<Vec<u64>> {
 /// Kahn layering: generation 0 holds the sources, generation k the nodes whose longest path
 /// from a source has k edges. Returns None if the graph has a cycle.
 fn generations(g: &IndexedGraph) -> Option<Vec<Vec<usize>>> {
+    let (gens, complete) = kahn_generations(g, &[], true);
+    complete.then_some(gens)
+}
+
+/// Kahn layering as far as it goes: the generations of the nodes not on or after a cycle, and
+/// whether that is every node. `self_loops` lists nodes with self-loops (which `IndexedGraph`
+/// drops): they and everything after them never get placed. With `sort`, each generation is in
+/// node order; otherwise in the order its nodes are released (by their last parent in the
+/// previous generation's order, then edge order), as NetworkX's `topological_generations`
+/// yields them.
+fn kahn_generations(g: &IndexedGraph, self_loops: &[usize], sort: bool) -> (Vec<Vec<usize>>, bool) {
     let n = g.len();
     let mut indeg: Vec<usize> = g.inn.iter().map(|p| p.len()).collect();
+    for &v in self_loops {
+        indeg[v] += 1;
+    }
     let mut current: Vec<usize> = (0..n).filter(|&i| indeg[i] == 0).collect();
     let mut gens = Vec::new();
     let mut seen = 0;
@@ -85,11 +99,36 @@ fn generations(g: &IndexedGraph) -> Option<Vec<Vec<usize>>> {
                 }
             }
         }
-        next.sort_unstable();
+        if sort {
+            next.sort_unstable();
+        }
         gens.push(std::mem::take(&mut current));
         current = next;
     }
-    (seen == n).then_some(gens)
+    (gens, seen == n)
+}
+
+/// Topological generations in the order NetworkX yields them, as far as the graph is acyclic:
+/// `(generations, complete)`, where `complete` is False if some nodes are on or after a cycle
+/// (a self-loop counts) and so are in no generation. Each generation lists node IDs in the
+/// order they are released (see `kahn_generations`).
+#[pyfunction]
+pub fn topological_generations_partial(graph: &Graph) -> PyResult<(Vec<Vec<u64>>, bool)> {
+    require_directed(graph, "topological_generations_partial()")?;
+    let g = IndexedGraph::new(graph, false);
+    let self_loops: Vec<usize> = graph
+        .get_edges_internal()
+        .iter()
+        .filter(|e| e.source == e.target)
+        .filter_map(|e| g.idx.get(&e.source).copied())
+        .collect();
+    let (gens, complete) = kahn_generations(&g, &self_loops, false);
+    Ok((
+        gens.into_iter()
+            .map(|layer| layer.into_iter().map(|i| g.ids[i]).collect())
+            .collect(),
+        complete,
+    ))
 }
 
 fn has_self_loop(graph: &Graph) -> bool {
