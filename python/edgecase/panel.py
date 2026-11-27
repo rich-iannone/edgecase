@@ -19,13 +19,19 @@ pn.Column(pane, picked).servable()
 
 from __future__ import annotations
 
-from pathlib import Path
 from typing import Any
 
 import panel as pn
 import param
 
-from edgecase.svg_renderer import STATES, _app_html, _app_plot, _app_state, _app_value
+from edgecase.svg_renderer import (
+    STATES,
+    _app_html,
+    _app_plot,
+    _app_state,
+    _app_value,
+    _runtime_file,
+)
 
 __all__ = ["GraphPane"]
 
@@ -85,7 +91,7 @@ class GraphPane(pn.custom.AnyWidgetComponent):
     )
 
     # The runtime, whose `render()` shows the plot (see the end of `static/viewer.js`)
-    _esm = Path(__file__).parent / "static" / "viewer.js"
+    _esm = _runtime_file()
     _rename = {"object": None}
 
     def __init__(self, object: Any = None, **params: Any) -> None:
