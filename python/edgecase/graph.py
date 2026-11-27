@@ -4505,6 +4505,7 @@ class Graph:
         node_overlap: Union[str, float] = "remove",
         edge_routing: Union[str, float] = "auto",
         show_labels: bool = True,
+        max_labels: Optional[int] = None,
         output: Optional[str] = None,
         seed: Optional[int] = None,
         edge_width_by: Optional[str] = None,
@@ -4662,6 +4663,14 @@ class Graph:
             `ValueError`.
         show_labels
             Whether to display node labels (see `label_by=`). Default is `True`.
+        max_labels
+            The most node labels to draw, so that those of a large graph can be read. They are
+            taken in order of priority (highlighted nodes first, then larger ones, then those
+            with more edges), leaving out any that would overlap a label taken before it. The
+            viewer chooses them again as it zooms, from the nodes in view. If `None` (default),
+            every label is drawn for a graph of up to 50 nodes, and otherwise 30 of them. `0`
+            draws none, as `show_labels=False` does. Anything but `None` or a whole number 0 or
+            more raises `ValueError`.
         output
             Optional file path to save the output to, in the format of its extension: `.html`
             for the HTML version with hover tooltips, `.svg` for the raw SVG, and `.png` for a PNG
@@ -4728,14 +4737,15 @@ class Graph:
             the plot has been clicked), with hundreds of thousands of edges, and to show full
             screen (its button, or the key `F`). Hovering over a node or an edge (or tapping it)
             shows its tooltip, as in the SVG. The legend stays SVG, over it, and folds into a
-            button when the plot is too small for it; there are no labels, arrowheads or
+            button when the plot is too small for it. The labels keep their size as it zooms,
+            chosen again for what is in view (see `max_labels=`); there are no arrowheads or
             self-loops yet, and edges aren't routed. Its Settings button opens a panel of
-            controls (the node size, the edges' opacity, width and curve, the theme and the
-            legend), docked at the side when the plot is wide, whose "Copy as code" writes the
-            `plot()` call that draws what it shows. The HTML holds the viewer's code (about
-            67 kB), the drawing's data and the tooltips, about 15 MB for 600,000 edges, half of
-            it the tooltips, and the browser needs WebGL 2. Any other value raises
-            `ValueError`.
+            controls (the node size, the edges' opacity, width and curve, the labels, the theme
+            and the legend), docked at the side when the plot is wide, whose "Copy as code"
+            writes the `plot()` call that draws what it shows. The HTML holds the viewer's code
+            (about 76 kB), the drawing's data, the labels and the tooltips, about 15 MB for
+            600,000 edges, half of it the tooltips, and the browser needs WebGL 2. Any other
+            value raises `ValueError`.
 
         Returns
         -------
@@ -4898,6 +4908,7 @@ class Graph:
             node_overlap=node_overlap,
             edge_routing=edge_routing,
             show_labels=show_labels,
+            max_labels=max_labels,
             output=output,
             seed=seed,
             edge_width_by=edge_width_by,
