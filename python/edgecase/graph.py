@@ -4750,15 +4750,21 @@ class Graph:
             (the buttons, the keys `+`, `-` and `0`, a double click, or the wheel once the plot has
             been clicked), with hundreds of thousands of edges, and to show full screen (its button,
             or the key `F`). Hovering over a node or an edge (or tapping it) shows its tooltip, as
-            in the SVG. The legend stays SVG, over it, and folds into a button when the plot is too
-            small for it. The labels keep their size as it zooms, chosen again for what is in view
-            (see `max_labels=`); edges aren't routed. Its Settings button opens a panel of controls
-            (the node size and shading, the edges' opacity, width, curve and tone, the labels, the
-            theme and the legend), docked at the side when the plot is wide, whose "Copy as code"
-            writes the `plot()` call that draws what it shows. The HTML holds the viewer's code
-            (about 89 kB), the drawing's data, the labels and the tooltips, about 15 MB for 600,000
-            edges, half of it the tooltips, and the browser needs WebGL 2. Any other value raises
-            `ValueError`.
+            in the SVG. Clicking one selects it, and Shift and a click adds to the selection, as
+            does a loop drawn with Shift held (or with the lasso button); the selection is drawn as
+            `highlight=` and `highlight_edges=` would draw it, in place of the plot's own, until Esc
+            or a click on nothing clears it. The search (its pill, or the key `/`) finds a node by
+            its ID or label and flies to it. The legend stays SVG, over it, and folds into a button
+            when the plot is too small for it; clicking a swatch hides what it stands for, and
+            Alt and a click shows it alone. The labels keep their size as it zooms, chosen again
+            for what is in view (see `max_labels=`); edges aren't routed. Its Settings button
+            opens a panel of controls (the node size and shading, the edges' opacity, width, curve
+            and tone, the labels, the theme and the legend), docked at the side when the plot is
+            wide, whose "Copy as code" writes the `plot()` call that draws what it shows, the
+            selection included (the legend's filters aren't arguments). The HTML holds the
+            viewer's code (about 111 kB), the drawing's data, the labels and the tooltips, about
+            15 MB for 600,000 edges, half of it the tooltips, and the browser needs WebGL 2. Any
+            other value raises `ValueError`.
 
         Returns
         -------
