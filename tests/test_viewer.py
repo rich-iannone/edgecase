@@ -479,3 +479,71 @@ def test_the_viewer_draws_arrowheads_self_loops_and_the_log_tone():
     assert "vec2(-0.35, 0.35)" in js and "1.5 * v_r" in js
     # Their controls, and the picker takes self-loops
     assert 'name: "edge_tone"' in js and 'name: "shade"' in js and "function loopPoints(" in js
+
+
+def test_the_payload_has_what_the_selection_draws():
+    g = ec.karate_club()
+    html = g.plot(backend="viewer", seed=1)._repr_html_()
+    header, columns = _html_payload(html)
+    select = header["select"]
+    assert set(select) == {
+        "accent", "accent_border", "muted", "muted_border", "label", "muted_label", "edge",
+        "node_colors", "edge_colors",
+    }  # fmt: skip
+    assert (select["node_colors"], select["edge_colors"]) == (False, False)
+    # Its colors are in the table, after the scene's, which the SVG has
+    light = header["colors"]["light"]
+    assert all(select[k] < len(light) for k in select if k not in ("node_colors", "edge_colors"))
+    assert len(header["colors"]["dark"]) == len(light)
+    # The nodes' IDs, in two halves
+    hi = columns.get("node_id_hi") or (header["constants"]["node_id_hi"],) * 34
+    assert sorted(columns["node_id"]) == list(range(1, 35)) and set(hi) == {0}
+    assert [int(tip["id"]) for tip in _tips(html)[0]] == list(columns["node_id"])
+    # The columns without highlighting are the plot's own where it has none
+    assert not any(name.startswith("base_") and name != "base_width" for name in columns)
+    html = g.plot(backend="viewer", seed=1, color_by="faction", highlight=[1, 2, 3])._repr_html_()
+    header, columns = _html_payload(html)
+    assert header["select"]["node_colors"] is True
+    assert sorted(columns["base_label_order"]) == list(range(34))
+    fill = columns.get("base_fill") or (header["constants"]["base_fill"],) * 34
+    assert len(set(fill)) == 2 and set(fill) != set(columns.get("fill") or ())
+    assert len(columns.get("base_color") or (header["constants"]["base_color"],) * 78) == 78
+    # A scene that isn't a plot's has no selection
+    assert _payload(_scene().payload())[0]["select"] is None
+
+
+def test_the_payload_has_the_legends_keys():
+    g = ec.karate_club()
+    for e in g.get_edge_ids(limit=None):
+        g.set_edge_attrs("kind", "strong" if e % 3 else "weak", edge_ids=[e])
+    html = g.plot(backend="viewer", seed=1, color_by="faction", edge_color_by="kind")._repr_html_()
+    header, columns = _html_payload(html)
+    # The swatches' places, plus 1, in the order the legend draws them
+    assert set(columns["node_key"]) == {1, 2} and set(columns["edge_key"]) == {3, 4}
+    key = r'<g class="ec-key" data-key="(\d+)" data-block="(\d+)"[^>]*aria-label="([^"]+)"'
+    keys = re.findall(key, html)
+    assert keys == [("0", "0", "1"), ("1", "0", "2"), ("2", "1", "strong"), ("3", "1", "weak")]
+    # The edges by their kind, in drawing order, as the tooltips have them
+    kinds = [tip["kind"] for tip in _tips(html)[1]]
+    assert [{"strong": 3, "weak": 4}[k] for k in kinds] == list(columns["edge_key"])
+    # Edges colored by their nodes' groups: those within each, and those between
+    html = g.plot(backend="viewer", seed=1, edge_color_by="faction")._repr_html_()
+    header, columns = _html_payload(html)
+    assert set(columns["edge_key"]) == {1, 2, 3} and header["constants"]["node_key"] == 0
+    assert html.count('class="ec-key"') == 3
+    # Not in the SVG, nor without a legend
+    svg = g.plot(backend="svg", seed=1, color_by="faction", edge_color_by="kind").svg
+    assert "ec-key" not in svg
+    html = g.plot(backend="viewer", seed=1, color_by="faction", legend=False)._repr_html_()
+    header, columns = _html_payload(html)
+    assert "node_key" not in columns and "node_key" not in header["constants"]
+
+
+def test_the_viewer_selects_searches_and_filters():
+    js = (Path(svg_renderer.__file__).parent / "static" / "viewer.js").read_text()
+    # A click or a lasso selects, drawn as highlight= draws it, and written as it
+    assert "function clickAt(" in js and "function lassoEnd(" in js and "ec-lasso" in js
+    assert "function relook(" in js and 'args.set("highlight_edges"' in js
+    # The search pill, and the legend's swatches as checkboxes
+    assert "function searchPill(" in js and '"combobox"' in js and "function flyTo(" in js
+    assert ".ec-key" in js and "The legend's filters aren't in the code" in js
