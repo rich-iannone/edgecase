@@ -33,7 +33,7 @@ const LEGEND_SHARE = 0.35;
 // A node or an edge is under the pointer when it is drawn within this many pixels of it
 const HIT = 4;
 // The controls' panel is this wide, and docks beside the drawing in a box at least this wide
-const PANEL_W = 280;
+const PANEL_W = 312;
 const DOCK_MIN = 840;
 // A view or filters changing are told to the host once they have kept still this many ms
 const SETTLE = 150;
@@ -51,6 +51,8 @@ const ICONS = {
   reset: "M3.5 8a4.5 4.5 0 1 0 1.5-3.35M3.5 2.5v3h3",
   search: "M7 2.5a4.5 4.5 0 1 0 0 9a4.5 4.5 0 1 0 0-9M10.5 10.5l3 3",
   lasso: "M8 2.5c3 0 5.5 1.5 5.5 3.5S11 9.5 8 9.5S2.5 8 2.5 6S5 2.5 8 2.5M5 9.1c-.8.9-.8 2 0 2.6s1.2 1.4.5 2.3",
+  play: "M5 3.5v9l7.5-4.5z",
+  pause: "M5.5 3.5v9M10.5 3.5v9",
 };
 const icon = (path) => `<svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path d="${path}" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
 const el = (tag, className, text) => {
@@ -75,7 +77,7 @@ export function parse(buffer) {
   const names = ["x", "y", "r", "fill", "border", "border_width", "border_opacity", "order",
     "src", "tgt", "color", "width", "opacity", "bow", "loop_size", "level", "base_width", "label_order",
     "label_color", "node_id", "node_id_hi", "base_fill", "base_border", "base_color", "base_label_order",
-    "node_key", "edge_key"];
+    "node_key", "edge_key", "cluster"];
   for (const f of header.filters ?? []) names.push(f.column);
   return { header, ...Object.fromEntries(names.map((name) => [name, column(name)])) };
 }
@@ -377,13 +379,18 @@ function compile(gl, vs, fs) {
   return { prog, u, a };
 }
 
-// A float texture of `rows(i)`, four floats for each of `n` entries
-function table(gl, n, fill) {
+// A float texture of `rows(i)`, four floats for each of `n` entries, or `into`, one that this made
+// before for as many, filled again
+function table(gl, n, fill, into) {
   const rows = Math.max(1, Math.ceil(n / TEX_W));
   const data = new Float32Array(TEX_W * rows * 4);
   for (let i = 0; i < n; i++) fill(data, 4 * i, i);
-  const tex = gl.createTexture();
+  const tex = into ?? gl.createTexture();
   gl.bindTexture(gl.TEXTURE_2D, tex);
+  if (into) {
+    gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, TEX_W, rows, gl.RGBA, gl.FLOAT, data);
+    return tex;
+  }
   gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA32F, TEX_W, rows, 0, gl.RGBA, gl.FLOAT, data);
   for (const p of [gl.TEXTURE_MIN_FILTER, gl.TEXTURE_MAG_FILTER]) gl.texParameteri(gl.TEXTURE_2D, p, gl.NEAREST);
   return tex;
@@ -421,7 +428,7 @@ function renderer(canvas, data) {
   const n = header.nodes, m = header.edges;
   const density = gl.getExtension("EXT_color_buffer_float") !== null;
 
-  const nodeTable = () => table(gl, n, (t, j, i) => t.set([at(data.x, i), at(data.y, i), at(data.r, i), at(data.fill, i)], j));
+  const nodeTable = (into) => table(gl, n, (t, j, i) => t.set([at(data.x, i), at(data.y, i), at(data.r, i), at(data.fill, i)], j), into);
   let nodes = nodeTable();
   // The last is 1 for a node hidden
   const styleTable = () => table(gl, n, (t, j, i) => t.set([at(data.border, i), at(data.border_width, i), at(data.border_opacity, i), at(data.hidden, i)], j));
@@ -683,10 +690,8 @@ function renderer(canvas, data) {
     },
     update(names) {
       if (["width", "opacity", "color"].some((name) => names.includes(name))) lone = null;
-      if (names.includes("r") || names.includes("fill")) {
-        gl.deleteTexture(nodes);
-        nodes = nodeTable();
-      }
+      // As the simulation moves the nodes, a frame at a time, in place
+      if (["x", "y", "r", "fill"].some((name) => names.includes(name))) nodes = nodeTable(nodes);
       if (["border", "border_width", "border_opacity", "hidden"].some((name) => names.includes(name))) {
         gl.deleteTexture(styles);
         styles = styleTable();
@@ -998,7 +1003,7 @@ html.ec-expanded-page, html.ec-expanded-page body { overflow: hidden !important;
 .ec-viewer .ec-panel :focus-visible { outline: 2px solid currentColor; outline-offset: 1px; }
 .ec-viewer .ec-panel-head { display: flex; align-items: flex-end; gap: 4px; padding: 6px 6px 0 8px; border-bottom: 1px solid color-mix(in srgb, currentColor 15%, transparent); }
 .ec-viewer .ec-tabs { display: flex; flex: 1; gap: 1px; min-width: 0; overflow-x: auto; }
-.ec-viewer .ec-panel [role=tab] { position: relative; padding: 6px 5px; border-radius: 6px 6px 0 0; border-bottom: 2px solid transparent; opacity: 0.7; white-space: nowrap; }
+.ec-viewer .ec-panel [role=tab] { position: relative; padding: 6px 4px; border-radius: 6px 6px 0 0; border-bottom: 2px solid transparent; opacity: 0.7; white-space: nowrap; }
 .ec-viewer .ec-panel [role=tab][aria-selected=true] { opacity: 1; font-weight: 600; border-bottom-color: currentColor; }
 .ec-viewer .ec-panel [role=tab].ec-changed::after { content: ""; position: absolute; top: 4px; right: 0; width: 5px; height: 5px; border-radius: 50%; background: currentColor; }
 .ec-viewer .ec-panel .ec-close { align-self: center; width: 26px; height: 26px; padding: 0; opacity: 0.75; }
@@ -1031,6 +1036,11 @@ html.ec-expanded-page, html.ec-expanded-page body { overflow: hidden !important;
 .ec-viewer .ec-range label { flex: 1; display: flex; align-items: center; gap: 5px; min-width: 0; }
 .ec-viewer .ec-range input { flex: 1; min-width: 0; width: 0; padding: 2px 4px; font: inherit; font-variant-numeric: tabular-nums; color: inherit; background: transparent; border: 1px solid color-mix(in srgb, currentColor 25%, transparent); border-radius: 4px; }
 .ec-viewer .ec-panel .ec-add { align-self: flex-start; padding: 4px 10px; background: color-mix(in srgb, currentColor 12%, transparent); border-radius: 4px; }
+.ec-viewer .ec-run { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.ec-viewer .ec-panel .ec-act { display: inline-flex; align-items: center; gap: 5px; padding: 4px 10px; background: color-mix(in srgb, currentColor 12%, transparent); border-radius: 4px; }
+.ec-viewer .ec-panel .ec-act:disabled { opacity: 0.45; cursor: default; }
+.ec-viewer .ec-run .ec-state { margin-left: auto; opacity: 0.8; font-variant-numeric: tabular-nums; }
+.ec-viewer .ec-run .ec-note { flex-basis: 100%; }
 .ec-viewer .ec-panel-foot { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 10px 12px; border-top: 1px solid color-mix(in srgb, currentColor 15%, transparent); }
 .ec-viewer .ec-panel .ec-copy { padding: 6px 10px; font-weight: 600; background: color-mix(in srgb, currentColor 12%, transparent); }
 .ec-viewer .ec-status { opacity: 0.8; }
@@ -1078,7 +1088,7 @@ export function mount(root, buffer, options = {}) {
   canvas.tabIndex = 0;
   canvas.className = "ec-grab";
   canvas.setAttribute("role", "img");
-  canvas.setAttribute("aria-label", `Graph of ${header.nodes} nodes and ${header.edges} edges. Drag to pan; zoom with the buttons, the keys + and -, or the wheel once clicked; F for full screen; hover over a node or an edge for its details; click one to select it, with Shift to add it, Shift and drag to lasso nodes, Esc to clear; / to search the nodes; the Settings button opens the plot's controls`);
+  canvas.setAttribute("aria-label", `Graph of ${header.nodes} nodes and ${header.edges} edges. Drag to pan; zoom with the buttons, the keys + and -, or the wheel once clicked; F for full screen; hover over a node or an edge for its details; click one to select it, with Shift to add it, Shift and drag to lasso nodes, Esc to clear; / to search the nodes; the Settings button opens the plot's controls, where the Layout tab runs a force layout, while which a node can be dragged`);
   root.prepend(canvas);
   // A moved view draws `BUDGET` edges at once, so they go in a random order, to be a fair share;
   // `edgeRow` is each one's place in the scene's order, its row of the tooltips
@@ -1253,10 +1263,12 @@ export function mount(root, buffer, options = {}) {
     const was = still;
     requestAnimationFrame(() => { if (still === was) standIn(null); });
   }
+  // The simulation waits while the plot is out of view
   inSight(root, (on) => {
     near = on;
     if (on) wake();
     else release();
+    if (on) loop();
   });
   root.addEventListener("pointerenter", wake);
   root.addEventListener("focusin", wake);
@@ -1293,8 +1305,32 @@ export function mount(root, buffer, options = {}) {
     redraw();
   }
   function reset() {
-    Object.assign(cam, home);
+    Object.assign(cam, homeView());
     redraw();
+  }
+  // The nodes' box, [x0, y0, x1, y1], around their discs or their centers
+  function extent(discs) {
+    let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+    for (let i = 0; i < header.nodes; i++) {
+      const x = at(data.x, i), y = at(data.y, i), r = discs ? at(data.r, i) : 0;
+      x0 = Math.min(x0, x - r);
+      y0 = Math.min(y0, y - r);
+      x1 = Math.max(x1, x + r);
+      y1 = Math.max(y1, y + r);
+    }
+    return [x0, y0, x1, y1];
+  }
+  // The view that fits the graph: the payload's frame, or once the simulation has moved the
+  // nodes, their box as the builder fits it, with a margin of 30 pixels and above the legend's
+  // band, as `fit_viewbox()` has them
+  function homeView() {
+    if (!sim.moved) return home;
+    const unit = vw / header.width, margin = 30 * unit;
+    const band = Math.min(header.legend_h ?? 0, 0.4 * header.height) * unit;
+    const [x0, y0, x1, y1] = extent(true);
+    const zoom = Math.min(vw / (x1 - x0 + 2 * margin), (vh - band) / (y1 - y0 + 2 * margin));
+    const z = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, zoom || 1));
+    return { cx: (x0 + x1) / 2, cy: (y0 + y1) / 2 + band / (2 * z), zoom: z };
   }
 
   // Hover: the node or the edge under the pointer, outlined, with its tooltip, the SVG's, from
@@ -1312,8 +1348,25 @@ export function mount(root, buffer, options = {}) {
   const look = options.tip ?? {};
   Object.assign(tip.style, { background: look.bg ?? "", color: look.fg ?? "", fontFamily: options.font ?? "" });
   root.append(tip);
-  // Made again when the controls change the drawing
+  // Made again when the controls change the drawing, and as the simulation moves the nodes, at
+  // most every `PICK_EVERY` ms while it runs
   let pick = picker(data, isCurved(data) ? 16 : 1);
+  // The simulation of the Layout tab (see "The simulation" below): "off" until it's run, then
+  // "running", "settled" or "paused"; its engine, while a step is awaited, its next frame, the
+  // node dragged, whether the nodes have moved and where they were at first, and whether the
+  // picker has them where they were
+  const sim = { status: "off", engine: null, busy: false, frame: 0, drag: null, moved: false, start: null, stale: false, picked: 0, ticks: 0, alpha: 0 };
+  const PICK_EVERY = 250;
+  function repick() {
+    let frame = header.viewbox;
+    if (sim.moved) {
+      const [x0, y0, x1, y1] = extent(false), least = 1e-3 * Math.max(vw, vh);
+      frame = [x0, y0, Math.max(x1 - x0, least), Math.max(y1 - y0, least)];
+    }
+    pick = picker(data, isCurved(data) ? 16 : 1, frame);
+    sim.stale = false;
+    sim.picked = performance.now();
+  }
   // The pointer, on the page, and what it's over; the tooltips once read (null if there are
   // none), and the element whose tooltip is shown
   let pointer = null, hovered = null, tips, reading = null, filled = "";
@@ -1331,6 +1384,7 @@ export function mount(root, buffer, options = {}) {
   function under(ex, ey) {
     const b = canvas.getBoundingClientRect();
     if (!(b.width > 0)) return null;
+    if (sim.stale && (sim.status !== "running" || performance.now() - sim.picked > PICK_EVERY)) repick();
     const unit = fit(b.width, b.height);
     const [x, y] = toScene(ex, ey);
     return pick(x, y, { px: unit * cam.zoom, radius: unit * Math.sqrt(cam.zoom), unit, thin: b.width / Math.max(canvas.width, 1) });
@@ -1598,6 +1652,12 @@ export function mount(root, buffer, options = {}) {
       const b = canvas.getBoundingClientRect();
       lasso = [[e.clientX - b.left, e.clientY - b.top]];
     }
+    // While the simulation is on, a mouse or a pen drags the node that it presses
+    if (down.size === 1 && !lasso && !e.shiftKey && e.pointerType !== "touch" && simOn()) {
+      if (sim.stale) repick();
+      const hit = under(e.clientX, e.clientY);
+      if (hit?.node !== undefined) grab(hit.node, e);
+    }
     hoverAt();
     if (e.pointerType !== "touch" || down.size === 2 || lasso) canvas.setPointerCapture(e.pointerId);
     if (e.pointerType !== "touch" && !lasso) canvas.className = "ec-grabbing";
@@ -1608,6 +1668,7 @@ export function mount(root, buffer, options = {}) {
     if (!down.delete(e.pointerId)) return;
     pinch = null;
     canvas.className = "ec-grab";
+    if (sim.drag?.id === e.pointerId) letDrop();
     const click = e.type === "pointerup" && press && !press.moved;
     if (lasso) {
       if (!lassoEnd(e.type === "pointerup") && click) clickAt(e.clientX, e.clientY, press.add);
@@ -1633,6 +1694,11 @@ export function mount(root, buffer, options = {}) {
     if (press && Math.hypot(e.clientX - press.x, e.clientY - press.y) >= (e.pointerType === "touch" ? 10 : 5)) press.moved = true;
     if (lasso) {
       lassoTo(e.clientX, e.clientY);
+      return;
+    }
+    if (sim.drag?.id === e.pointerId) {
+      down.set(e.pointerId, [e.clientX, e.clientY]);
+      dragTo(e.clientX, e.clientY);
       return;
     }
     if (down.size === 1 && e.pointerType !== "touch") {
@@ -1906,7 +1972,117 @@ export function mount(root, buffer, options = {}) {
     }
   }
 
-  const { setOpen, isOpen, panelControls, restyle, syncNote, syncFilters, filterControls } = controlPanel();
+  const { setOpen, isOpen, panelControls, restyle, syncNote, syncFilters, syncRun, filterControls } = controlPanel();
+
+  // The simulation (see `simulation()`), in a worker where the page allows one (see `engine()`),
+  // from where the payload has the nodes, and warm (`WARM`), as their layout is most of the way
+  // there; a force changed heats it again (`REHEAT`). A step a frame while it runs and the plot is
+  // in view, each one the nodes' columns again, and dragging a node pins it, heated as d3 heats it
+  const WARM = 0.1, REHEAT = 0.3;
+  const simOn = () => sim.engine !== null && (sim.status === "running" || sim.status === "settled");
+  function forces() {
+    const v = panelControls.values();
+    const out = { cluster: (v.cluster_by ?? "") !== "", cluster_strength: v.cluster_strength ?? 0.1 };
+    for (const name of ["gravity", "repulsion", "link_strength", "link_distance", "friction", "collision"]) out[name] = v[name];
+    return out;
+  }
+  // Warm at first, then from where it was, or `alpha` (and warm again once settled)
+  function runSim(alpha) {
+    if (!sim.engine) {
+      // The nodes' own columns, which the steps take the place of, kept to be restored
+      sim.start ??= { x: data.x, y: data.y };
+      const n = header.nodes, own = (col) => (typeof col === "number" ? new Float32Array(n).fill(col) : col.slice());
+      sim.engine = engine({
+        n, m: header.edges, frame: header.viewbox, x: own(data.x), y: own(data.y), r: cloned(data.r),
+        src: cloned(data.src), tgt: cloned(data.tgt), cluster: cloned(data.cluster), groups: header.cluster?.count ?? 0,
+        forces: forces(), alpha: alpha ?? WARM,
+      }, took);
+    } else if (alpha !== undefined || sim.status === "settled") {
+      sim.engine.send("heat", alpha ?? WARM);
+    }
+    setStatus("running");
+    loop();
+  }
+  function pauseSim() {
+    if (sim.status !== "running") return;
+    cancelAnimationFrame(sim.frame);
+    sim.frame = 0;
+    setStatus("paused");
+    if (sim.stale) repick();
+  }
+  // The nodes where the payload has them, and the simulation off
+  function restoreSim() {
+    sim.engine?.stop();
+    cancelAnimationFrame(sim.frame);
+    Object.assign(sim, { engine: null, frame: 0, busy: false, drag: null, moved: false, ticks: 0, alpha: 0 });
+    if (sim.start) {
+      data.x = sim.start.x;
+      data.y = sim.start.y;
+      sim.start = null;
+      r.update(["x", "y"]);
+    }
+    repick();
+    setStatus("off");
+    redraw();
+  }
+  function took(out) {
+    sim.busy = false;
+    if (!sim.engine) return;
+    data.x = out.x;
+    data.y = out.y;
+    sim.alpha = out.alpha;
+    sim.ticks++;
+    r.update(["x", "y"]);
+    sim.stale = true;
+    if (!sim.moved) {
+      sim.moved = true;
+      syncRun();
+    }
+    if (out.settled && sim.status === "running" && !sim.drag) {
+      setStatus("settled");
+      repick();
+    }
+    redraw();
+  }
+  function loop() {
+    if (sim.frame || !sim.engine || !near || sim.status !== "running") return;
+    sim.frame = requestAnimationFrame(() => {
+      sim.frame = 0;
+      if (!sim.engine || !near || sim.status !== "running") return;
+      if (!sim.busy) {
+        sim.busy = true;
+        sim.engine.send("step", 1);
+      }
+      loop();
+    });
+  }
+  // A node dragged: held where the pointer has it, from where it was pressed
+  function grab(i, e) {
+    const [x, y] = toScene(e.clientX, e.clientY);
+    sim.drag = { id: e.pointerId, node: i, dx: at(data.x, i) - x, dy: at(data.y, i) - y };
+    sim.engine.send("pin", i, at(data.x, i), at(data.y, i));
+    sim.engine.send("hold", true);
+    setStatus("running");
+    loop();
+  }
+  function dragTo(ex, ey) {
+    const [x, y] = toScene(ex, ey), d = sim.drag;
+    sim.engine?.send("pin", d.node, x + d.dx, y + d.dy);
+  }
+  function letDrop() {
+    const d = sim.drag;
+    sim.drag = null;
+    sim.engine?.send("pin", d.node, null);
+    sim.engine?.send("hold", false);
+  }
+  function forcesChanged() {
+    sim.engine?.send("set", forces());
+    runSim(REHEAT);
+  }
+  function setStatus(s) {
+    sim.status = s;
+    syncRun();
+  }
 
   // The legend's swatches show or hide what they stand for, or with Alt (Option) show it alone of
   // its block, or the whole block again where it was alone
@@ -2004,6 +2180,25 @@ export function mount(root, buffer, options = {}) {
       list.push({ name: "max_labels", tab: "Labels", label: "At most", kind: "steps", start: most, steps: [null, ...steps],
         text: (v) => (v === null ? `Auto (${info.auto === null ? "all" : info.auto})` : String(v)), code: (v) => (v === null ? null : String(v)) });
     }
+    // The simulation's forces, by the names that the Rust layout is to take, which are the view's
+    // and not in the copied code (`view`)
+    const force = (name, label, start, min, max, step = 0.01, more = false) =>
+      ({ name, tab: "Layout", label, kind: "linear", start, min, max, step, more, view: true });
+    list.push(
+      force("gravity", "Gravity", 0.25, 0, 1),
+      force("repulsion", "Repulsion", 1, 0, 2),
+      force("link_strength", "Link strength", 1, 0, 2),
+      force("link_distance", "Link distance", 10, 1, 50, 1),
+      force("friction", "Friction", 0.85, 0.5, 0.99, 0.01, true),
+      force("collision", "Collision", 0, 0, 1, 0.01, true),
+    );
+    if (header.cluster) {
+      list.push(
+        { name: "cluster_by", tab: "Layout", more: true, label: "Cluster by", kind: "choice", start: "", view: true,
+          choices: [["", "None"], [header.cluster.name, header.cluster.name]] },
+        force("cluster_strength", "Cluster strength", 0.1, 0, 1, 0.01, true),
+      );
+    }
     list.push({ name: "theme", tab: "View", label: "Theme", kind: "choice", start: startTheme,
       choices: [["auto", "Auto"], ["light", "Light"], ["dark", "Dark"]], code: (v) => (v === "auto" ? null : JSON.stringify(v)) });
     if (legend) list.push({ name: "legend", tab: "View", more: true, label: "Legend", kind: "check", start: true, code: (v) => (v ? null : "False") });
@@ -2055,9 +2250,11 @@ export function mount(root, buffer, options = {}) {
       set("bow", curve === style.curved ? orig.bow : typeof orig.bow === "number" ? orig.bow + (curve ? 0.2 : -0.2) : each(m, (j) => orig.bow[j] + (curve ? 0.2 : -0.2)));
       if (!changed.length) return;
       r.update(changed);
-      // The grids of the picker hold the nodes' sizes and the edges' curves
-      if (changed.includes("r") || changed.includes("bow")) pick = picker(data, isCurved(data) ? 16 : 1);
+      // The grids of the picker hold the nodes' sizes and the edges' curves, and the simulation
+      // the sizes, for its collisions
+      if (changed.includes("r") || changed.includes("bow")) repick();
       else pick.refresh();
+      if (changed.includes("r")) sim.engine?.send("size", cloned(data.r));
       redraw();
     }
     function apply(c) {
@@ -2077,9 +2274,37 @@ export function mount(root, buffer, options = {}) {
         const most = byName.max_labels.value;
         Object.assign(words.state, { show: byName.show_labels.value, limit: most === null ? info.auto : most });
         redraw();
+      } else if (c.view) {
+        forcesChanged();
       } else {
         restyle();
       }
+    }
+
+    // The Layout tab's simulation: run or pause it, put the nodes back where the payload has them,
+    // and what it's doing
+    const run = { button: null, restore: null, state: null };
+    function runBar() {
+      const bar = el("div", "ec-run");
+      run.button = el("button", "ec-act");
+      run.button.type = "button";
+      run.button.addEventListener("click", () => (sim.status === "running" ? pauseSim() : runSim()));
+      run.restore = el("button", "ec-act", "Restore positions");
+      run.restore.type = "button";
+      run.restore.addEventListener("click", restoreSim);
+      run.state = el("span", "ec-state");
+      run.state.setAttribute("role", "status");
+      bar.append(run.button, run.restore, run.state, el("p", "ec-note", "Drag a node to move it while it runs"));
+      return bar;
+    }
+    function syncRun() {
+      movedNote.hidden = !sim.moved;
+      if (!run.button) return;
+      const on = sim.status === "running";
+      run.button.innerHTML = `${icon(on ? ICONS.pause : ICONS.play)}<span>${on ? "Pause" : "Run"}</span>`;
+      run.button.setAttribute("aria-label", on ? "Pause the simulation" : "Run the simulation");
+      run.restore.disabled = !sim.moved;
+      run.state.textContent = { off: "Off", running: "Running", settled: "Settled", paused: "Paused" }[sim.status];
     }
 
     // The panel: tabs of fields, and a footer
@@ -2122,6 +2347,7 @@ export function mount(root, buffer, options = {}) {
       panel.append(page);
       tabs.push(tab);
       pages.push(page);
+      if (name === "Layout") page.append(runBar());
       // Its common choices, then the rest
       const more = el("details", "ec-more");
       more.append(el("summary", "", "More"));
@@ -2186,7 +2412,7 @@ export function mount(root, buffer, options = {}) {
         sync = () => { for (const input of inputs) input.checked = input.value === c.value; };
       } else {
         // A slider, in quarter steps of a doubling for sizes and widths, from a quarter to eight
-        // times the start, or in hundredths for opacity
+        // times the start, or in hundredths for opacity, or a force's steps from its least to its most
         const input = el("input");
         input.type = "range";
         input.id = id;
@@ -2204,8 +2430,9 @@ export function mount(root, buffer, options = {}) {
           toValue = (i) => c.steps[i];
           toInput = (v) => String(c.steps.indexOf(v));
         } else {
-          Object.assign(input, { min: "0.01", max: "1", step: "0.01" });
-          toValue = (x) => (Math.abs(x - c.start) < 0.005 ? c.start : Math.round(x * 100) / 100);
+          const step = c.step ?? 0.01;
+          Object.assign(input, { min: String(c.min ?? 0.01), max: String(c.max ?? 1), step: String(step) });
+          toValue = (x) => (Math.abs(x - c.start) < step / 2 ? c.start : Math.round(Math.round(x / step) * step * 100) / 100);
           toInput = (v) => String(v);
         }
         input.addEventListener("input", () => setValue(c, toValue(Number(input.value)), true));
@@ -2540,12 +2767,13 @@ export function mount(root, buffer, options = {}) {
     }
 
     // "Copy as code": the call, with the changed controls' arguments and the selection, in the
-    // parameters' order, on one line where it fits in 88 characters. The legend's filters are the
-    // view's, which no argument of `plot()` has
+    // parameters' order, on one line where it fits in 88 characters. The legend's filters, the
+    // simulation's forces and where it moved the nodes are the view's, which no argument of
+    // `plot()` has yet
     function code() {
       const args = new Map(given);
       for (const c of list) {
-        if (c.value === c.start) continue;
+        if (c.value === c.start || c.view) continue;
         const source = c.code ? c.code(c.value) : pyNumber(c.value);
         if (source === null) args.delete(c.name);
         else args.set(c.name, source);
@@ -2600,9 +2828,11 @@ export function mount(root, buffer, options = {}) {
       filtered.textContent = own && off.size ? "The filters and the legend's aren't in the code"
         : own ? "The filters aren't in the code" : "The legend's filters aren't in the code";
     };
-    foot.append(copy, status, filtered, text);
+    const movedNote = el("p", "ec-note", "The simulation's positions aren't in the code");
+    foot.append(copy, status, filtered, movedNote, text);
     panel.append(foot);
     root.append(panel);
+    syncRun();
 
     // Opened by its button, closed by its own, by Esc, or in a small box by a click outside it
     let shownOpen = false;
@@ -2633,7 +2863,7 @@ export function mount(root, buffer, options = {}) {
       code,
     };
     const syncFilters = () => filterPage?.sync();
-    return { setOpen, isOpen: () => shownOpen, panelControls, restyle, syncNote, syncFilters, filterControls: filterPage?.controls ?? null };
+    return { setOpen, isOpen: () => shownOpen, panelControls, restyle, syncNote, syncFilters, syncRun, filterControls: filterPage?.controls ?? null };
   }
 
   // The state that a host follows and sets (see `GraphElement`): the selection, as the nodes'
@@ -2674,7 +2904,7 @@ export function mount(root, buffer, options = {}) {
     view(v) {
       cancelAnimationFrame(flight);
       const num = (x, was) => (Number.isFinite(Number(x)) && x !== null ? Number(x) : was);
-      if (!v) Object.assign(cam, home);
+      if (!v) Object.assign(cam, homeView());
       else Object.assign(cam, { cx: num(v.x, cam.cx), cy: num(v.y, cam.cy), zoom: Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, num(v.zoom, cam.zoom))) });
       redraw();
     },
@@ -2704,6 +2934,12 @@ export function mount(root, buffer, options = {}) {
     filters: filterControls,
     search,
     flyTo,
+    layout: {
+      run: (alpha) => runSim(alpha),
+      pause: pauseSim,
+      restore: restoreSim,
+      state: () => ({ status: sim.status, alpha: sim.alpha, ticks: sim.ticks, local: sim.engine?.local ?? null, moved: sim.moved }),
+    },
     state: {
       get: (name) => state[known(name)](),
       set(name, value) {
@@ -2718,6 +2954,9 @@ export function mount(root, buffer, options = {}) {
 // A value as it reads in Python
 const show = (v) => String(Math.round(v * 100) / 100);
 const pyNumber = (v) => (/[.e]/.test(String(v)) ? String(v) : `${v}.0`);
+// A column as a number or none, or a copy, as a view of the payload posted to a worker would
+// take the whole payload with it
+const cloned = (col) => (col === null || typeof col === "number" ? col : col.slice());
 
 // The edges in a random (but fixed) order, so that the first k of them are a fair share. Gives
 // the order, each edge's place in the scene's drawing order
@@ -2793,13 +3032,13 @@ function grid(frame, cols, rows, count, visit) {
 // `segments` pieces, as the shader draws them, and self-loops, which grow with the nodes as the
 // view zooms, in `LOOP_PIECES`, each in the box of the largest it's drawn. Nodes hidden and edges
 // drawn without opacity aren't picked. `pick.refresh()` takes in new colors, widths, opacities
-// and drawing order of the nodes, which don't move anything in the grids
+// and drawing order of the nodes, which don't move anything in the grids. The grids are over
+// `frame`, the scene's, or where the simulation has moved the nodes, the box they are in
 const LOOP_PIECES = 16;
-function picker(data, segments) {
+function picker(data, segments, frame = data.header.viewbox) {
   const { header } = data;
   const n = header.nodes, m = header.edges;
-  const [, , vw, vh] = header.viewbox;
-  const frame = header.viewbox;
+  const [, , vw, vh] = frame;
   const pts = new Float64Array(2 * (Math.max(segments, LOOP_PIECES) + 1));
   // Edge j's curve, into `pts`, with its node's radius `f` times the scene's for a self-loop; the
   // pieces it's in, 0 for one that isn't drawn
@@ -2942,6 +3181,506 @@ function picker(data, segments) {
     if (edges) widest();
   };
   return pick;
+}
+
+// The Layout tab's force layout, by the model that the Rust layout is to share (see W2): d3's
+// forces, under Cosmograph's names, in units where the nodes' mean spacing starts at the default
+// `link_distance`, 10, about the frame's center. Each tick, with the heat `alpha`:
+//
+// - links pull or push each edge's ends toward `link_distance` apart, by `link_strength` over the
+//   lesser of their degrees, the one of more degree moving less (self-loops have no part)
+// - every node pushes every other away by `repulsion` over the distance, by Barnes-Hut
+// - `gravity` pulls each one toward the center, by a tenth of it (`GRAVITY`) times the distance,
+//   and `cluster_strength` (with `cluster`) toward the center of its group of `cluster_by`, the
+//   payload's "cluster" column
+// - `collision` (0 for none, and not scaled by the heat) pushes apart nodes that overlap,
+//   larger ones moving less
+// - then each keeps `friction` of its velocity, and moves by it, or is where it is pinned
+//
+// The heat moves toward its target (0, or `DRAG_HEAT` while a node is dragged) by `DECAY` a tick,
+// and below `ALPHA_MIN` with a target of 0, the layout has settled and stops. All of it is in
+// 64-bit floats, with a seeded jiggle for nodes on the same point, so that it runs alike in a
+// worker or here. It refers to nothing outside itself, as a worker runs it from its source.
+//
+// `init` has the counts, the frame, the nodes' positions and radii (in the scene's units), the
+// edges' ends, the nodes' groups (0 for none) and their count, the forces and the starting heat.
+// It gives `set(forces)`, `heat(alpha)` (up to it), `hold(on)` (the drag's heat as the target),
+// `pin(i, x, y)` (or `pin(i, null)`, to let go), `place(x, y)` and `size(r)`, and `step(ticks)`,
+// which gives the positions as `{ x, y, alpha, settled }`, x and y in the scene's units
+function simulation(init) {
+  const GRAVITY = 0.1, THETA2 = 0.81, DIST_MIN2 = 1, DEPTH = 40;
+  const DECAY = 1 - Math.pow(0.001, 1 / 300), ALPHA_MIN = 0.001, DRAG_HEAT = 0.3;
+  const { n, m } = init;
+  const val = (col, i) => (typeof col === "number" ? col : col[i]);
+  const f = { gravity: 0.25, repulsion: 1, link_strength: 1, link_distance: 10, friction: 0.85,
+    collision: 0, cluster: false, cluster_strength: 0.1, ...init.forces };
+  let alpha = init.alpha, target = 0;
+  let seed = 1;
+  const jiggle = () => ((seed = (Math.imul(1664525, seed) + 1013904223) >>> 0) / 4294967296 - 0.5) * 1e-6;
+
+  // The scale: 10 over the nodes' mean spacing, the square root of the area of their box (or
+  // else the frame's) over their count, about the frame's center
+  const [fx0, fy0, fw, fh] = init.frame;
+  const ox = fx0 + fw / 2, oy = fy0 + fh / 2;
+  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+  for (let i = 0; i < n; i++) {
+    x0 = Math.min(x0, init.x[i]);
+    y0 = Math.min(y0, init.y[i]);
+    x1 = Math.max(x1, init.x[i]);
+    y1 = Math.max(y1, init.y[i]);
+  }
+  const area = (x1 - x0) * (y1 - y0) > 0 ? (x1 - x0) * (y1 - y0) : fw * fh;
+  const scale = 10 / (Math.sqrt(area / Math.max(n, 1)) || 1);
+  // The edges but self-loops
+  const ls = [], lt = [];
+  for (let j = 0; j < m; j++) {
+    const s = val(init.src, j), t = val(init.tgt, j);
+    if (s === t) continue;
+    ls.push(s);
+    lt.push(t);
+  }
+  const k = ls.length;
+  const degree = new Float64Array(n);
+  for (let j = 0; j < k; j++) {
+    degree[ls[j]]++;
+    degree[lt[j]]++;
+  }
+  const bias = new Float64Array(k), weight = new Float64Array(k);
+  for (let j = 0; j < k; j++) {
+    const a = degree[ls[j]], b = degree[lt[j]];
+    bias[j] = a / (a + b);
+    weight[j] = 1 / Math.min(a, b);
+  }
+
+  const px = new Float64Array(n), py = new Float64Array(n), vx = new Float64Array(n), vy = new Float64Array(n);
+  const pinX = new Float64Array(n).fill(NaN), pinY = new Float64Array(n).fill(NaN);
+  const radius = new Float64Array(n);
+  function place(x, y) {
+    for (let i = 0; i < n; i++) {
+      px[i] = (x[i] - ox) * scale;
+      py[i] = (y[i] - oy) * scale;
+    }
+    vx.fill(0);
+    vy.fill(0);
+  }
+  function size(r) {
+    for (let i = 0; i < n; i++) radius[i] = val(r, i) * scale;
+  }
+  place(init.x, init.y);
+  size(init.r);
+  const groups = init.groups, cluster = init.cluster;
+  const sumX = new Float64Array(groups + 1), sumY = new Float64Array(groups + 1), count = new Float64Array(groups + 1);
+
+  function links() {
+    const strength = f.link_strength, distance = f.link_distance;
+    if (!strength) return;
+    for (let j = 0; j < k; j++) {
+      const s = ls[j], t = lt[j];
+      let x = px[t] + vx[t] - px[s] - vx[s], y = py[t] + vy[t] - py[s] - vy[s];
+      if (x === 0) x = jiggle();
+      if (y === 0) y = jiggle();
+      let l = Math.sqrt(x * x + y * y);
+      l = ((l - distance) / l) * alpha * strength * weight[j];
+      x *= l;
+      y *= l;
+      const b = bias[j];
+      vx[t] -= x * b;
+      vy[t] -= y * b;
+      vx[s] += x * (1 - b);
+      vy[s] += y * (1 - b);
+    }
+  }
+
+  // The quadtree, made again each tick, its cells in arrays: cell c covers the square of side
+  // `side[c]` from (`cornerX[c]`, `cornerY[c]`), its children (0 for none, the root being cell 0)
+  // are `kids[4c]` on, and a leaf's nodes are a chain from `first[c]` (-1 for none, -2 for a cell
+  // with children) through `next`. Nodes on one point, or past `DEPTH`, share a leaf
+  let cap = 0, cells = 0;
+  let kids, first, side, cornerX, cornerY, parent, mass, massX, massY, packF, packI;
+  const next = new Int32Array(n), order = Int32Array.from({ length: n }, (_, i) => i);
+  const sortX = new Float64Array(n), sortY = new Float64Array(n);
+  const stack = new Int32Array(4 * DEPTH + 8);
+  function room(need) {
+    if (need <= cap) return;
+    const was = cap;
+    cap = Math.max(need, 2 * cap, 64);
+    const keep = (old, A, per) => {
+      const a = new A(cap * per);
+      if (old) a.set(old.subarray(0, was * per));
+      return a;
+    };
+    kids = keep(kids, Int32Array, 4);
+    first = keep(first, Int32Array, 1);
+    side = keep(side, Float64Array, 1);
+    cornerX = keep(cornerX, Float64Array, 1);
+    cornerY = keep(cornerY, Float64Array, 1);
+    parent = keep(parent, Int32Array, 1);
+    mass = keep(mass, Float64Array, 1);
+    massX = keep(massX, Float64Array, 1);
+    massY = keep(massY, Float64Array, 1);
+    packF = new Float64Array(cap * 4);
+    packI = new Int32Array(cap * 5);
+  }
+  function cell(p, q) {
+    room(cells + 1);
+    const c = cells++, h = side[p] / 2;
+    side[c] = h;
+    cornerX[c] = cornerX[p] + (q & 1 ? h : 0);
+    cornerY[c] = cornerY[p] + (q & 2 ? h : 0);
+    parent[c] = p;
+    kids.fill(0, 4 * c, 4 * c + 4);
+    kids[4 * p + q] = c;
+    return c;
+  }
+  const quadrant = (c, i) => (px[i] >= cornerX[c] + side[c] / 2 ? 1 : 0) | (py[i] >= cornerY[c] + side[c] / 2 ? 2 : 0);
+  function insert(i) {
+    let c = 0, depth = 0;
+    for (;;) {
+      if (first[c] === -2) {
+        const q = quadrant(c, i), kid = kids[4 * c + q];
+        if (!kid) {
+          first[cell(c, q)] = i;
+          next[i] = -1;
+          return;
+        }
+        c = kid;
+        depth++;
+      } else if (first[c] === -1) {
+        first[c] = i;
+        next[i] = -1;
+        return;
+      } else {
+        const j = first[c];
+        if ((px[j] === px[i] && py[j] === py[i]) || depth >= DEPTH) {
+          next[i] = next[j];
+          next[j] = i;
+          return;
+        }
+        // The leaf splits, its chain going down whole
+        first[c] = -2;
+        first[cell(c, quadrant(c, j))] = j;
+      }
+    }
+  }
+  function tree() {
+    let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+    for (let i = 0; i < n; i++) {
+      x0 = Math.min(x0, px[i]);
+      y0 = Math.min(y0, py[i]);
+      x1 = Math.max(x1, px[i]);
+      y1 = Math.max(y1, py[i]);
+    }
+    room(Math.max(64, 2 * n));
+    cells = 1;
+    side[0] = Math.max(x1 - x0, y1 - y0, 1e-9) * (1 + 1e-9) + 1e-9;
+    cornerX[0] = x0;
+    cornerY[0] = y0;
+    parent[0] = -1;
+    first[0] = -1;
+    kids.fill(0, 0, 4);
+    // In the last tick's order, below, which makes the cells near one another near in memory too
+    for (let o = 0; o < n; o++) insert(order[o]);
+    // Each cell's count and the sum of its nodes' positions, the children's before the parent's,
+    // as a child comes after its parent
+    mass.fill(0, 0, cells);
+    massX.fill(0, 0, cells);
+    massY.fill(0, 0, cells);
+    for (let c = cells - 1; c >= 0; c--) {
+      for (let i = first[c]; i >= 0; i = next[i]) {
+        mass[c]++;
+        massX[c] += px[i];
+        massY[c] += py[i];
+      }
+      const p = parent[c];
+      if (p >= 0) {
+        mass[p] += mass[c];
+        massX[p] += massX[c];
+        massY[p] += massY[c];
+      }
+    }
+    // The cells packed for the walk in `repel()`: each one's count, center of mass and how far
+    // off it's taken whole (`packF`), then its children, or for a leaf (-2 on) the run of its
+    // nodes in `order`, the tree's order, where `sortX` and `sortY` have their positions. One
+    // after another, the nodes walk much the same cells, near one another in memory, as a large
+    // graph's tree is too big for the cache
+    let top = 0, k = 0;
+    stack[top++] = 0;
+    while (top) {
+      const c = stack[--top], F = 4 * c, I = 5 * c;
+      packF[F] = mass[c];
+      packF[F + 1] = massX[c] / mass[c];
+      packF[F + 2] = massY[c] / mass[c];
+      packF[F + 3] = (side[c] * side[c]) / THETA2;
+      if (first[c] === -2) {
+        packI[I] = -2;
+        for (let q = 0; q < 4; q++) packI[I + 1 + q] = kids[4 * c + q];
+        for (let q = 3; q >= 0; q--) if (kids[4 * c + q]) stack[top++] = kids[4 * c + q];
+      } else {
+        packI[I] = k;
+        for (let i = first[c]; i >= 0; i = next[i]) {
+          order[k] = i;
+          sortX[k] = px[i];
+          sortY[k++] = py[i];
+        }
+        packI[I + 1] = k;
+      }
+    }
+  }
+  function repel() {
+    if (!f.repulsion || n < 2) return;
+    const strength = -f.repulsion * alpha;
+    tree();
+    for (let o = 0; o < n; o++) {
+      const i = order[o], xi = sortX[o], yi = sortY[o];
+      let ax = 0, ay = 0, top = 0;
+      stack[top++] = 0;
+      while (top) {
+        const c = stack[--top], F = 4 * c, I = 5 * c, count = packF[F];
+        if (!count) continue;
+        const x = packF[F + 1] - xi, y = packF[F + 2] - yi;
+        let l = x * x + y * y;
+        // Far enough to be taken as one
+        if (packF[F + 3] < l) {
+          if (l < DIST_MIN2) l = Math.sqrt(DIST_MIN2 * l);
+          const g = (strength * count) / l;
+          ax += x * g;
+          ay += y * g;
+          continue;
+        }
+        if (packI[I] === -2) {
+          for (let q = 1; q <= 4; q++) if (packI[I + q]) stack[top++] = packI[I + q];
+          continue;
+        }
+        for (let p = packI[I], end = packI[I + 1]; p < end; p++) {
+          if (p === o) continue;
+          let ex = sortX[p] - xi, ey = sortY[p] - yi;
+          if (ex === 0) ex = jiggle();
+          if (ey === 0) ey = jiggle();
+          let d = ex * ex + ey * ey;
+          if (d < DIST_MIN2) d = Math.sqrt(DIST_MIN2 * d);
+          ax += (ex * strength) / d;
+          ay += (ey * strength) / d;
+        }
+      }
+      vx[i] += ax;
+      vy[i] += ay;
+    }
+  }
+  function pull() {
+    const g = f.gravity * GRAVITY * alpha;
+    if (g) {
+      for (let i = 0; i < n; i++) {
+        vx[i] -= px[i] * g;
+        vy[i] -= py[i] * g;
+      }
+    }
+    const c = f.cluster && cluster !== null && groups > 0 ? f.cluster_strength * alpha : 0;
+    if (!c) return;
+    sumX.fill(0);
+    sumY.fill(0);
+    count.fill(0);
+    for (let i = 0; i < n; i++) {
+      const at = val(cluster, i);
+      sumX[at] += px[i];
+      sumY[at] += py[i];
+      count[at]++;
+    }
+    for (let i = 0; i < n; i++) {
+      const at = val(cluster, i);
+      if (!at) continue;
+      vx[i] += (sumX[at] / count[at] - px[i]) * c;
+      vy[i] += (sumY[at] / count[at] - py[i]) * c;
+    }
+  }
+
+  // Collision, by a hashed grid of cells twice the largest radius across, of where each node is
+  // headed; each pair once, the later node to the earlier
+  let heads = null, chain = null, cellX = null, cellY = null;
+  const hash = (a, b, mask) => (Math.imul(a, 73856093) ^ Math.imul(b, 19349663)) & mask;
+  function collide() {
+    const strength = f.collision;
+    if (!strength) return;
+    let rmax = 0;
+    for (let i = 0; i < n; i++) rmax = Math.max(rmax, radius[i]);
+    if (!(rmax > 0)) return;
+    const size = 2 * rmax;
+    let buckets = 1;
+    while (buckets < 2 * n) buckets *= 2;
+    const mask = buckets - 1;
+    if (!heads || heads.length !== buckets) heads = new Int32Array(buckets);
+    heads.fill(-1);
+    chain ??= new Int32Array(n);
+    cellX ??= new Float64Array(n);
+    cellY ??= new Float64Array(n);
+    for (let i = 0; i < n; i++) {
+      cellX[i] = Math.floor((px[i] + vx[i]) / size);
+      cellY[i] = Math.floor((py[i] + vy[i]) / size);
+      const h = hash(cellX[i], cellY[i], mask);
+      chain[i] = heads[h];
+      heads[h] = i;
+    }
+    for (let i = 0; i < n; i++) {
+      const xi = px[i] + vx[i], yi = py[i] + vy[i], ri = radius[i], ri2 = ri * ri;
+      for (let dy = -1; dy <= 1; dy++) {
+        for (let dx = -1; dx <= 1; dx++) {
+          const cx = cellX[i] + dx, cy = cellY[i] + dy;
+          for (let j = heads[hash(cx, cy, mask)]; j >= 0; j = chain[j]) {
+            if (j <= i || cellX[j] !== cx || cellY[j] !== cy) continue;
+            const rj = radius[j], r = ri + rj;
+            let x = xi - px[j] - vx[j], y = yi - py[j] - vy[j], l = x * x + y * y;
+            if (l >= r * r) continue;
+            if (x === 0) {
+              x = jiggle();
+              l += x * x;
+            }
+            if (y === 0) {
+              y = jiggle();
+              l += y * y;
+            }
+            l = Math.sqrt(l);
+            l = ((r - l) / l) * strength;
+            x *= l;
+            y *= l;
+            const rj2 = rj * rj, share = rj2 / (ri2 + rj2 || 1);
+            vx[i] += x * share;
+            vy[i] += y * share;
+            vx[j] -= x * (1 - share);
+            vy[j] -= y * (1 - share);
+          }
+        }
+      }
+    }
+  }
+
+  const settled = () => alpha < ALPHA_MIN && target === 0;
+  function tick() {
+    alpha += (target - alpha) * DECAY;
+    links();
+    repel();
+    pull();
+    collide();
+    const keep = f.friction;
+    for (let i = 0; i < n; i++) {
+      if (pinX[i] === pinX[i]) {
+        px[i] = pinX[i];
+        py[i] = pinY[i];
+        vx[i] = vy[i] = 0;
+      } else {
+        px[i] += vx[i] *= keep;
+        py[i] += vy[i] *= keep;
+      }
+    }
+  }
+  return {
+    set(forces) { Object.assign(f, forces); },
+    heat(a) { alpha = Math.max(alpha, a); },
+    hold(on) { target = on ? DRAG_HEAT : 0; },
+    pin(i, x, y) {
+      pinX[i] = x === null ? NaN : (x - ox) * scale;
+      pinY[i] = x === null ? NaN : (y - oy) * scale;
+    },
+    place,
+    size,
+    step(ticks = 1) {
+      for (let t = 0; t < ticks && !settled(); t++) tick();
+      const x = new Float32Array(n), y = new Float32Array(n);
+      for (let i = 0; i < n; i++) {
+        x[i] = px[i] / scale + ox;
+        y[i] = py[i] / scale + oy;
+      }
+      return { x, y, alpha, settled: settled() };
+    },
+  };
+}
+
+// A worker's side of `engine()`: the simulation that `make` makes, and its steps posted back
+function workerMain(make) {
+  let sim = null;
+  self.onmessage = (e) => {
+    const { op, args } = e.data;
+    if (op === "init") {
+      sim = make(...args);
+      self.postMessage("ready");
+    } else if (op === "step") {
+      const out = sim.step(...args);
+      self.postMessage(out, [out.x.buffer, out.y.buffer]);
+    } else {
+      sim[op](...args);
+    }
+  };
+}
+
+// The simulation of `init` in a worker, made from its source, so that the page keeps drawing as it
+// runs; or where a page doesn't allow one (as a content security policy may not), or one doesn't
+// answer within `WORKER_WAIT` ms, here, from what it was told, alike. `send(op, args)` calls the
+// simulation's `op`, and `got(out)` takes each step's. What it's told before the worker answers is
+// kept, for the simulation here to be told too
+const WORKER_WAIT = 3000;
+function engine(init, got) {
+  const told = [];
+  let worker = null, local = null, ready = false, waiting = null, timer = 0, url = null;
+  function here() {
+    if (local) return;
+    clearTimeout(timer);
+    worker?.terminate();
+    worker = null;
+    if (url) URL.revokeObjectURL(url);
+    url = null;
+    local = simulation(init);
+    for (const [op, args] of told) local[op](...args);
+    told.length = 0;
+    if (waiting) {
+      const args = waiting;
+      waiting = null;
+      got(local.step(...args));
+    }
+  }
+  try {
+    url = URL.createObjectURL(new Blob([`(${workerMain})(${simulation});\n`], { type: "text/javascript" }));
+    worker = new Worker(url);
+    worker.onmessage = (e) => {
+      if (!ready) {
+        ready = true;
+        clearTimeout(timer);
+        URL.revokeObjectURL(url);
+        url = null;
+      }
+      told.length = 0;
+      if (e.data === "ready") return;
+      waiting = null;
+      got(e.data);
+    };
+    worker.onerror = (e) => {
+      if (ready) return;
+      e.preventDefault();
+      here();
+    };
+    worker.postMessage({ op: "init", args: [init] });
+    timer = setTimeout(() => { if (!ready) here(); }, WORKER_WAIT);
+  } catch (_) {
+    here();
+  }
+  return {
+    send(op, ...args) {
+      if (local) {
+        const out = local[op](...args);
+        if (op === "step") got(out);
+        return;
+      }
+      if (!worker) return;
+      if (op === "step") waiting = args;
+      else if (!ready) told.push([op, args]);
+      worker.postMessage({ op, args });
+    },
+    get local() { return local !== null; },
+    stop() {
+      clearTimeout(timer);
+      worker?.terminate();
+      if (url) URL.revokeObjectURL(url);
+      worker = local = null;
+      got = () => {};
+    },
+  };
 }
 
 // What the plot's gzipped script `ec-<name>` holds: the tooltips' tables (`tips`) or the labels'
