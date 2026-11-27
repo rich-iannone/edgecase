@@ -413,6 +413,23 @@ of the hidden nodes, and clicking it again shows them. Alt (Option) and a click 
 group alone, and again shows them all. The filters belong to the view, not to `plot()`, so "Copy as
 code" leaves them out and the panel says so.
 
+The panel's Filter tab filters by numbers: the nodes' degree, the edges' weight, and any attribute
+of the nodes or the edges whose values are all numbers. Each filter is a histogram of an
+attribute's values, with a menu to choose the attribute; dragging across the histogram, or typing
+in its From and To boxes, keeps only the nodes or the edges within that range, and hides the rest,
+with the edges of the hidden nodes. Dragging the range moves it, dragging an end moves that end,
+and a click beside it shows everything again. The faint bars count all the values and the strong
+ones those still shown, so a filter on one attribute shows in the others' histograms. "Add a
+filter" adds another, and a node or an edge must be within all of them to be shown. A node without
+a value for the attribute is hidden while its filter narrows the range. These filters, like the
+legend's, are left out of "Copy as code":
+
+```{python}
+#| eval: false
+g = ec.les_miserables()
+g.plot(label_by="label", seed=1, backend="viewer")  # try the Filter tab: weight from 3
+```
+
 The labels stay the same size as the view zooms, and the viewer chooses them again, by the same
 rule as the SVG, for the part of the graph in view: zooming in on a crowded region shows the
 labels that had no room in the whole view. An edge's label is written along it, where it is long
@@ -420,7 +437,7 @@ enough on screen.
 
 The viewer draws arrowheads and self-loops as the SVG does, but doesn't route edges around nodes.
 The legend is drawn over it as SVG. The HTML holds the viewer's
-code, the drawing's data, the labels and the tooltips, compressed, about 2.7 MB for the wiki-vote
+code, the drawing's data, the labels and the tooltips, compressed, about 2.8 MB for the wiki-vote
 network, and
 the viewer stays quick with hundreds of thousands of edges, in any browser with WebGL 2. The plot's `svg`
 property and `.svg` file hold the SVG elements, and its `.png` file is an image as for the other
