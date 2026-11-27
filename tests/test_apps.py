@@ -77,7 +77,7 @@ def test_an_apps_state_is_as_the_viewer_has_it():
 
 
 def test_the_runtime_shows_the_plot_in_each_framework():
-    js = svg_renderer._runtime_js()
+    js = (svg_renderer.Path(svg_renderer.__file__).parent / "static" / "viewer.js").read_text()
     # A Streamlit component, whose state the session keeps, the view without a rerun
     assert "function streamlit({ data, parentElement, setStateValue })" in js
     assert 'setStateValue("state", { ...app.state })' in js
@@ -120,9 +120,11 @@ def test_shinys_output_has_the_runtime():
     assert tag.attrs == {"id": "club", "class": "ec-graph-output"}
     dep = tag.get_dependencies()[0]
     assert dep.name == "edgecase-viewer" and str(dep.version) == __version__
-    assert dep.script == [{"src": "viewer.js", "type": "module"}]
+    # The runtime that the plots inline, minified
+    assert dep.script == [{"src": "viewer.min.js", "type": "module"}]
     assert dep.source == {"package": "edgecase", "subdir": "static"}
-    assert (svg_renderer.Path(svg_renderer.__file__).parent / "static" / "viewer.js").exists()
+    static = svg_renderer.Path(svg_renderer.__file__).parent / "static"
+    assert (static / "viewer.min.js").read_text() == svg_renderer._runtime_js()
 
 
 def test_shiny_renders_the_plot_with_its_state():
