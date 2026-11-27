@@ -338,6 +338,14 @@ The last button in the corner, or the `F` key, shows the plot full screen, where
 without a click; `Esc` or `F` again leaves it. Where a page doesn't allow full screen, as in some
 notebooks, the plot fills the window instead.
 
+The button below it, Settings, opens a panel of controls in the terms of `plot()`'s arguments: the
+node size under Nodes, the edges' opacity, width and curve under Edges, and the theme (and, under
+More, the legend) under View. A changed control is marked, with a button that resets it. In a wide
+plot, or full screen, the panel docks at the side; in a smaller one it slides over the graph, and a
+click outside it or `Esc` closes it. "Copy as code" copies the `plot()` call that draws what the
+viewer shows, with the changed arguments, to paste back into the notebook. The plot is framed for
+its first settings, so a call with much larger nodes can frame the graph a little differently.
+
 A column of text, such as this page's, is narrow for a large graph. With the viewer, `width=` can
 also be a CSS length, such as `"100%"`, for a plot as wide as its container, at the height of
 `height=`. In a Quarto document, a cell option such as `#| column: page` widens the container
