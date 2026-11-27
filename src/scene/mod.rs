@@ -77,13 +77,27 @@ struct Edges {
 /// For the viewer's controls, which redraw the scene as `plot()` would with other values: the
 /// node size, edge width and edge opacity that the encodings started from (after their automatic
 /// values), with highlighting, each edge's level (0 muted, 1 soft, 2 accent) and its width
-/// before highlighting widened it, and what the viewer's selection draws with
+/// before highlighting widened it, what the viewer's selection draws with, and the numeric
+/// attributes that its Filter tab filters by
 struct Controls {
     node_size: f64,
     edge_width: f64,
     edge_opacity: f64,
     highlight: Option<(Vec<u8>, Vec<f64>)>,
     selection: Selection,
+    filters: Vec<Filter>,
+}
+
+/// A numeric attribute of the nodes or of the edges (`edges`), for the viewer's filters: its
+/// name, the least and the most of its values, which differ, whether they are all ints, and
+/// each node's or edge's value, NaN for none
+struct Filter {
+    name: String,
+    edges: bool,
+    min: f64,
+    max: f64,
+    integer: bool,
+    values: Vec<f64>,
 }
 
 /// What the viewer draws a selection with, as `highlight=` would draw what is selected: the
