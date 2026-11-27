@@ -1,0 +1,73 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>viewer spike: ours</title>
+<style>html, body { margin: 0; height: 100%; background: #121214; } canvas { width: 100vw; height: 100vh; display: block; }</style>
+</head><body><canvas id="c"></canvas>
+<script type="module">
+import { loadPayload, createViewer } from "./viewer.js";
+import { params, run, stats, gpuName } from "./bench.js";
+
+const t0 = performance.now();
+const payload = await loadPayload("data/" + (params.get("data") ?? "wiki_vote"));
+const t1 = performance.now();
+const v = createViewer(document.getElementById("c"), payload, {
+  curved: params.get("curved") === "1",
+  dark: params.get("theme") !== "light",
+  density: params.get("density") !== "0",
+  straightSegments: +(params.get("seg") ?? 8),
+  res: +(params.get("res") ?? 1),
+  fringe: +(params.get("fringe") ?? 2),
+  sample: +(params.get("sample") ?? 1),
+  budget: +(params.get("budget") ?? 150000),
+  links: params.get("links") !== "0",
+  points: params.get("points") !== "0",
+});
+const t2 = performance.now();
+v.draw();
+v.sync();
+const t3 = performance.now();
+const result = {
+  renderer: "ours",
+  gpu: gpuName(v.gl),
+  canvas: [v.gl.canvas.width, v.gl.canvas.height],
+  load: { fetch: +(t1 - t0).toFixed(1), setup: +(t2 - t1).toFixed(1), first_frame: +(t3 - t2).toFixed(1), total: +(t3 - t0).toFixed(1) },
+};
+if (params.get("check") === "1") {
+  // Progressive drawing ends on the same image as drawing every link at once
+  const gl = v.gl, w = gl.canvas.width, h = gl.canvas.height;
+  const read = () => { const px = new Uint8Array(w * h * 4); gl.readPixels(0, 0, w, h, gl.RGBA, gl.UNSIGNED_BYTE, px); return px; };
+  v.draw();
+  const whole = read();
+  const chunk = +(params.get("chunk") ?? 150000);
+  v.draw(chunk);
+  let frames = 1;
+  while (v.refine(chunk)) frames++;
+  const built = read();
+  let max = 0, off = 0;
+  for (let i = 0; i < whole.length; i++) {
+    const d = Math.abs(whole[i] - built[i]);
+    if (d > max) max = d;
+    if (d > 2) off++;
+  }
+  result.check = { frames, max_diff: max, share_over_2: off / whole.length };
+}
+if (params.get("bench") === "1") {
+  // motion=1 times the frames of a moving view: the first `budget` links, as redraw() draws them
+  const budget = +(params.get("budget") ?? 150000);
+  const draw = params.get("motion") === "1" ? () => v.draw(budget) : () => v.draw();
+  Object.assign(result, run({ setZoom: (z) => { v.cam.zoom = z; }, draw, sync: v.sync }));
+  if (params.get("motion") === "1") {
+    // Then the fitted view's refinement, a chunk of `budget` more links per frame
+    const ms = [], t0 = performance.now();
+    v.draw(budget);
+    v.sync();
+    for (;;) {
+      const t = performance.now();
+      if (!v.refine(budget)) break;
+      v.sync();
+      ms.push(performance.now() - t);
+    }
+    result.refine = { frames: ms.length + 1, total: +(performance.now() - t0).toFixed(1), ...(ms.length ? { chunk: stats(ms) } : {}) };
+  }
+}
+window.__result = result;
+</script></body></html>
