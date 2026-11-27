@@ -1338,6 +1338,10 @@ _TAG_RE = re.compile(r"<[A-Za-z]")
 # by default SVG while its HTML fits `NOTEBOOK_BYTES_MAX` and its elements `SVG_ELEMENTS_MAX`,
 # and images past that. Or the viewer draws them, to pan and zoom (see `emit_viewer()`)
 BACKENDS = ("auto", "svg", "png", "viewer")
+# How `plot(edge_tone=)` shows the edges' density: "over" stacks them as the SVG does, and "log"
+# by its logarithm, which needs them drawn as images or by the viewer. "auto" is "log" where they
+# are images, and in the viewer where `backend="auto"` would draw them as images
+EDGE_TONES = ("auto", "over", "log")
 # The images' pixels to a pixel of the plot, so that they stay sharp on high-density screens
 RASTER_SCALE = 2.0
 # The least radius of the automatic node size, as SVG and as an image or in the viewer, whose
@@ -1420,10 +1424,11 @@ def render_plot(
     """Render a graph as a static SVG wrapped in a StepPlayer: the scene that `build_scene()`
     makes of it with `options`, drawn in `theme`, its edges and nodes as SVG elements or, with
     `backend="png"`, as images. With `backend="auto"`, they are images where their SVG would
-    pass `NOTEBOOK_BYTES_MAX` or `SVG_ELEMENTS_MAX`, and the player's SVG is then drawn when it
-    is first wanted. With `backend="viewer"`, the HTML is the viewer's (see `emit_viewer()`),
-    and the SVG is drawn when it is first wanted too; `call` is the `plot()` call, for the
-    viewer's "Copy as code" (see `plot_call()`)."""
+    pass `NOTEBOOK_BYTES_MAX` or `SVG_ELEMENTS_MAX`, or for `edge_tone="log"`, and the player's
+    SVG is then drawn when it is first wanted. `edge_tone` is how the edges' density shows (see
+    `EDGE_TONES`), and `shade` shades the nodes as spheres. With `backend="viewer"`, the HTML is
+    the viewer's (see `emit_viewer()`), and the SVG is drawn when it is first wanted too; `call`
+    is the `plot()` call, for the viewer's "Copy as code" (see `plot_call()`)."""
     _check_style(options.get("layout", "force"), theme, stored_ok=True)
     if backend not in BACKENDS:
         raise ValueError(
@@ -1446,23 +1451,36 @@ def render_plot(
         options["width"] = round(options.get("height", 500) * _DEFAULT_ASPECT)
     else:
         css_width = None
+    edge_tone = options.pop("edge_tone", "auto")
+    shade = bool(options.pop("shade", False))
+    if edge_tone not in EDGE_TONES:
+        raise ValueError(
+            f"Unknown edge_tone {edge_tone!r}; use one of {', '.join(map(repr, EDGE_TONES))}"
+        )
+    if edge_tone == "log" and backend == "svg":
+        raise ValueError(
+            "edge_tone='log' needs the edges drawn as an image or by the viewer, not as SVG; "
+            "use backend='png', 'auto' or 'viewer', or edge_tone='over'"
+        )
     colors = _Colors(theme)
     # The SVG and HTML for backend="auto", if they fit
     fitting: List[Tuple[str, str]] = []
 
     def fits(scene: Scene) -> bool:
-        svg_str, html_str = emit_svg(scene, colors)
-        if len(html_str) > NOTEBOOK_BYTES_MAX or len(_TAG_RE.findall(svg_str)) > SVG_ELEMENTS_MAX:
+        svg_str, html_str = emit_svg(scene, colors, shade=shade)
+        if not _fits(svg_str, html_str):
             return False
         fitting.append((svg_str, html_str))
         return True
 
-    scene = build_scene(graph, backend=backend, fits=fits, **options)
+    # The log of the density needs the edges as images
+    built = "png" if backend == "auto" and edge_tone == "log" else backend
+    scene = build_scene(graph, backend=built, fits=fits, **options)
 
     def vector() -> str:
         # The SVG that the images or the viewer stand in for
         _check_svg_size(scene.node_count, scene.edge_count, plotted=True)
-        svg_str = emit_svg(scene, colors)[0]
+        svg_str = emit_svg(scene, colors, shade=shade)[0]
         if len(svg_str) > NOTEBOOK_BYTES_MAX:
             why = (
                 "which is why the plot draws its edges and nodes as images"
@@ -1479,7 +1497,11 @@ def render_plot(
     if backend == "viewer" and scene.node_count:
         # Overlap removal lays the nodes out for their size
         moves = options.get("node_overlap") != "allow" and options.get("layout") != "circular"
-        html_str = emit_viewer(scene, colors, css_width, call, moves)
+        # "auto" is the tone of the plot that backend="auto" would draw
+        auto_tone = "log" if _draws_images(scene, colors) else "over"
+        tone = auto_tone if edge_tone == "auto" else edge_tone
+        look = {"tone": {"value": edge_tone, "auto": auto_tone}, "shade": shade}
+        html_str = emit_viewer(scene, colors, css_width, call, moves, look)
         if len(html_str) > NOTEBOOK_BYTES_MAX:
             warnings.warn(
                 f"The plot is {len(html_str) / 1e6:,.0f} MB, past the "
@@ -1488,17 +1510,26 @@ def render_plot(
                 "what k_core() or ego_graph() returns",
                 stacklevel=3,
             )
-        # The SVG is drawn when it's first wanted. The image's edges are as the viewer's, which
-        # stack up as the SVG's do
+        # The SVG is drawn when it's first wanted. The image's edges are in the viewer's tone
         size = f'width="{scene.width}" height="{scene.height}"'
         empty = f'<svg xmlns="http://www.w3.org/2000/svg" {size}/>'
         return colors.finish(
-            empty, html_str, output, png=lambda: plot_png(scene, theme, "over"), svg=vector
+            empty,
+            html_str,
+            output,
+            png=lambda: plot_png(scene, theme, tone, shade),
+            svg=vector,
         )
-    picked = backend
-    if backend == "auto":
+    picked = built
+    if built == "auto":
         picked = "svg" if fitting else "png"
-    svg_str, html_str = fitting[0] if fitting else emit_svg(scene, colors, raster=picked == "png")
+    # The edges as the SVG draws them, or as its images do
+    tone = ("over" if picked == "svg" else "log") if edge_tone == "auto" else edge_tone
+    svg_str, html_str = (
+        fitting[0]
+        if fitting
+        else emit_svg(scene, colors, raster=picked == "png", tone=tone, shade=shade)
+    )
     if len(html_str) > NOTEBOOK_BYTES_MAX:
         smaller = (
             "backend='png' makes it smaller, as does plotting a part of the graph"
@@ -1511,15 +1542,29 @@ def render_plot(
             f"{smaller}, such as what k_core() or ego_graph() returns",
             stacklevel=3,
         )
-    # The edges as the SVG draws them, or as its images do
-    tone = "over" if picked == "svg" else "log"
     return colors.finish(
         svg_str,
         html_str,
         output,
-        png=lambda: plot_png(scene, theme, tone),
+        png=lambda: plot_png(scene, theme, tone, shade),
         svg=vector if backend == "auto" and picked == "png" and scene.node_count else None,
     )
+
+
+def _fits(svg_str: str, html_str: str) -> bool:
+    """Whether `backend="auto"` keeps a plot of this SVG and HTML as SVG."""
+    return len(html_str) <= NOTEBOOK_BYTES_MAX and len(_TAG_RE.findall(svg_str)) <= SVG_ELEMENTS_MAX
+
+
+def _draws_images(scene: Scene, colors: "_Colors") -> bool:
+    """Whether `backend="auto"` would draw the edges and nodes of the viewer's `scene` as images:
+    by their count, as `build_scene()` judges first, or else by the size of their SVG. It is
+    the viewer's layout, without the routing and with the viewer's node size, which the SVG
+    would have little different."""
+    n, m = scene.node_count, scene.edge_count
+    if _least_svg_bytes(n, m) > NOTEBOOK_BYTES_MAX or n + m > SVG_ELEMENTS_MAX:
+        return True
+    return not _fits(*emit_svg(scene, colors))
 
 
 def build_scene(
@@ -1707,21 +1752,50 @@ def build_scene(
     return scene if fits(scene) else scene_for("png")
 
 
-def emit_svg(scene: Scene, colors: "_Colors", raster: bool = False) -> Tuple[str, str]:
+def emit_svg(
+    scene: Scene,
+    colors: "_Colors",
+    raster: bool = False,
+    tone: str = "log",
+    shade: bool = False,
+) -> Tuple[str, str]:
     """`scene` drawn in the colors of `colors`'s theme: the SVG, and the HTML that shows it with
-    tooltips. With `raster`, the edges and the nodes are images (see `_raster_layers()`), under
-    the labels and the legend, and have no tooltips."""
+    tooltips. With `raster`, the edges and the nodes are images (see `_raster_layers()`), with
+    the edges' density in `tone`, under the labels and the legend, and have no tooltips. `shade`
+    shades the nodes as spheres."""
     th = colors.theme
     legend = _legend_markup(scene, colors)
     picked = [colors.pick(*pair) for pair in scene.colors]
-    layers = _raster_layers(scene, colors, RASTER_SCALE) if raster and scene.node_count else None
-    svg_str = scene.svg(picked, th.bg, th.label_color, FONT_FAMILY, legend, layers)
+    layers = None
+    if raster and scene.node_count:
+        layers = _raster_layers(scene, colors, RASTER_SCALE, tone, shade)
+    gradients = _shade_gradients(scene, colors) if shade and not layers else None
+    svg_str = scene.svg(picked, th.bg, th.label_color, FONT_FAMILY, legend, layers, gradients)
     if not scene.node_count:
         return svg_str, svg_str
     if layers:
         return svg_str, _generate_html_wrapper(svg_str, th, scene.width, scene.height, tips=False)
     html_str = _generate_html_wrapper(svg_str, th, scene.width, scene.height, scene.edge_tip_table)
     return svg_str, html_str
+
+
+def _shade_gradients(scene: Scene, colors: "_Colors") -> List[Tuple[str, str, str]]:
+    """For `Scene.svg(shade=)`, each color of `scene`'s table shaded in `colors`'s theme: the id
+    of its gradient, named after its colors so that plots on a page agree on it, and the colors
+    of its highlight and its far side. A color that the shading can't read stays flat."""
+    from edgecase._core import shade_stops
+
+    out = []
+    for light, dark in scene.colors:
+        try:
+            (hi_light, lo_light), (hi_dark, lo_dark) = shade_stops(light), shade_stops(dark)
+        except ValueError:
+            hi_light = lo_light = light
+            hi_dark = lo_dark = dark
+        hi, lo = colors.pick(hi_light, hi_dark), colors.pick(lo_light, lo_dark)
+        key = f"{hi}|{colors.pick(light, dark)}|{lo}"
+        out.append(("ec-shade-" + hashlib.sha1(key.encode()).hexdigest()[:8], hi, lo))
+    return out
 
 
 def _legend_markup(scene: Scene, colors: "_Colors") -> Optional[str]:
@@ -1791,6 +1865,7 @@ def emit_viewer(
     css_width: Optional[str] = None,
     call: Optional[Dict[str, Any]] = None,
     moves: bool = False,
+    look: Optional[Dict[str, Any]] = None,
 ) -> str:
     """The HTML that shows `scene` in the viewer (`static/viewer.js`), in the colors of
     `colors`'s theme: WebGL draws its edges and nodes, from `Scene.payload()`, to pan and zoom,
@@ -1803,7 +1878,8 @@ def emit_viewer(
 
     Its panel of controls writes the `plot()` call that draws what they show, from `call` (see
     `plot_call()`), and `moves` says that the layout depends on the node size, as overlap
-    removal makes it.
+    removal makes it. `look` has how the viewer starts to draw, `{"tone": {"value": edge_tone,
+    "auto": the tone that "auto" is}, "shade": shade}`, by default "over" and flat.
 
     In the automatic theme, the viewer reads its theme from a variable of `colors` (one that
     holds "light" or "dark"), so that it follows the page by the same rules as the legend's
@@ -1863,6 +1939,7 @@ def emit_viewer(
             "tip": {"bg": th.tooltip_bg, "fg": th.tooltip_fg},
             "call": call,
             "moves": moves,
+            **(look or {"tone": {"value": "auto", "auto": "over"}, "shade": False}),
         }
     )
     return f"""<div class="ec-viewer" id="{root_id}" style="{box}">
@@ -1881,11 +1958,13 @@ mount(root, bytes.buffer, {options});
 </div>"""
 
 
-def plot_png(scene: Scene, theme: Optional[str] = None, tone: str = "log") -> bytes:
+def plot_png(
+    scene: Scene, theme: Optional[str] = None, tone: str = "log", shade: bool = False
+) -> bytes:
     """`scene` as a PNG image, in `theme`, or the light one for the automatic theme (an image
     can't follow the page). The edges and nodes are drawn as `Scene.png()` draws them, with the
-    edges' density in `tone`, and the labels and the legend over them from their SVG. It is
-    `RASTER_SCALE` pixels to a pixel of the plot, and indexed."""
+    edges' density in `tone` and the nodes shaded with `shade`, and the labels and the legend
+    over them from their SVG. It is `RASTER_SCALE` pixels to a pixel of the plot, and indexed."""
     colors = _Colors(theme if theme in ("light", "dark") else "light")
     th = colors.theme
     picked = [colors.pick(*pair) for pair in scene.colors]
@@ -1893,7 +1972,7 @@ def plot_png(scene: Scene, theme: Optional[str] = None, tone: str = "log") -> by
     overlay = scene.svg(picked, th.bg, th.label_color, FONT_FAMILY, legend, ("", ""))
     # The background is the image's own, under the edges; the first fill of it is its rectangle
     overlay = overlay.replace(f'fill="{th.bg}"/>', 'fill="none"/>', 1)
-    return scene.png(picked, th.bg, RASTER_SCALE, tone, palette=True, overlay=overlay)
+    return scene.png(picked, th.bg, RASTER_SCALE, tone, palette=True, overlay=overlay, shade=shade)
 
 
 def _png_href(png: bytes) -> str:
@@ -1901,10 +1980,11 @@ def _png_href(png: bytes) -> str:
 
 
 def _raster_layers(
-    scene: Scene, colors: "_Colors", scale: float = 2.0, tone: str = "log"
+    scene: Scene, colors: "_Colors", scale: float = 2.0, tone: str = "log", shade: bool = False
 ) -> Tuple[str, str]:
     """`scene`'s edges and nodes drawn as images (see `Scene.png()`), in the colors of `colors`'s
-    theme: SVG elements to draw in their place, the edges' layer and the nodes'.
+    theme, the nodes shaded with `shade`: SVG elements to draw in their place, the edges' layer
+    and the nodes'.
 
     Edges of one color are a mask, filled with that color, so that one image serves both themes
     of the automatic one. Edges of more colors, and the nodes, are an image in the theme's
@@ -1919,7 +1999,14 @@ def _raster_layers(
         return f'<image {place}{style} href="{_png_href(png)}"/>'
 
     def themed(edges: bool) -> List[str]:
-        layer = {"scale": scale, "tone": tone, "edges": edges, "nodes": not edges, "palette": True}
+        layer = {
+            "scale": scale,
+            "tone": tone,
+            "edges": edges,
+            "nodes": not edges,
+            "palette": True,
+            "shade": shade,
+        }
         if not colors.auto:
             return [image(scene.png([colors.pick(*pair) for pair in scene.colors], **layer))]
         light = scene.png([lt for lt, _ in scene.colors], **layer)
