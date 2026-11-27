@@ -1136,6 +1136,7 @@ fn _core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(layout::packing::shelve_pieces, m)?)?;
     m.add_class::<scene::Scene>()?;
     m.add_function(wrap_pyfunction!(scene::fit_viewbox, m)?)?;
+    m.add_function(wrap_pyfunction!(scene::shade_stops, m)?)?;
     m.add_class::<scene::SceneBuilder>()?;
     m.add_function(wrap_pyfunction!(scene::tooltip_attrs, m)?)?;
     m.add_function(wrap_pyfunction!(scene::tooltip_table, m)?)?;
