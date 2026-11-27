@@ -23,7 +23,10 @@
 // of maxima finds on the GPU.
 
 const TEX_W = 2048; // texels per row; the shaders shift by 11
-const BUDGET = 150000; // the edges that a frame of a moving view draws
+// The edges that a frame of a moving view draws to start with, and the least that it comes down
+// to, as the frames' times size it (see `frameBudget()`)
+const BUDGET = 150000;
+const BUDGET_MIN = 20000;
 const ZOOM_MIN = 0.25;
 const ZOOM_MAX = 1000;
 const CANVAS_MAX = 4096; // the canvas's longer side, in pixels
@@ -358,25 +361,39 @@ void main() {
   o = vec4(most, 0.0, 0.0, 1.0);
 }`;
 
-function compile(gl, vs, fs) {
+// The program of `vs` and `fs`, its attributes `attrs` at their places in the list, compiled and
+// linked without waiting for it, so that the programs compile together (in parallel, where the
+// driver can) and alongside the rest of the setup. `done()` says whether it's ready without
+// waiting, where `KHR_parallel_shader_compile` (`parallel`) can tell, and `ready()` waits for it
+// and finds its uniforms, `u`
+function compile(gl, vs, fs, attrs, parallel) {
   const prog = gl.createProgram();
-  for (const [type, src] of [[gl.VERTEX_SHADER, vs], [gl.FRAGMENT_SHADER, fs]]) {
+  const shaders = [[gl.VERTEX_SHADER, vs], [gl.FRAGMENT_SHADER, fs]].map(([type, src]) => {
     const sh = gl.createShader(type);
     gl.shaderSource(sh, src);
     gl.compileShader(sh);
-    if (!gl.getShaderParameter(sh, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(sh));
     gl.attachShader(prog, sh);
-  }
+    return sh;
+  });
+  attrs.forEach((name, i) => gl.bindAttribLocation(prog, i, name));
   gl.linkProgram(prog);
-  if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(prog));
-  const u = {};
-  const count = gl.getProgramParameter(prog, gl.ACTIVE_UNIFORMS);
-  for (let i = 0; i < count; i++) {
-    const name = gl.getActiveUniform(prog, i).name;
-    u[name] = gl.getUniformLocation(prog, name);
-  }
-  const a = (name) => gl.getAttribLocation(prog, name);
-  return { prog, u, a };
+  const p = { prog, u: null, a: (name) => attrs.indexOf(name) };
+  p.done = () => p.u !== null || !parallel || gl.getProgramParameter(prog, parallel.COMPLETION_STATUS_KHR);
+  p.ready = () => {
+    if (p.u) return;
+    if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) {
+      const bad = shaders.find((sh) => !gl.getShaderParameter(sh, gl.COMPILE_STATUS));
+      throw new Error(bad ? gl.getShaderInfoLog(bad) : gl.getProgramInfoLog(prog));
+    }
+    const u = {};
+    const count = gl.getProgramParameter(prog, gl.ACTIVE_UNIFORMS);
+    for (let i = 0; i < count; i++) {
+      const name = gl.getActiveUniform(prog, i).name;
+      u[name] = gl.getUniformLocation(prog, name);
+    }
+    p.u = u;
+  };
+  return p;
 }
 
 // A float texture of `rows(i)`, four floats for each of `n` entries, or `into`, one that this made
@@ -427,6 +444,20 @@ function renderer(canvas, data) {
   const { header } = data;
   const n = header.nodes, m = header.edges;
   const density = gl.getExtension("EXT_color_buffer_float") !== null;
+  // The programs, compiling while the rest is set up, and waited for at the first drawing
+  const parallel = gl.getExtension("KHR_parallel_shader_compile");
+  const linkAttrs = ["a_corner", "a_src", "a_tgt", "a_color", "a_width", "a_opacity", "a_bow", "a_loop_size"];
+  const link = compile(gl, LINK_VS, LINK_FS, linkAttrs, parallel);
+  const point = compile(gl, POINT_VS, POINT_FS, ["a_quad", "a_index"], parallel);
+  const tone = compile(gl, TONE_VS, TONE_FS, [], parallel);
+  const peak = compile(gl, TONE_VS, PEAK_FS, [], parallel);
+  const programs = [link, point, tone, peak];
+  let linked = false;
+  function ready() {
+    if (linked) return;
+    for (const p of programs) p.ready();
+    linked = true;
+  }
 
   const nodeTable = (into) => table(gl, n, (t, j, i) => t.set([at(data.x, i), at(data.y, i), at(data.r, i), at(data.fill, i)], j), into);
   let nodes = nodeTable();
@@ -438,7 +469,6 @@ function renderer(canvas, data) {
   // Edges: a strip per instance, along a quadratic curve (or a self-loop's two cubic ones) in
   // pieces, then for a directed graph its arrowhead, after a turn of empty triangles. A long
   // thin triangle costs as much as the box around it, so a straight edge is split too
-  const link = compile(gl, LINK_VS, LINK_FS);
   const loops = hasLoops(data);
   let segments = 0, corners = 0;
   const linkVao = gl.createVertexArray();
@@ -503,7 +533,6 @@ function renderer(canvas, data) {
   }
 
   // Nodes: a quad per instance, in the scene's order
-  const point = compile(gl, POINT_VS, POINT_FS);
   const pointVao = gl.createVertexArray();
   gl.bindVertexArray(pointVao);
   gl.bindBuffer(gl.ARRAY_BUFFER, gl.createBuffer());
@@ -521,8 +550,6 @@ function renderer(canvas, data) {
   gl.vertexAttribDivisor(point.a("a_index"), 1);
   gl.bindVertexArray(null);
 
-  const tone = compile(gl, TONE_VS, TONE_FS);
-  const peak = compile(gl, TONE_VS, PEAK_FS);
   const emptyVao = gl.createVertexArray();
   // The density buffer, and for the log tone the pyramid of its maxima down to a pixel
   let fbo = null, fboTex = null, fboSize = [0, 0], levels = [];
@@ -675,6 +702,8 @@ function renderer(canvas, data) {
     gl,
     density,
     edgeCount: m,
+    // Whether the programs are still compiling, as far as can be told without waiting
+    get compiling() { return !linked && !programs.every((p) => p.done()); },
     setColors(table4, background) {
       if (colors) gl.deleteTexture(colors);
       colors = table(gl, table4.length, (t, j, i) => t.set(table4[i], j));
@@ -703,6 +732,7 @@ function renderer(canvas, data) {
     // `v`: the canvas's size in pixels, the scale and offset from the scene's units to clip
     // space, and the pixels per unit of edge width and of node radius
     draw(v, count = m) {
+      ready();
       view = v;
       if (!density) {
         gl.viewport(0, 0, v.w, v.h);
@@ -716,6 +746,7 @@ function renderer(canvas, data) {
     // Adds the next `chunk` edges to the view, and redraws it; false once every edge is in
     refine(chunk) {
       if (!density || !view || drawn >= m) return false;
+      ready();
       edges(view, drawn, Math.min(m, drawn + chunk), false);
       finish(view);
       return true;
@@ -769,6 +800,7 @@ function lasting(canvas, data, back, gone) {
     edgeCount: r.edgeCount,
     get gl() { return r.gl; },
     get lost() { return lost; },
+    get compiling() { return !lost && r.compiling; },
     setColors(table4, background) {
       set.colors = [table4, background];
       if (!lost) r.setColors(table4, background);
@@ -1090,9 +1122,10 @@ export function mount(root, buffer, options = {}) {
   canvas.setAttribute("role", "img");
   canvas.setAttribute("aria-label", `Graph of ${header.nodes} nodes and ${header.edges} edges. Drag to pan; zoom with the buttons, the keys + and -, or the wheel once clicked; F for full screen; hover over a node or an edge for its details; click one to select it, with Shift to add it, Shift and drag to lasso nodes, Esc to clear; / to search the nodes; the Settings button opens the plot's controls, where the Layout tab runs a force layout, while which a node can be dragged`);
   root.prepend(canvas);
-  // A moved view draws `BUDGET` edges at once, so they go in a random order, to be a fair share;
-  // `edgeRow` is each one's place in the scene's order, its row of the tooltips
-  const edgeRow = header.edges > BUDGET ? shuffleEdges(data) : null;
+  // A moved view may draw as few as `BUDGET_MIN` edges at once, so past that many they go in a
+  // random order, to be a fair share; `edgeRow` is each one's place in the scene's order, its row
+  // of the tooltips
+  const edgeRow = header.edges > BUDGET_MIN ? shuffleEdges(data) : null;
   // The selection, drawn as `highlight=` would draw what is selected, which "Copy as code"
   // writes: the nodes chosen, and the edges (j, in the drawing order), whose ends are highlighted
   // with them as `highlight_edges=` has them. An edge is chosen with the others between its ends,
@@ -1187,21 +1220,38 @@ export function mount(root, buffer, options = {}) {
   r.setTone(toneOf(tones.value));
   r.setShade(Boolean(options.shade));
 
-  // A moved view draws `BUDGET` edges at once, and the rest over the frames that follow
-  let pending = false, refining = 0;
+  // A moved view draws the budget's edges at once, and the rest over the frames that follow, as
+  // many a frame as keep up with the display, by the times of the frames drawn one after another
+  // (`last`, the time of the frame before, if it drew)
+  const budget = frameBudget(BUDGET, BUDGET_MIN, header.edges);
+  let pending = false, refining = 0, last = null;
+  const timed = (now) => {
+    if (last !== null && r.density) budget.frame(now - last);
+    last = now;
+  };
   const redraw = () => {
     if (r.lost) wake();
     else hold(held);
     if (pending) return;
     pending = true;
     cancelAnimationFrame(refining);
-    requestAnimationFrame(() => {
+    requestAnimationFrame(function frame(now) {
+      // Not while the shaders compile, where that can be told, so that the page goes on meanwhile
+      if (r.compiling) {
+        requestAnimationFrame(frame);
+        return;
+      }
       pending = false;
-      r.draw(view(), BUDGET);
+      timed(now);
+      r.draw(view(), budget.value);
       drawText();
       if (pointer) hover();
       report("view", true);
-      const more = () => { if (r.refine(BUDGET)) refining = requestAnimationFrame(more); };
+      const more = (now) => {
+        timed(now);
+        if (r.refine(budget.value)) refining = requestAnimationFrame(more);
+        else last = null;
+      };
       refining = requestAnimationFrame(more);
     });
   };
@@ -1214,12 +1264,11 @@ export function mount(root, buffer, options = {}) {
       edgeFirst: styled.edgeFirst,
     });
   }
-  r.draw(view());
-  drawText();
   // The drawing lets its context go when it goes out of view, or when another plot needs it (see
   // `hold()`), and a still image of its last frame stands in for it until the context is back and
   // drawn with. In view, it comes back when the plot is pointed at, focused or drawn again
   let still = null, near = true;
+  redraw();
   function release() {
     letGo(held);
     if (r.lost || !root.isConnected) {
@@ -2957,6 +3006,55 @@ const pyNumber = (v) => (/[.e]/.test(String(v)) ? String(v) : `${v}.0`);
 // A column as a number or none, or a copy, as a view of the payload posted to a worker would
 // take the whole payload with it
 const cloned = (col) => (col === null || typeof col === "number" ? col : col.slice());
+
+// How many edges a frame draws, sized by how long the frames that drew them took, in ms
+// (`frame(dt)`, which gives the budget). The frames are taken `WINDOW` at a time, or as many as
+// take `SPAN` ms, as the browser runs a few ahead of the GPU and their times come unevenly, and
+// the first `SKIP` after a change are left out, as they were begun before it (unless as slow as
+// a window). A window whose frames take past one and a half of the display's frame on average
+// brings the budget down to the share that would fit (by a quarter at least, and at most to a
+// quarter). One within a tenth over it brings it up by a quarter, or `wait` such windows in a row
+// do, which doubles (up to `CALM`) each time a step up didn't keep up, so as not to try again
+// soon what didn't. The display's frame is the shortest window's, and at most 60 Hz's, as a GPU
+// that is slow from the first frame would otherwise set it. From `start`, between `least` and
+// `most`
+function frameBudget(start, least, most) {
+  const WINDOW = 8, SPAN = 100, SKIP = 2, CALM = 64;
+  least = Math.min(least, most);
+  let budget = Math.max(least, Math.min(start, most)), tick = 1000 / 60;
+  let sum = 0, count = 0, skip = 0, fast = 0, wait = 1, grew = false;
+  const change = (to) => {
+    budget = to;
+    sum = count = fast = 0;
+    skip = SKIP;
+  };
+  return {
+    get value() { return budget; },
+    frame(dt) {
+      if (skip > 0 && dt < SPAN) {
+        skip--;
+        return budget;
+      }
+      skip = 0;
+      sum += dt;
+      if (++count < WINDOW && sum < SPAN) return budget;
+      const mean = sum / count;
+      sum = count = 0;
+      tick = Math.min(tick, mean);
+      if (mean > 1.5 * tick) {
+        if (grew) wait = Math.min(CALM, Math.max(2, 2 * wait));
+        grew = false;
+        if (budget > least) change(Math.max(least, Math.round(budget * Math.max(0.25, Math.min(0.75, tick / mean)))));
+      } else if (mean > 1.1 * tick) {
+        fast = 0;
+      } else if (++fast >= wait && budget < most) {
+        change(Math.min(most, Math.round(budget * 1.25)));
+        grew = true;
+      }
+      return budget;
+    },
+  };
+}
 
 // The edges in a random (but fixed) order, so that the first k of them are a fair share. Gives
 // the order, each edge's place in the scene's drawing order
