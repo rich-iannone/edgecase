@@ -1541,6 +1541,7 @@ def build_scene(
     node_overlap: Union[str, float] = "remove",
     edge_routing: Union[str, float] = "auto",
     show_labels: bool = True,
+    max_labels: Optional[int] = None,
     seed: Optional[int] = None,
     edge_width_by: Optional[str] = None,
     color_scale: Optional[str] = None,
@@ -1571,6 +1572,10 @@ def build_scene(
             f"Unknown edge_routing {edge_routing!r}; use 'auto', 'around', 'straight' or a "
             "clearance in pixels"
         )
+    if max_labels is not None and (
+        isinstance(max_labels, bool) or not isinstance(max_labels, int) or max_labels < 0
+    ):
+        raise ValueError(f"max_labels must be None or a whole number 0 or more, not {max_labels!r}")
     if color_scale is not None and color_scale not in COLOR_SCALES:
         raise ValueError(
             f"Unknown color_scale {color_scale!r}; use one of "
@@ -1690,6 +1695,7 @@ def build_scene(
             legend_marks,
             legend_w,
             route,
+            max_labels=max_labels,
             lean_min=LEAN_MIN,
             viewer=backend == "viewer",
         )
@@ -1834,13 +1840,20 @@ def emit_viewer(
             f'<g class="ec-legend" transform="translate({_LEGEND_PAD:g} 0)">'
             f"{_svg_legend(scene.legend, chrome, th)}</g></svg></div>"
         )
+
     # The tooltips, the SVG's: the nodes' in their order, and the edges' in the order drawn,
-    # gzipped (to about a fifth) for the viewer to read on the first hover
-    tips = ""
+    # gzipped (to about a fifth) for the viewer to read on the first hover, and the labels'
+    # texts likewise, which it reads straight away
+    def packed(name: str, text: str) -> str:
+        data = gzip.compress(text.encode("utf-8"), compresslevel=6, mtime=0)
+        encoded = base64.b64encode(data).decode("ascii")
+        return f'<script type="application/octet-stream" class="ec-{name}">{encoded}</script>\n'
+
+    texts = ""
     if scene.tip_tables is not None:
-        table = '{{"nodes": {}, "edges": {}}}'.format(*scene.tip_tables).encode("utf-8")
-        packed = base64.b64encode(gzip.compress(table, compresslevel=6, mtime=0)).decode("ascii")
-        tips = f'<script type="application/octet-stream" class="ec-tips">{packed}</script>\n'
+        texts = packed("tips", '{{"nodes": {}, "edges": {}}}'.format(*scene.tip_tables))
+    if scene.label_texts is not None:
+        texts += packed("labels", scene.label_texts)
     encoded = base64.b64encode(payload).decode("ascii")
     options = json.dumps(
         {
@@ -1856,7 +1869,7 @@ def emit_viewer(
 <style>{chrome.scoped("#" + root_id, colors)}</style>
 {legend}
 <script type="application/octet-stream" class="ec-payload">{encoded}</script>
-{tips}<script type="module">
+{texts}<script type="module">
 {_viewer_js}
 const root = document.getElementById("{root_id}");
 const text = root.querySelector("script.ec-payload").textContent;
