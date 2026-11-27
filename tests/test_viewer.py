@@ -6,6 +6,7 @@ The viewer itself runs in a browser, so these tests read what it's given, and no
 
 import base64
 import gzip
+import hashlib
 import html as html_mod
 import json
 import re
@@ -120,7 +121,7 @@ def test_the_viewer_backend_holds_the_viewer_and_the_payload():
     header, columns = _html_payload(html)
     assert (header["nodes"], header["edges"]) == (34, 78) and len(columns["x"]) == 34
     # The viewer's code, the runtime that defines the element, and the legend over it, as SVG
-    assert html.count('<script type="module">') == 1 and "export function mount(" in html
+    assert html.count('<script type="module">') == 1 and svg_renderer._runtime_js() in html
     assert 'customElements.define("ec-graph"' in html
     assert 'class="ec-legend-layer"' in html and 'class="ec-legend"' in html
     # Not the SVG's nodes and edges, whose tooltips are in a table of their own
@@ -405,11 +406,39 @@ def test_the_viewers_code_is_ascii():
     # It is inlined in pages that may not say how they are encoded
     js = (Path(svg_renderer.__file__).parent / "static" / "viewer.js").read_bytes()
     assert js.isascii() and b"export function mount(" in js and b"export function parse(" in js
+    small = (Path(svg_renderer.__file__).parent / "static" / "viewer.min.js").read_bytes()
+    assert small.isascii() and b" as mount," in small and b" as parse}" in small
+
+
+def test_the_minified_runtime_is_up_to_date():
+    # `scripts/minify_viewer.py` writes it, after changing `viewer.js`, with the hash of what it
+    # minified on its first line
+    static = Path(svg_renderer.__file__).parent / "static"
+    digest = hashlib.sha256((static / "viewer.js").read_bytes()).hexdigest()
+    head = (static / "viewer.min.js").read_text().split("\n", 1)[0]
+    assert head == f"// edgecase's viewer.js, minified by scripts/minify_viewer.py, sha256 {digest}"
+    assert svg_renderer._runtime_file() == static / "viewer.min.js"
+    assert len(svg_renderer._runtime_js()) < 0.6 * (static / "viewer.js").stat().st_size
+
+
+def test_the_runtime_is_the_viewers_code_while_the_minified_one_is_out_of_date(
+    tmp_path, monkeypatch
+):
+    (tmp_path / "static").mkdir()
+    source, small = tmp_path / "static" / "viewer.js", tmp_path / "static" / "viewer.min.js"
+    source.write_text("export function mount() {}\n")
+    monkeypatch.setattr(svg_renderer, "__file__", str(tmp_path / "svg_renderer.py"))
+    # None, one of another `viewer.js`, and one of this one
+    assert svg_renderer._runtime_file() == source
+    small.write_text(f"// sha256 {hashlib.sha256(b'other').hexdigest()}\nexport{{}};\n")
+    assert svg_renderer._runtime_file() == source
+    small.write_text(f"// sha256 {hashlib.sha256(source.read_bytes()).hexdigest()}\nexport{{}};\n")
+    assert svg_renderer._runtime_file() == small
 
 
 def test_a_page_can_carry_the_runtime_once(tmp_path, monkeypatch):
     monkeypatch.setattr(svg_renderer, "_runtime", "inline")
-    js = (Path(svg_renderer.__file__).parent / "static" / "viewer.js").read_text()
+    js = svg_renderer._runtime_js()
     plot = ec.karate_club().plot(backend="viewer", seed=1)
     # The element alone, which holds no code, and with the runtime after it, by default
     alone = plot.as_raw_html(runtime="none")
@@ -873,6 +902,54 @@ def test_the_simulation_settles_alike_each_time(tmp_path):
     assert out["pinned"] == [pytest.approx(100, abs=1e-3), pytest.approx(50, abs=1e-3), 400, False]
 
 
+# A GPU that draws `fit` edges in each of the display's frames: frames that take as long as their
+# edges take, or as many whole frames, from a budget of 150,000 between 20,000 and 600,000
+_FRAMES = """
+const TICK = 1000 / 60;
+function run(fit, frames, whole) {
+  const b = frameBudget(150000, 20000, 600000), seen = [];
+  for (let k = 0; k < frames; k++) {
+    const t = TICK * Math.max(1, b.value / fit);
+    seen.push([b.value, whole ? TICK * Math.ceil(t / TICK - 1e-9) : t]);
+    b.frame(seen[k][1]);
+  }
+  const late = seen.slice(frames / 2);
+  return { value: b.value, values: new Set(late.map((s) => s[0])).size,
+    mean: late.reduce((a, s) => a + s[1], 0) / late.length, least: Math.min(...late.map((s) => s[0])) };
+}
+const slow = frameBudget(150000, 20000, 600000), steps = [];
+for (let k = 0; k < 3; k++) steps.push(slow.frame(1000));
+const few = frameBudget(150000, 20000, 5000), budgets = [few.value];
+for (let k = 0; k < 50; k++) budgets.push(few.frame(k < 25 ? 5 : 1000));
+console.log(JSON.stringify({ fast: run(1e9, 400, false), even: run(90000, 4000, false),
+  whole: run(100000, 4000, true), slow: steps, few: Array.from(new Set(budgets)) }));
+"""  # noqa: E501
+
+
+@pytest.mark.skipif(NODE is None, reason="needs node")
+def test_the_viewers_budget_follows_its_frames_times(tmp_path):
+    js = (Path(svg_renderer.__file__).parent / "static" / "viewer.js").read_text()
+    start = js.index("function frameBudget(start, least, most) {")
+    body = js[start : js.index("\n}\n", start) + 2]
+    (script := tmp_path / "budget.mjs").write_text(body + _FRAMES)
+    run = subprocess.run([NODE, script], capture_output=True, text=True, check=True)
+    out = json.loads(run.stdout)
+    tick = 1000 / 60
+    # Frames in time bring it up to all the edges
+    assert out["fast"]["value"] == 600_000
+    # Frames that take as long as their edges do bring it down to about what fits, and it stays
+    assert out["even"]["values"] == 1 and 90_000 <= out["even"]["value"] < 1.5 * 90_000
+    assert out["even"]["mean"] < 1.5 * tick
+    # Frames of whole frames, which a step up past what fits doubles, seldom miss one
+    assert out["whole"]["mean"] < 1.02 * tick and out["whole"]["least"] > 40_000
+    # Frames of a second each bring it down to the least at once, and fewer edges than that are
+    # all drawn
+    assert out["slow"] == [37_500, 20_000, 20_000] and out["few"] == [5_000]
+    # It is used: the frames are timed, and the shaders compile without waiting where they can
+    assert "frameBudget(BUDGET, BUDGET_MIN, header.edges)" in js and "budget.frame(" in js
+    assert '"KHR_parallel_shader_compile"' in js and "COMPLETION_STATUS_KHR" in js
+
+
 def _kernel(monkeypatch, kernel=True):
     """IPython, as a notebook's kernel has it, or as a terminal's (without a kernel)."""
     shell = type("Shell", (), {"kernel": object()})() if kernel else object()
@@ -883,7 +960,7 @@ def _kernel(monkeypatch, kernel=True):
 
 
 def test_a_viewer_plot_is_a_widget_in_a_notebooks_kernel(monkeypatch):
-    js = (Path(svg_renderer.__file__).parent / "static" / "viewer.js").read_text()
+    js = svg_renderer._runtime_js()
     plot = ec.karate_club().plot(backend="viewer", seed=1)
     svg = ec.karate_club().plot(seed=1)
     # A kernel, but not one that Quarto runs to render a page, nor IPython in a terminal
