@@ -5,6 +5,7 @@
 // the order of the colors in the table
 use super::color::{darken, mix, Pair, Scale, Stop};
 use super::geometry::{fit_viewbox, py_max, py_min};
+use super::labels;
 use super::tips::{Cell, Tips};
 use super::{Controls, Edges, Labels, Nodes, Scene};
 use crate::graph::Graph;
@@ -1089,8 +1090,10 @@ impl SceneBuilder {
     /// The scene, with the nodes at `positions` (`{node ID as text: (x, y)}`) in a frame of
     /// `width` by `height` pixels. `legend` holds the legend's marks, `legend_w` pixels wide,
     /// and `route` the margin and greatest number of waypoints for routing edges around nodes,
-    /// None for straight edges. More than `lean_min` nodes or edges make it lean, and `viewer`
-    /// keeps what the viewer needs: the tooltips as tables, and what its controls change
+    /// None for straight edges. With `show_labels`, at most `max_labels` labels are drawn (see
+    /// `labels.rs`), or with None, every one up to `labels::ALL_MAX` nodes and otherwise
+    /// `labels::AUTO_MAX`. More than `lean_min` nodes or edges make it lean, and `viewer` keeps
+    /// what the viewer needs: the tooltips as tables, and what its controls change
     #[pyo3(signature = (
         positions,
         width,
@@ -1100,6 +1103,7 @@ impl SceneBuilder {
         legend,
         legend_w,
         route=None,
+        max_labels=None,
         lean_min=2000,
         viewer=false,
     ))]
@@ -1115,6 +1119,7 @@ impl SceneBuilder {
         legend: Bound<'_, PyAny>,
         legend_w: f64,
         route: Option<(f64, Option<usize>)>,
+        max_labels: Option<usize>,
         lean_min: usize,
         viewer: bool,
     ) -> PyResult<Scene> {
@@ -1156,10 +1161,39 @@ impl SceneBuilder {
         // The legend gets a column of its own at the right, so that it never covers the drawing
         let legend_w = py_min(legend_w, width * 0.4);
         let pick = |v: &[f64]| order.iter().map(|&k| v[k]).collect::<Vec<_>>();
-        let chars: Option<Vec<usize>> = show_labels.then(|| {
+        // The labels drawn, which the frame makes room for. Their font is in the frame's units,
+        // as the nodes are, so which of them overlap doesn't depend on the frame
+        let levels = self.levels.as_ref();
+        let font_size = py_max(8.0, py_min(13.0, enc.node_size * 0.7));
+        let auto_limit = labels::auto_limit(n);
+        let label_limit = max_labels.or(auto_limit);
+        let mut degree = vec![0usize; n];
+        for (&s, &t) in self.src.iter().zip(&self.tgt) {
+            degree[s] += 1;
+            degree[t] += 1;
+        }
+        let label_order = labels::priority(
+            levels.map(|(node_level, _)| node_level.as_slice()),
+            &enc.radii,
+            &degree,
+        );
+        let shown = if show_labels {
+            let (radii, texts) = (&enc.radii, &self.labels);
+            labels::choose(texts, &xs, &ys, radii, font_size, &label_order, label_limit)
+        } else {
+            vec![false; n]
+        };
+        let any_shown = shown.iter().any(|&s| s);
+        let chars: Option<Vec<usize>> = any_shown.then(|| {
             order
                 .iter()
-                .map(|&k| self.labels[k].chars().count())
+                .map(|&k| {
+                    if shown[k] {
+                        self.labels[k].chars().count()
+                    } else {
+                        0
+                    }
+                })
                 .collect()
         });
         let mut viewbox = fit_viewbox(
@@ -1167,7 +1201,7 @@ impl SceneBuilder {
             &pick(&ys),
             &pick(&enc.radii),
             chars.as_deref(),
-            if show_labels { 20.0 } else { 0.0 },
+            if any_shown { 20.0 } else { 0.0 },
             30.0,
             Some((width - legend_w, height)),
         );
@@ -1226,7 +1260,6 @@ impl SceneBuilder {
             Some(k) => k.bind(py).is_truthy()?,
             None => false,
         };
-        let levels = self.levels.as_ref();
 
         // Edges
         let mut edge_color = Vec::with_capacity(m);
@@ -1433,10 +1466,16 @@ impl SceneBuilder {
                 order: node_order,
                 tips: node_tips.attrs_json()?,
             },
-            labels: show_labels.then(|| Labels {
+            // The viewer has them without `show_labels`, for its controls
+            labels: (show_labels || viewer).then(|| Labels {
                 texts: self.labels.clone(),
                 colors: label_colors,
-                font_size: py_max(8.0, py_min(13.0, enc.node_size * 0.7)),
+                font_size,
+                show: show_labels,
+                order: label_order,
+                limit: label_limit,
+                auto: auto_limit,
+                shown,
             }),
             edges: Edges {
                 src: self.src.clone(),
