@@ -34,6 +34,8 @@ const HIT = 4;
 // The controls' panel is this wide, and docks beside the drawing in a box at least this wide
 const PANEL_W = 280;
 const DOCK_MIN = 840;
+// A view or filters changing are told to the host once they have kept still this many ms
+const SETTLE = 150;
 
 // The buttons' icons, as paths on a 16 by 16 grid, stroked in the text color
 const ICONS = {
@@ -1039,11 +1041,18 @@ export function mount(root, buffer, options = {}) {
   const { header } = data;
   // The nodes that the legend hides, none at first
   data.hidden = 0;
-  if (!document.getElementById("ec-viewer-style")) {
+  // The document or the shadow root that `root` is in (as marimo shows a widget in one), whose
+  // focus and full screen are the plot's, and which needs the style as well as the page
+  const found = root.getRootNode();
+  const tree = found instanceof ShadowRoot ? found : document;
+  for (const at of new Set([document, tree])) {
+    if (at.getElementById("ec-viewer-style")) continue;
     const style = document.createElement("style");
     style.id = "ec-viewer-style";
     style.textContent = STYLE;
-    document.head.appendChild(style);
+    // Before the plots' own styles, as in the page's head
+    if (at === document) document.head.appendChild(style);
+    else at.prepend(style);
   }
   root.classList.add("ec-viewer");
   const canvas = document.createElement("canvas");
@@ -1064,6 +1073,8 @@ export function mount(root, buffer, options = {}) {
   // highlighting is drawn
   const sel = header.select;
   const chosen = { nodes: new Set(), edges: new Set() };
+  // The state last told to the host, as JSON, and the timers of the changes settling (see `report()`)
+  const told = {}, settling = {};
   const off = new Set();
   // The Filter tab's filters: each one's column (of `header.filters`) and range, from `lo` to `hi`.
   // One at its column's whole range hides nothing; a narrower one hides the nodes or the edges
@@ -1160,6 +1171,7 @@ export function mount(root, buffer, options = {}) {
       r.draw(view(), BUDGET);
       drawText();
       if (pointer) hover();
+      report("view", true);
       const more = () => { if (r.refine(BUDGET)) refining = requestAnimationFrame(more); };
       refining = requestAnimationFrame(more);
     });
@@ -1436,11 +1448,26 @@ export function mount(root, buffer, options = {}) {
     }
     restyle();
     syncFilters();
+    report("filters", true);
   }
   function choose(nodes, edges) {
     chosen.nodes = new Set(nodes);
     chosen.edges = new Set(edges);
     relook();
+    report("selection");
+  }
+  // What is chosen, by ID: the nodes' IDs, and the edges' ends, an undirected edge's in the order
+  // of their IDs, each pair once, all in order
+  const byId = (a, b) => a.length - b.length || (a < b ? -1 : a > b ? 1 : 0);
+  function chosenIds() {
+    const ids = [...chosen.nodes].map(idOf).sort(byId);
+    const ends = new Map();
+    for (const j of chosen.edges) {
+      let [a, b] = [idOf(at(data.src, j)), idOf(at(data.tgt, j))];
+      if (!header.directed && byId(a, b) > 0) [a, b] = [b, a];
+      ends.set(`${a} ${b}`, [a, b]);
+    }
+    return { ids, pairs: [...ends.values()].sort((p, q) => byId(p[0], q[0]) || byId(p[1], q[1])) };
   }
   // A click chooses what is under it, or with `add` (Shift, Command or Ctrl) adds it to the
   // selection or takes it out; on nothing, it clears the selection
@@ -1795,7 +1822,7 @@ export function mount(root, buffer, options = {}) {
   // Full screen: the plot's box, or where the page doesn't allow that (as in some notebooks'
   // frames and VS Code's webviews), an overlay over the whole window. The camera keeps its
   // center, and zoom 1 fits the larger box
-  const fullElement = () => document.fullscreenElement ?? document.webkitFullscreenElement;
+  const fullElement = () => tree.fullscreenElement ?? tree.webkitFullscreenElement;
   const isFull = () => fullElement() === root || root.classList.contains("ec-expanded");
   function syncFull() {
     const full = isFull();
@@ -2092,7 +2119,7 @@ export function mount(root, buffer, options = {}) {
     }
     select(0);
     tablist.addEventListener("keydown", (e) => {
-      const i = tabs.indexOf(document.activeElement);
+      const i = tabs.indexOf(tree.activeElement);
       const to = { ArrowRight: i + 1, ArrowLeft: i - 1, Home: 0, End: tabs.length - 1 }[e.key];
       if (i < 0 || to === undefined) return;
       e.preventDefault();
@@ -2361,8 +2388,8 @@ export function mount(root, buffer, options = {}) {
         function syncRange(typed) {
           const on = narrowed(q);
           out.textContent = `${say(col, q.lo)} \u2013 ${say(col, q.hi)}`;
-          if (typed || document.activeElement !== fromBox) fromBox.value = String(q.lo);
-          if (typed || document.activeElement !== toBox) toBox.value = String(q.hi);
+          if (typed || tree.activeElement !== fromBox) fromBox.value = String(q.lo);
+          if (typed || tree.activeElement !== toBox) toBox.value = String(q.hi);
           box.classList.toggle("ec-changed", on);
           reset.hidden = !on;
           const x0 = toX(q.lo, false), x1 = toX(q.hi, true);
@@ -2468,6 +2495,25 @@ export function mount(root, buffer, options = {}) {
         },
         column: setColumn,
         remove: removeFilter,
+        // The filters `[{ attr, of, range: [lo, hi] }]` in place of those there, in their
+        // columns' ranges, each column once (`of` may be left out, for the nodes' column of the
+        // name before the edges'); with none, the first column's at its whole range
+        replace(list) {
+          for (const v of views) v.box.remove();
+          filters.length = views.length = 0;
+          for (const f of list) {
+            const k = [f.of ?? "nodes", f.of ?? "edges"]
+              .map((of) => columns.findIndex((c) => c.name === f.attr && c.of === of)).find((i) => i >= 0);
+            if (k === undefined || filters.some((q) => q.col === columns[k])) continue;
+            const q = filters[addFilter(k)], col = q.col;
+            const lo = Math.max(col.min, Math.min(col.max, Number(f.range?.[0] ?? col.min)));
+            const hi = Math.max(lo, Math.min(col.max, Number(f.range?.[1] ?? col.max)));
+            if (lo === lo && hi === hi) Object.assign(q, { lo, hi });
+            views[views.length - 1].syncRange();
+          }
+          if (!filters.length) addFilter(0);
+          changed();
+        },
       };
       return { sync, controls };
     }
@@ -2486,17 +2532,8 @@ export function mount(root, buffer, options = {}) {
       if (chosen.nodes.size || chosen.edges.size) {
         args.delete("highlight");
         args.delete("highlight_edges");
-        const byId = (a, b) => a.length - b.length || (a < b ? -1 : a > b ? 1 : 0);
-        const ids = [...chosen.nodes].map(idOf).sort(byId);
+        const { ids, pairs } = chosenIds();
         if (ids.length) args.set("highlight", ids.length === 1 ? ids[0] : `{${ids.join(", ")}}`);
-        const ends = new Map();
-        for (const j of chosen.edges) {
-          let [a, b] = [idOf(at(data.src, j)), idOf(at(data.tgt, j))];
-          // An undirected edge's ends in the order of their IDs
-          if (!header.directed && byId(a, b) > 0) [a, b] = [b, a];
-          ends.set(`${a} ${b}`, [a, b]);
-        }
-        const pairs = [...ends.values()].sort((p, q) => byId(p[0], q[0]) || byId(p[1], q[1]));
         if (pairs.length) args.set("highlight_edges", `[${pairs.map(([a, b]) => `(${a}, ${b})`).join(", ")}]`);
       }
       const rank = (name) => { const i = call.params.indexOf(name); return i < 0 ? Infinity : i; };
@@ -2554,7 +2591,7 @@ export function mount(root, buffer, options = {}) {
       root.classList.toggle("ec-panel-open", on);
       panelButton.setAttribute("aria-expanded", String(on));
       if (on) tabs[current].focus({ preventScroll: true });
-      else if (panel.contains(document.activeElement)) panelButton.focus({ preventScroll: true });
+      else if (panel.contains(tree.activeElement)) panelButton.focus({ preventScroll: true });
       if (!on) text.hidden = true;
       layout();
     }
@@ -2565,7 +2602,9 @@ export function mount(root, buffer, options = {}) {
       panelButton.focus({ preventScroll: true });
     });
     document.addEventListener("pointerdown", (e) => {
-      if (shownOpen && !root.classList.contains("ec-docked") && !panel.contains(e.target) && !panelButton.contains(e.target)) setOpen(false);
+      // What was pressed, in a shadow root too, where `e.target` is the root's host
+      const at = e.composedPath()[0];
+      if (shownOpen && !root.classList.contains("ec-docked") && !panel.contains(at) && !panelButton.contains(at)) setOpen(false);
     }, true);
     const panelControls = {
       values: () => Object.fromEntries(list.map((c) => [c.name, c.value])),
@@ -2576,6 +2615,67 @@ export function mount(root, buffer, options = {}) {
     return { setOpen, isOpen: () => shownOpen, panelControls, restyle, syncNote, syncFilters, filterControls: filterPage?.controls ?? null };
   }
 
+  // The state that a host follows and sets (see `GraphElement`): the selection, as the nodes'
+  // IDs and the edges' ends (numbers, or strings past 2^53); the view, the camera's center (in
+  // the scene's units, the SVG's viewBox's) and its zoom; and the filters narrowed. A change is
+  // told as an "ec-change" event of `{ name, value }`, the view's and the filters' once they
+  // have kept still for `SETTLE` ms, as a drag moves them by the frame. One set from outside is
+  // told only where the viewer can't take it as given, as it holds what it holds then
+  const asId = (s) => (Number.isSafeInteger(Number(s)) ? Number(s) : s);
+  const state = {
+    selection() {
+      const { ids, pairs } = chosenIds();
+      return { nodes: ids.map(asId), edges: pairs.map((p) => p.map(asId)) };
+    },
+    view: () => ({ x: cam.cx, y: cam.cy, zoom: cam.zoom }),
+    filters: () => filters.filter(narrowed).map((q) => ({ attr: q.col.name, of: q.col.of, range: [q.lo, q.hi] })),
+  };
+  let indexOf = null;
+  const put = {
+    // The nodes and edges of these IDs that the plot has; an undirected edge either way round
+    selection(v) {
+      if (!sel) return;
+      indexOf ??= new Map(Array.from({ length: header.nodes }, (_, i) => [idOf(i), i]));
+      const find = (id) => indexOf.get(String(id));
+      const nodes = (v?.nodes ?? []).map(find).filter((i) => i !== undefined);
+      const want = new Set();
+      for (const [a, b] of v?.edges ?? []) {
+        const s = find(a), t = find(b);
+        if (s === undefined || t === undefined) continue;
+        want.add(`${s} ${t}`);
+        if (!header.directed) want.add(`${t} ${s}`);
+      }
+      const edges = [];
+      if (want.size) for (let j = 0; j < header.edges; j++) if (want.has(`${at(data.src, j)} ${at(data.tgt, j)}`)) edges.push(j);
+      choose(nodes, edges);
+    },
+    // Without a value, the view that fits the graph
+    view(v) {
+      cancelAnimationFrame(flight);
+      const num = (x, was) => (Number.isFinite(Number(x)) && x !== null ? Number(x) : was);
+      if (!v) Object.assign(cam, home);
+      else Object.assign(cam, { cx: num(v.x, cam.cx), cy: num(v.y, cam.cy), zoom: Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, num(v.zoom, cam.zoom))) });
+      redraw();
+    },
+    filters(v) { filterControls?.replace(v ?? []); },
+  };
+  function report(name, later) {
+    clearTimeout(settling[name]);
+    if (later) {
+      settling[name] = setTimeout(() => report(name), SETTLE);
+      return;
+    }
+    const value = state[name](), text = JSON.stringify(value);
+    if (text === told[name]) return;
+    told[name] = text;
+    root.dispatchEvent(new CustomEvent("ec-change", { bubbles: true, detail: { name, value } }));
+  }
+  for (const name in state) told[name] = JSON.stringify(state[name]());
+  const known = (name) => {
+    if (!Object.hasOwn(state, name)) throw new Error(`No state ${name}; there are ${Object.keys(state).join(", ")}`);
+    return name;
+  };
+
   return {
     camera: cam, redraw, reset, renderer: r, data, labels: words, controls: { ...panelControls, open: setOpen },
     selection: { nodes: () => [...chosen.nodes], edges: () => [...chosen.edges], choose, clickAt, setLasso },
@@ -2583,6 +2683,14 @@ export function mount(root, buffer, options = {}) {
     filters: filterControls,
     search,
     flyTo,
+    state: {
+      get: (name) => state[known(name)](),
+      set(name, value) {
+        told[known(name)] = JSON.stringify(value);
+        put[name](value);
+        report(name);
+      },
+    },
   };
 }
 
@@ -2874,9 +2982,15 @@ const letGo = (h) => holders.delete(h);
 // <ec-graph>, a plot (see `emit_viewer()` in `svg_renderer.py`): it holds the payload, the
 // tooltips and the labels' texts in scripts, with the options as JSON, and mounts the viewer once
 // it first comes near the view, as its `viewer` (what `mount()` returns). Defined once on a page,
-// by whichever copy of this code runs first, the page's own or one that a plot carries
+// by whichever copy of this code runs first, the page's own or one that a plot carries.
+//
+// Its `selection`, `view` and `filters` are the viewer's state (see `state` in `mount()`), which
+// a host reads and sets, and which the "ec-change" event tells of as it changes. Set before the
+// viewer mounts, they wait for it; read then, they are null
+const STATES = ["selection", "view", "filters"];
 class GraphElement extends HTMLElement {
   #seen = false;
+  #wanted = {};
   connectedCallback() {
     if (this.#seen) return;
     this.#seen = true;
@@ -2884,10 +2998,59 @@ class GraphElement extends HTMLElement {
       if (!on || this.viewer !== undefined) return;
       const payload = fromBase64(this.querySelector("script.ec-payload").textContent);
       this.viewer = mount(this, payload.buffer, JSON.parse(this.querySelector("script.ec-options").textContent));
+      for (const [name, value] of Object.entries(this.#wanted)) this.viewer?.state.set(name, value);
+      this.#wanted = {};
     });
     // Its scripts come after it, so while the page is loading they may not be in yet
     if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", watch, { once: true });
     else watch();
   }
+  #get(name) {
+    return this.viewer ? this.viewer.state.get(name) : this.#wanted[name] ?? null;
+  }
+  #set(name, value) {
+    if (this.viewer) this.viewer.state.set(name, value);
+    else this.#wanted[name] = value;
+  }
+  get selection() { return this.#get("selection"); }
+  set selection(value) { this.#set("selection", value); }
+  get view() { return this.#get("view"); }
+  set view(value) { this.#set("view", value); }
+  get filters() { return this.#get("filters"); }
+  set filters(value) { this.#set("filters", value); }
 }
 if (!customElements.get("ec-graph")) customElements.define("ec-graph", GraphElement);
+
+// The notebook's widget (see `_widget_class()` in `svg_renderer.py`), whose module this code is,
+// once for each widget: a view of it is its plot's `<ec-graph>` (the element defined first, as
+// another widget's module or the page may have defined it), whose state follows the widget's,
+// and the widget the element's. Each view's element has an ID of its own, as the panel's fields
+// are named after it
+function render({ model, el }) {
+  const html = model.get("html");
+  // Read from inert markup, which doesn't make the element
+  const inert = document.createElement("template");
+  inert.innerHTML = html;
+  const id = inert.content.querySelector("ec-graph")?.id;
+  el.innerHTML = id ? html.replaceAll(id, `${id}-${Math.random().toString(36).slice(2, 8)}`) : html;
+  const plot = el.querySelector("ec-graph");
+  if (!plot) return undefined;
+  // Upgraded now, as the view may not be on the page yet, for its state's setters
+  customElements.upgrade(plot);
+  const follow = STATES.map((name) => {
+    const f = () => { plot[name] = model.get(name); };
+    f();
+    model.on(`change:${name}`, f);
+    return [name, f];
+  });
+  const told = (e) => {
+    model.set(e.detail.name, e.detail.value);
+    model.save_changes();
+  };
+  plot.addEventListener("ec-change", told);
+  return () => {
+    for (const [name, f] of follow) model.off(`change:${name}`, f);
+    plot.removeEventListener("ec-change", told);
+  };
+}
+export default { render };
