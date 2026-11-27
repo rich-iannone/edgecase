@@ -46,7 +46,14 @@ from shiny.module import resolve_id
 from shiny.render.renderer import Renderer
 from shiny.session import Session, require_active_session
 
-from edgecase.svg_renderer import STATES, _app_html, _app_plot, _app_state, _app_value
+from edgecase.svg_renderer import (
+    STATES,
+    _app_html,
+    _app_plot,
+    _app_state,
+    _app_value,
+    _runtime_file,
+)
 
 __all__ = ["output_graph", "render_graph", "update_graph"]
 
@@ -61,7 +68,7 @@ def _dependency() -> HTMLDependency:
         "edgecase-viewer",
         __version__,
         source={"package": "edgecase", "subdir": "static"},
-        script={"src": "viewer.js", "type": "module"},
+        script={"src": _runtime_file().name, "type": "module"},
     )
 
 
