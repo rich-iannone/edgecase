@@ -49,7 +49,8 @@ const el = (tag, className, text) => {
   return e;
 };
 
-// The payload's header and columns, as views of `buffer`; a column left out of it is a number
+// The payload's header and columns, as views of `buffer`; a column left out of it is a number.
+// The filters' columns are under their names in `header.filters`
 export function parse(buffer) {
   const bytes = new Uint8Array(buffer);
   if (String.fromCharCode(...bytes.subarray(0, 4)) !== "ECV1") throw new Error("Not a viewer payload");
@@ -64,6 +65,7 @@ export function parse(buffer) {
     "src", "tgt", "color", "width", "opacity", "bow", "loop_size", "level", "base_width", "label_order",
     "label_color", "node_id", "node_id_hi", "base_fill", "base_border", "base_color", "base_label_order",
     "node_key", "edge_key"];
+  for (const f of header.filters ?? []) names.push(f.column);
   return { header, ...Object.fromEntries(names.map((name) => [name, column(name)])) };
 }
 
@@ -890,8 +892,8 @@ html.ec-expanded-page, html.ec-expanded-page body { overflow: hidden !important;
 .ec-viewer .ec-panel button { width: auto; height: auto; padding: 4px 8px; font: inherit; background: none; opacity: 1; }
 .ec-viewer .ec-panel :focus-visible { outline: 2px solid currentColor; outline-offset: 1px; }
 .ec-viewer .ec-panel-head { display: flex; align-items: flex-end; gap: 4px; padding: 6px 6px 0 8px; border-bottom: 1px solid color-mix(in srgb, currentColor 15%, transparent); }
-.ec-viewer .ec-tabs { display: flex; flex: 1; gap: 2px; min-width: 0; overflow-x: auto; }
-.ec-viewer .ec-panel [role=tab] { padding: 6px 8px; border-radius: 6px 6px 0 0; border-bottom: 2px solid transparent; opacity: 0.7; white-space: nowrap; }
+.ec-viewer .ec-tabs { display: flex; flex: 1; gap: 1px; min-width: 0; overflow-x: auto; }
+.ec-viewer .ec-panel [role=tab] { padding: 6px 5px; border-radius: 6px 6px 0 0; border-bottom: 2px solid transparent; opacity: 0.7; white-space: nowrap; }
 .ec-viewer .ec-panel [role=tab][aria-selected=true] { opacity: 1; font-weight: 600; border-bottom-color: currentColor; }
 .ec-viewer .ec-panel [role=tab].ec-changed::after { content: ""; display: inline-block; width: 5px; height: 5px; margin-left: 4px; border-radius: 50%; background: currentColor; vertical-align: 2px; }
 .ec-viewer .ec-panel .ec-close { align-self: center; width: 26px; height: 26px; padding: 0; opacity: 0.75; }
@@ -912,6 +914,18 @@ html.ec-expanded-page, html.ec-expanded-page body { overflow: hidden !important;
 .ec-viewer .ec-more[open] summary { margin-bottom: 10px; }
 .ec-viewer .ec-more .ec-field + .ec-field { margin-top: 14px; }
 .ec-viewer .ec-panel-foot .ec-note { flex-basis: 100%; }
+.ec-viewer .ec-count { margin: 0; opacity: 0.8; font-variant-numeric: tabular-nums; }
+.ec-viewer .ec-filters { display: flex; flex-direction: column; gap: 18px; }
+.ec-viewer .ec-filter select { flex: 1; min-width: 0; padding: 2px 4px; font: inherit; color: inherit; background: transparent; border: 1px solid color-mix(in srgb, currentColor 25%, transparent); border-radius: 4px; }
+.ec-viewer .ec-hist { display: block; width: 100%; height: 56px; cursor: crosshair; touch-action: none; border-bottom: 1px solid color-mix(in srgb, currentColor 30%, transparent); }
+.ec-viewer .ec-hist .ec-all { fill: currentColor; opacity: 0.18; }
+.ec-viewer .ec-hist .ec-in { fill: currentColor; opacity: 0.7; }
+.ec-viewer .ec-hist .ec-brush { fill: currentColor; opacity: 0.08; }
+.ec-viewer .ec-hist .ec-end { stroke: currentColor; stroke-width: 1.5; }
+.ec-viewer .ec-range { display: flex; gap: 8px; }
+.ec-viewer .ec-range label { flex: 1; display: flex; align-items: center; gap: 5px; min-width: 0; }
+.ec-viewer .ec-range input { flex: 1; min-width: 0; width: 0; padding: 2px 4px; font: inherit; font-variant-numeric: tabular-nums; color: inherit; background: transparent; border: 1px solid color-mix(in srgb, currentColor 25%, transparent); border-radius: 4px; }
+.ec-viewer .ec-panel .ec-add { align-self: flex-start; padding: 4px 10px; background: color-mix(in srgb, currentColor 12%, transparent); border-radius: 4px; }
 .ec-viewer .ec-panel-foot { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 10px 12px; border-top: 1px solid color-mix(in srgb, currentColor 15%, transparent); }
 .ec-viewer .ec-panel .ec-copy { padding: 6px 10px; font-weight: 600; background: color-mix(in srgb, currentColor 12%, transparent); }
 .ec-viewer .ec-status { opacity: 0.8; }
@@ -966,6 +980,19 @@ export function mount(root, buffer, options = {}) {
   const sel = header.select;
   const chosen = { nodes: new Set(), edges: new Set() };
   const off = new Set();
+  // The Filter tab's filters: each one's column (of `header.filters`) and range, from `lo` to `hi`.
+  // One at its column's whole range hides nothing; a narrower one hides the nodes or the edges
+  // outside it and those without a value, and a node hidden hides its edges
+  const filters = [];
+  const narrowed = (q) => q.lo > q.col.min || q.hi < q.col.max;
+  // A filter's test of a node or an edge, in the payload's floats, whose values are less the least
+  function within(q) {
+    const values = data[q.col.column], lo = Math.fround(q.lo - q.col.min), hi = Math.fround(q.hi - q.col.min);
+    return (i) => {
+      const v = at(values, i);
+      return v >= lo && v <= hi;
+    };
+  }
   // The columns as the payload has them (in the shuffled order, where the edges are shuffled)
   const orig = {
     r: data.r, width: data.width, opacity: data.opacity, bow: data.bow, fill: data.fill, border: data.border,
@@ -1207,12 +1234,17 @@ export function mount(root, buffer, options = {}) {
   function relook() {
     const n = header.nodes, m = header.edges;
     let hidden = 0, edgeHidden = null;
-    if (off.size) {
+    const active = filters.filter(narrowed);
+    if (off.size || active.length) {
+      const nodeTests = active.filter((q) => q.col.of === "nodes").map(within);
+      const edgeTests = active.filter((q) => q.col.of === "edges").map(within);
       hidden = new Float32Array(n);
-      for (let i = 0; i < n; i++) if (off.has(at(data.node_key, i))) hidden[i] = 1;
+      for (let i = 0; i < n; i++) {
+        if ((off.size && off.has(at(data.node_key, i))) || !nodeTests.every((t) => t(i))) hidden[i] = 1;
+      }
       edgeHidden = new Uint8Array(m);
       for (let j = 0; j < m; j++) {
-        if (off.has(at(data.edge_key, j)) || hidden[at(data.src, j)] || hidden[at(data.tgt, j)]) edgeHidden[j] = 1;
+        if ((off.size && off.has(at(data.edge_key, j))) || hidden[at(data.src, j)] || hidden[at(data.tgt, j)] || !edgeTests.every((t) => t(j))) edgeHidden[j] = 1;
       }
     }
     styled = { ...orig, hidden, edgeLevel: null, edgeHidden, edgeFirst: null };
@@ -1257,6 +1289,7 @@ export function mount(root, buffer, options = {}) {
       });
     }
     restyle();
+    syncFilters();
   }
   function choose(nodes, edges) {
     chosen.nodes = new Set(nodes);
@@ -1679,7 +1712,7 @@ export function mount(root, buffer, options = {}) {
     }
   }
 
-  const { setOpen, isOpen, panelControls, restyle, syncNote } = controlPanel();
+  const { setOpen, isOpen, panelControls, restyle, syncNote, syncFilters, filterControls } = controlPanel();
 
   // The legend's swatches show or hide what they stand for, or with Alt (Option) show it alone of
   // its block, or the whole block again where it was alone
@@ -1872,8 +1905,11 @@ export function mount(root, buffer, options = {}) {
     closer.classList.add("ec-close");
     head.append(tablist, closer);
     panel.append(head);
-    // A tab shows once a control is in it
-    const names = ["Nodes", "Edges", "Labels", "Filter", "Layout", "View"].filter((t) => list.some((c) => c.tab === t));
+    // A tab shows once a control is in it, and the Filter tab once there is a column to filter by
+    const columns = header.filters ?? [];
+    const names = ["Nodes", "Edges", "Labels", "Filter", "Layout", "View"]
+      .filter((t) => list.some((c) => c.tab === t) || (t === "Filter" && columns.length));
+    let filterPage = null;
     const tabs = [], pages = [];
     let current = 0;
     names.forEach((name, i) => {
@@ -1897,6 +1933,7 @@ export function mount(root, buffer, options = {}) {
       more.append(el("summary", "", "More"));
       for (const c of list.filter((c) => c.tab === name)) (c.more ? more : page).append(field(c, `${uid}-${c.name}`));
       if (more.childElementCount > 1) page.append(more);
+      if (name === "Filter") filterPage = filterTab(page, tab);
     });
     function select(i, focus) {
       current = i;
@@ -2010,6 +2047,285 @@ export function mount(root, buffer, options = {}) {
     }
     for (const c of list) c.sync();
 
+    // The Filter tab: how much is shown, then the filters, each a column, its range and a
+    // histogram of its values (faint) and of those shown (strong), across which a drag brushes
+    // the range. It starts with a filter on the first column, and adds one on the next unused
+    function filterTab(page, tab) {
+      const shown = el("p", "ec-count");
+      const boxes = el("div", "ec-filters");
+      const adder = el("button", "ec-add", "Add a filter");
+      adder.type = "button";
+      page.append(shown, boxes, adder);
+      const views = [];
+      const unused = () => columns.findIndex((col) => !filters.some((q) => q.col === col));
+      const plural = (k, what) => `${k.toLocaleString("en-US")} ${k === 1 ? what.slice(0, -1) : what}`;
+      // Each column's bins, and every node's or edge's bin (255 for none), made once
+      const binned = new Map();
+      function binsOf(col) {
+        if (binned.has(col)) return binned.get(col);
+        const span = col.max - col.min;
+        const discrete = col.integer && span < 48;
+        const count = discrete ? span + 1 : 32;
+        const values = data[col.column], len = col.of === "nodes" ? n : m;
+        const bin = new Uint8Array(len), all = new Float64Array(count);
+        for (let i = 0; i < len; i++) {
+          const v = at(values, i);
+          if (v !== v) bin[i] = 255;
+          else all[(bin[i] = discrete ? Math.round(v) : Math.min(count - 1, Math.floor((v / span) * count)))]++;
+        }
+        const out = { discrete, count, bin, all, most: Math.max(...all) };
+        binned.set(col, out);
+        return out;
+      }
+      // Values are shown to 6 digits, and a brushed end snaps to a hundredth of the span's power
+      // of ten, or to whole numbers for a column of ints
+      const say = (col, v) => (col.integer ? String(v) : String(Number(v.toPrecision(6))));
+      function snap(col, v, up) {
+        const span = col.max - col.min;
+        let step = 10 ** Math.floor(Math.log10(span / 100));
+        if (col.integer) step = Math.max(1, step);
+        const places = Math.max(0, -Math.floor(Math.log10(step)));
+        const x = Number(((up ? Math.ceil(v / step - 1e-9) : Math.floor(v / step + 1e-9)) * step).toFixed(places));
+        return Math.max(col.min, Math.min(col.max, x));
+      }
+      const SVG = "http://www.w3.org/2000/svg";
+      const svgEl = (tag, attrs) => {
+        const e = document.createElementNS(SVG, tag);
+        for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, v);
+        return e;
+      };
+      // A filter's field, made again when its column changes
+      function view(q) {
+        const col = q.col, b = binsOf(col), span = col.max - col.min;
+        const box = el("div", "ec-field ec-filter");
+        const top = el("div", "ec-field-head");
+        const chooser = el("select");
+        chooser.setAttribute("aria-label", "Filter by");
+        for (const kind of ["nodes", "edges"]) {
+          const group = el("optgroup");
+          group.label = kind === "nodes" ? "Nodes" : "Edges";
+          columns.forEach((c, k) => {
+            if (c.of !== kind) return;
+            const option = el("option", "", c.name);
+            option.value = String(k);
+            group.append(option);
+          });
+          if (group.childElementCount) chooser.append(group);
+        }
+        chooser.value = String(columns.indexOf(col));
+        chooser.addEventListener("change", () => {
+          const index = filters.indexOf(q);
+          setColumn(index, Number(chooser.value));
+          views[index].chooser.focus();
+        });
+        const out = el("output");
+        const reset = button(ICONS.reset, `Reset the filter on ${col.name}`, () => {
+          setRange(q, col.min, col.max);
+          chooser.focus();
+        });
+        reset.classList.add("ec-reset");
+        const remove = button(ICONS.close, `Remove the filter on ${col.name}`, () => removeFilter(filters.indexOf(q)));
+        remove.classList.add("ec-reset");
+        top.append(chooser, out, reset, remove);
+
+        // The histogram, a bin wide for each bin, and the brush over it
+        const hist = svgEl("svg", { class: "ec-hist", viewBox: `0 0 ${b.count} 1`, preserveAspectRatio: "none", "aria-hidden": "true" });
+        const bar = (cls) => Array.from({ length: b.count }, (_, k) => {
+          const r = svgEl("rect", { class: cls, x: k + 0.1, width: 0.8, y: 1, height: 0 });
+          hist.append(r);
+          return r;
+        });
+        const allBars = bar("ec-all"), inBars = bar("ec-in");
+        const brush = svgEl("rect", { class: "ec-brush", y: 0, height: 1 });
+        const ends = [0, 1].map(() => svgEl("line", { class: "ec-end", y1: 0, y2: 1, "vector-effect": "non-scaling-stroke" }));
+        hist.append(brush, ...ends);
+        const height = (count) => (count ? Math.max(count / b.most, 1 / 56) : 0);
+        allBars.forEach((r, k) => { r.setAttribute("y", 1 - height(b.all[k])); r.setAttribute("height", height(b.all[k])); });
+        // Where a value is across the bins, and the value at a place, a range's low or high end
+        const toX = (v, high) => (b.discrete ? v - col.min + (high ? 1 : 0) : ((v - col.min) / span) * b.count);
+        const fromX = (x, high) => {
+          x = Math.max(0, Math.min(b.count, x));
+          if (b.discrete) return col.min + Math.max(0, Math.min(b.count - 1, high ? Math.ceil(x) - 1 : Math.floor(x)));
+          return snap(col, col.min + (x / b.count) * span, high);
+        };
+        hist.addEventListener("pointerdown", (e) => {
+          if (e.button !== 0) return;
+          e.preventDefault();
+          hist.setPointerCapture(e.pointerId);
+          const rect = hist.getBoundingClientRect();
+          const xOf = (ev) => ((ev.clientX - rect.left) / rect.width) * b.count;
+          const near = 6 * (b.count / rect.width);
+          const x0 = xOf(e), from = toX(q.lo, false), to = toX(q.hi, true);
+          const start = { lo: q.lo, hi: q.hi };
+          const mode = Math.abs(x0 - from) <= near && x0 <= (from + to) / 2 ? "lo"
+            : Math.abs(x0 - to) <= near ? "hi"
+            : narrowed(q) && x0 > from && x0 < to ? "move" : "new";
+          let moved = false;
+          const move = (ev) => {
+            const x = xOf(ev);
+            if (Math.abs(x - x0) / near > 0.5) moved = true;
+            if (!moved) return;
+            if (mode === "lo") setRange(q, Math.min(fromX(x, false), q.hi), q.hi, true);
+            else if (mode === "hi") setRange(q, q.lo, Math.max(fromX(x, true), q.lo), true);
+            else if (mode === "new") setRange(q, fromX(Math.min(x, x0), false), Math.max(fromX(Math.max(x, x0), true), fromX(Math.min(x, x0), false)), true);
+            else {
+              const width = start.hi - start.lo;
+              const shift = b.discrete ? Math.round(x - x0) : ((x - x0) / b.count) * span;
+              const lo = Math.max(col.min, Math.min(col.max - width, b.discrete ? start.lo + shift : snap(col, start.lo + shift, false)));
+              setRange(q, lo, Math.min(col.max, b.discrete ? lo + width : snap(col, lo + width, true)), true);
+            }
+          };
+          const up = () => {
+            hist.removeEventListener("pointermove", move);
+            hist.removeEventListener("pointerup", up);
+            hist.removeEventListener("pointercancel", up);
+            // A click off the brush clears it
+            if (!moved && mode === "new") setRange(q, col.min, col.max);
+          };
+          hist.addEventListener("pointermove", move);
+          hist.addEventListener("pointerup", up);
+          hist.addEventListener("pointercancel", up);
+        });
+
+        // Its range typed in
+        const range = el("div", "ec-range");
+        const input = (label, end) => {
+          const wrap = el("label", "", label);
+          const typed = el("input");
+          Object.assign(typed, { type: "number", step: "any", min: String(col.min), max: String(col.max) });
+          // Out of the column's range, or past the other end, it stops there; empty, it's as it was
+          typed.addEventListener("change", () => {
+            const v = Number(typed.value);
+            if (typed.value.trim() !== "" && Number.isFinite(v)) {
+              const w = Math.max(col.min, Math.min(col.max, v));
+              if (end === "lo") setRange(q, Math.min(w, q.hi), q.hi);
+              else setRange(q, q.lo, Math.max(w, q.lo));
+            }
+            syncRange(true);
+          });
+          wrap.append(typed);
+          range.append(wrap);
+          return typed;
+        };
+        const fromBox = input("From", "lo"), toBox = input("To", "hi");
+        box.append(top, hist, range);
+        if (col.missing) box.append(el("p", "ec-note", `${plural(col.missing, col.of)} without a value, hidden while filtered`));
+
+        // The range, at once, and the bars of what is shown, once it's redrawn
+        function syncRange(typed) {
+          const on = narrowed(q);
+          out.textContent = `${say(col, q.lo)} \u2013 ${say(col, q.hi)}`;
+          if (typed || document.activeElement !== fromBox) fromBox.value = String(q.lo);
+          if (typed || document.activeElement !== toBox) toBox.value = String(q.hi);
+          box.classList.toggle("ec-changed", on);
+          reset.hidden = !on;
+          const x0 = toX(q.lo, false), x1 = toX(q.hi, true);
+          brush.setAttribute("x", x0);
+          brush.setAttribute("width", Math.max(0, x1 - x0));
+          ends[0].setAttribute("x1", x0);
+          ends[0].setAttribute("x2", x0);
+          ends[1].setAttribute("x1", x1);
+          ends[1].setAttribute("x2", x1);
+          for (const e of [brush, ...ends]) e.style.display = on ? "" : "none";
+        }
+        function syncBars() {
+          const hide = col.of === "nodes" ? data.hidden : styled.edgeHidden;
+          const counts = new Float64Array(b.count);
+          for (let i = 0; i < b.bin.length; i++) if (b.bin[i] !== 255 && !(hide && hide[i])) counts[b.bin[i]]++;
+          inBars.forEach((r, k) => { r.setAttribute("y", 1 - height(counts[k])); r.setAttribute("height", height(counts[k])); });
+        }
+        function sync() {
+          syncRange();
+          syncBars();
+        }
+        return { box, chooser, syncRange, sync };
+      }
+
+      // The filters change here, and the drawing follows, by the frame while brushing
+      let pending = 0;
+      function changed(brushing) {
+        syncNote();
+        tab.classList.toggle("ec-changed", filters.some(narrowed));
+        if (!brushing) {
+          cancelAnimationFrame(pending);
+          pending = 0;
+          relook();
+        } else if (!pending) {
+          pending = requestAnimationFrame(() => { pending = 0; relook(); });
+        }
+      }
+      function setRange(q, lo, hi, brushing) {
+        if (q.lo === lo && q.hi === hi) return;
+        Object.assign(q, { lo, hi });
+        views[filters.indexOf(q)].syncRange();
+        changed(brushing);
+      }
+      function addFilter(k = unused()) {
+        const col = columns[k];
+        if (!col) return -1;
+        const q = { col, lo: col.min, hi: col.max };
+        filters.push(q);
+        const v = view(q);
+        views.push(v);
+        boxes.append(v.box);
+        v.sync();
+        sync();
+        return filters.length - 1;
+      }
+      function setColumn(index, k) {
+        const q = filters[index], col = columns[k];
+        if (!q || !col || q.col === col) return;
+        const was = narrowed(q);
+        Object.assign(q, { col, lo: col.min, hi: col.max });
+        const v = view(q);
+        views[index].box.replaceWith(v.box);
+        views[index] = v;
+        if (was) changed();
+        else sync();
+      }
+      function removeFilter(index) {
+        const q = filters[index];
+        if (!q) return;
+        const was = narrowed(q);
+        filters.splice(index, 1);
+        views.splice(index, 1)[0].box.remove();
+        if (was) changed();
+        else sync();
+        (views[Math.min(index, views.length - 1)]?.chooser ?? adder).focus({ preventScroll: true });
+      }
+      adder.addEventListener("click", () => {
+        const index = addFilter();
+        views[index]?.chooser.focus();
+      });
+      // What is shown, after each redraw
+      function sync() {
+        const hide = data.hidden, edges = styled.edgeHidden;
+        let a = n, c = m;
+        if (hide) for (let i = 0; i < n; i++) a -= hide[i] ? 1 : 0;
+        if (edges) for (let j = 0; j < m; j++) c -= edges[j];
+        shown.textContent = a === n && c === m ? `All ${plural(n, "nodes")} and ${plural(m, "edges")} shown`
+          : `${a.toLocaleString("en-US")} of ${plural(n, "nodes")} and ${c.toLocaleString("en-US")} of ${plural(m, "edges")} shown`;
+        for (const v of views) v.sync();
+        adder.hidden = unused() < 0;
+        tab.classList.toggle("ec-changed", filters.some(narrowed));
+      }
+      addFilter(0);
+      const controls = {
+        list: () => filters.map((q) => ({ name: q.col.name, of: q.col.of, lo: q.lo, hi: q.hi })),
+        add: (k) => addFilter(k),
+        set(index, lo, hi) {
+          const q = filters[index];
+          if (!q) return;
+          lo = Math.max(q.col.min, Math.min(q.col.max, lo));
+          hi = Math.max(lo, Math.min(q.col.max, hi));
+          setRange(q, lo, hi);
+        },
+        column: setColumn,
+        remove: removeFilter,
+      };
+      return { sync, controls };
+    }
+
     // "Copy as code": the call, with the changed controls' arguments and the selection, in the
     // parameters' order, on one line where it fits in 88 characters. The legend's filters are the
     // view's, which no argument of `plot()` has
@@ -2072,9 +2388,14 @@ export function mount(root, buffer, options = {}) {
       clearTimeout(said);
       said = setTimeout(() => { status.textContent = ""; }, 2500);
     });
-    const filtered = el("p", "ec-note", "The legend's filters aren't in the code");
+    const filtered = el("p", "ec-note");
     filtered.hidden = true;
-    const syncNote = () => { filtered.hidden = off.size === 0; };
+    const syncNote = () => {
+      const own = filters.some(narrowed);
+      filtered.hidden = !own && off.size === 0;
+      filtered.textContent = own && off.size ? "The filters and the legend's aren't in the code"
+        : own ? "The filters aren't in the code" : "The legend's filters aren't in the code";
+    };
     foot.append(copy, status, filtered, text);
     panel.append(foot);
     root.append(panel);
@@ -2105,13 +2426,15 @@ export function mount(root, buffer, options = {}) {
       set(name, value) { if (byName[name]) setValue(byName[name], value); },
       code,
     };
-    return { setOpen, isOpen: () => shownOpen, panelControls, restyle, syncNote };
+    const syncFilters = () => filterPage?.sync();
+    return { setOpen, isOpen: () => shownOpen, panelControls, restyle, syncNote, syncFilters, filterControls: filterPage?.controls ?? null };
   }
 
   return {
     camera: cam, redraw, reset, renderer: r, data, labels: words, controls: { ...panelControls, open: setOpen },
     selection: { nodes: () => [...chosen.nodes], edges: () => [...chosen.edges], choose, clickAt, setLasso },
     legend: { off: () => [...off], toggle: toggleKey },
+    filters: filterControls,
     search,
     flyTo,
   };
@@ -2133,7 +2456,8 @@ function shuffleEdges(data) {
     const j = (s >>> 0) % (i + 1);
     const t = perm[i]; perm[i] = perm[j]; perm[j] = t;
   }
-  for (const name of ["src", "tgt", "color", "width", "opacity", "bow", "loop_size", "level", "base_width", "base_color", "edge_key"]) {
+  const filters = (data.header.filters ?? []).filter((f) => f.of === "edges").map((f) => f.column);
+  for (const name of ["src", "tgt", "color", "width", "opacity", "bow", "loop_size", "level", "base_width", "base_color", "edge_key", ...filters]) {
     const col = data[name];
     if (col === null || typeof col === "number") continue;
     const out = new col.constructor(m);
