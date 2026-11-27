@@ -186,6 +186,8 @@ fn hit_area(out: &mut Parts, shape: &str, width: f64, edge_id: &str, tip: &str) 
 struct Stroke<'a> {
     color: &'a str,
     width: f64,
+    // The width its arrowhead is drawn for (see `Edges::head_width()`)
+    head: f64,
     opacity: f64,
     edge_id: &'a str,
     tip: &'a str,
@@ -232,7 +234,7 @@ fn draw_routed(
         return;
     }
     let (color, width, opacity) = (s.color, Repr(s.width), Repr(s.opacity));
-    let (d, head) = geometry::routed(route, ends.0, ends.1, s.width, directed);
+    let (d, head) = geometry::routed(route, ends.0, ends.1, s.head, directed);
     let p = out.part();
     match head {
         Some(head) => {
@@ -337,6 +339,7 @@ fn draw_edges(scene: &Scene, style: &Style<'_>, out: &mut Parts) {
         let (r_src, r_dst) = (nodes.r[s], nodes.r[t]);
         let color = style.colors[edges.color[i]].as_str();
         let (width, opacity) = (edges.width[i], edges.opacity[i]);
+        let head_width = edges.head_width(i);
         let bow = edges.bow[i];
         let route = edges.route[i].as_deref();
         let edge_id = || format!("{}-{}-{}", nodes.ids[s], nodes.ids[t], i);
@@ -349,15 +352,15 @@ fn draw_edges(scene: &Scene, style: &Style<'_>, out: &mut Parts) {
                     x1,
                     y1,
                     r_src,
-                    width,
+                    head_width,
                     directed,
                     edges.loop_size[i],
                 ))
             } else if scene.curved || bow.abs() > 1e-6 {
                 let bow = if scene.curved { 0.2 + bow } else { bow };
-                geometry::curved(x1, y1, x2, y2, r_src, r_dst, width, directed, bow)
+                geometry::curved(x1, y1, x2, y2, r_src, r_dst, head_width, directed, bow)
             } else {
-                lean_line(route, x1, y1, x2, y2, r_src, r_dst, width, directed)
+                lean_line(route, x1, y1, x2, y2, r_src, r_dst, head_width, directed)
             };
             let Some((d, head)) = shape else { continue };
             let (w, o) = (Repr(width), Repr(opacity));
@@ -394,16 +397,18 @@ fn draw_edges(scene: &Scene, style: &Style<'_>, out: &mut Parts) {
         let stroke = Stroke {
             color,
             width,
+            head: head_width,
             opacity,
             edge_id: &edge_id,
             tip: &edges.tips[i],
         };
         if s == t {
-            let (d, head) = geometry::self_loop(x1, y1, r_src, width, directed, edges.loop_size[i]);
+            let size = edges.loop_size[i];
+            let (d, head) = geometry::self_loop(x1, y1, r_src, head_width, directed, size);
             draw_curve(out, &d, head, directed, &stroke);
         } else if scene.curved || bow.abs() > 1e-6 {
             let bow = if scene.curved { 0.2 + bow } else { bow };
-            match geometry::curved(x1, y1, x2, y2, r_src, r_dst, width, directed, bow) {
+            match geometry::curved(x1, y1, x2, y2, r_src, r_dst, head_width, directed, bow) {
                 Some((d, head)) => draw_curve(out, &d, head, directed, &stroke),
                 None => {
                     out.part();
@@ -412,7 +417,7 @@ fn draw_edges(scene: &Scene, style: &Style<'_>, out: &mut Parts) {
         } else if let Some(route) = route {
             draw_routed(out, route, (r_src, r_dst), directed, &stroke);
         } else {
-            let line = geometry::straight(x1, y1, x2, y2, r_src, r_dst, width, directed);
+            let line = geometry::straight(x1, y1, x2, y2, r_src, r_dst, head_width, directed);
             draw_straight(out, line, &stroke);
         }
     }
@@ -503,7 +508,7 @@ fn draw_edge_labels(scene: &Scene, style: &Style<'_>, out: &mut Parts) {
             if style.raster.is_some() && !reversed {
                 // The edge is in the image, so the label has a path of its own, drawn as
                 // `draw_edges()` draws the edge's
-                let (r_src, r_dst, width) = (nodes.r[s], nodes.r[t], edges.width[i]);
+                let (r_src, r_dst, width) = (nodes.r[s], nodes.r[t], edges.head_width(i));
                 let directed = scene.directed;
                 let shape = if s == t {
                     let size = edges.loop_size[i];
