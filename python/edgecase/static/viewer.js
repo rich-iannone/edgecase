@@ -5,6 +5,14 @@
 // an edge is one instance of a triangle strip along its curve, and a node one instance of a
 // quad. The source stays ASCII, since a saved file may not say that it's UTF-8.
 //
+// It is also the runtime of the `<ec-graph>` element, which mounts a plot from what it holds, and
+// which a page defines once, from its own copy of this module or the first that a plot carries.
+// A browser keeps only about 16 WebGL contexts on a page, so a plot lets its context go while it
+// is out of view, and the plots in view hold 12 at most, the one drawn longest ago giving its
+// context up for another. One without its context shows a still image of its last frame, and
+// takes a context up again as it comes back into view or is pointed at, as it does after a lost
+// context.
+//
 // Edges add their density, -ln(1 - opacity) each, and their density-weighted color into a
 // half-float buffer, which a full-screen pass draws over the background as 1 - exp(-density),
 // the opacity that SVG strokes of the same opacity stacked up would have. The raster backend
@@ -698,6 +706,81 @@ function renderer(canvas, data) {
   };
 }
 
+// The drawing as `renderer()` makes it, made again from `data` (which holds the columns as last
+// changed) whenever its context comes back, with what was last set, and then `back()` is called.
+// The context goes by `lose()`, which lets it go for another plot, or when the browser takes it
+// (as it does past about 16 on a page), and then `gone()` is called; `restore()` asks for it
+// again. In between, it draws nothing
+function lasting(canvas, data, back, gone) {
+  let r = renderer(canvas, data);
+  if (!r) return null;
+  let ext = r.gl.getExtension("WEBGL_lose_context");
+  const set = {};
+  // Lost, and whether the loss has been told (after which it can be restored, once), and wanted
+  // again
+  let lost = false, told = false, wanted = false;
+  const ask = () => {
+    if (!told || !wanted) return;
+    told = false;
+    ext?.restoreContext();
+  };
+  canvas.addEventListener("webglcontextlost", (e) => {
+    e.preventDefault();
+    if (!lost) gone();
+    lost = told = true;
+    // Not from here, as the browser takes the loss as one to restore only once this is done
+    setTimeout(ask);
+  });
+  canvas.addEventListener("webglcontextrestored", () => {
+    ext = r.gl.getExtension("WEBGL_lose_context");
+    // Let go again while it was coming back
+    if (!wanted) {
+      ext.loseContext();
+      return;
+    }
+    const again = renderer(canvas, data);
+    if (!again) return;
+    r = again;
+    lost = told = wanted = false;
+    if (set.colors) r.setColors(...set.colors);
+    if ("shade" in set) r.setShade(set.shade);
+    if ("tone" in set) r.setTone(set.tone);
+    back();
+  });
+  return {
+    density: r.density,
+    edgeCount: r.edgeCount,
+    get gl() { return r.gl; },
+    get lost() { return lost; },
+    setColors(table4, background) {
+      set.colors = [table4, background];
+      if (!lost) r.setColors(table4, background);
+    },
+    setShade(on) {
+      set.shade = on;
+      if (!lost) r.setShade(on);
+    },
+    setTone(name) {
+      set.tone = name;
+      if (!lost) r.setTone(name);
+    },
+    update(names) { if (!lost) r.update(names); },
+    draw(v, count) { if (!lost) r.draw(v, count); },
+    refine(chunk) { return !lost && r.refine(chunk); },
+    lose() {
+      wanted = false;
+      if (lost || !ext) return;
+      lost = true;
+      ext.loseContext();
+    },
+    restore() {
+      if (!lost) return;
+      wanted = true;
+      ask();
+    },
+  };
+}
+
 // The labels, as text on a canvas over the drawing, by the rule that `src/scene/labels.rs` has
 // for the SVG: up to `state.limit` of the nodes' labels in view (null for all of them), taken in
 // order of priority (the payload's `label_order`), each one that doesn't overlap one taken
@@ -843,7 +926,8 @@ const STYLE = `
 .ec-viewer.ec-docked.ec-panel-open { --ec-side: ${PANEL_W}px; }
 .ec-viewer [hidden] { display: none !important; }
 .ec-viewer canvas { position: absolute; inset: 0; width: calc(100% - var(--ec-side, 0px)); height: 100%; display: block; touch-action: pan-x pan-y; outline: none; }
-.ec-viewer canvas.ec-text { pointer-events: none; }
+.ec-viewer canvas.ec-text, .ec-viewer .ec-still { pointer-events: none; }
+.ec-viewer .ec-still { position: absolute; inset: 0; width: calc(100% - var(--ec-side, 0px)); height: 100%; display: block; }
 .ec-viewer canvas.ec-grab { cursor: grab; }
 .ec-viewer canvas.ec-grabbing { cursor: grabbing; }
 .ec-viewer .ec-legend-layer { position: absolute; top: 0; right: var(--ec-side, 0px) !important; pointer-events: none; }
@@ -961,6 +1045,7 @@ export function mount(root, buffer, options = {}) {
     style.textContent = STYLE;
     document.head.appendChild(style);
   }
+  root.classList.add("ec-viewer");
   const canvas = document.createElement("canvas");
   canvas.tabIndex = 0;
   canvas.className = "ec-grab";
@@ -1002,7 +1087,9 @@ export function mount(root, buffer, options = {}) {
   // The columns that the selection and the legend give, the edges' levels with a selection, those
   // hidden, and the selected edges, whose labels come first
   let styled = { ...orig, edgeLevel: null, edgeHidden: null, edgeFirst: null };
-  const r = renderer(canvas, data);
+  // Its place among the contexts that the page's plots hold (see `hold()`)
+  const held = { release: () => release() };
+  const r = lasting(canvas, data, () => back(), () => letGo(held));
   if (!r) {
     canvas.remove();
     const msg = document.createElement("div");
@@ -1011,6 +1098,7 @@ export function mount(root, buffer, options = {}) {
     root.append(msg);
     return null;
   }
+  hold(held);
   const textCanvas = document.createElement("canvas");
   textCanvas.className = "ec-text";
   textCanvas.setAttribute("aria-hidden", "true");
@@ -1062,6 +1150,8 @@ export function mount(root, buffer, options = {}) {
   // A moved view draws `BUDGET` edges at once, and the rest over the frames that follow
   let pending = false, refining = 0;
   const redraw = () => {
+    if (r.lost) wake();
+    else hold(held);
     if (pending) return;
     pending = true;
     cancelAnimationFrame(refining);
@@ -1085,10 +1175,66 @@ export function mount(root, buffer, options = {}) {
   }
   r.draw(view());
   drawText();
+  // The drawing lets its context go when it goes out of view, or when another plot needs it (see
+  // `hold()`), and a still image of its last frame stands in for it until the context is back and
+  // drawn with. In view, it comes back when the plot is pointed at, focused or drawn again
+  let still = null, near = true;
+  function release() {
+    letGo(held);
+    if (r.lost || !root.isConnected) {
+      r.lose();
+      return;
+    }
+    // Drawn whole and copied, as the context goes at once, and then made an image, which holds less
+    r.draw(view());
+    const snap = document.createElement("canvas");
+    [snap.width, snap.height] = [canvas.width, canvas.height];
+    snap.getContext("2d").drawImage(canvas, 0, 0);
+    r.lose();
+    standIn(snap);
+    snap.toBlob((blob) => {
+      if (still !== snap || !blob) return;
+      const img = new Image();
+      img.alt = "";
+      img.src = URL.createObjectURL(blob);
+      img.decode().then(() => {
+        if (still === snap) standIn(img);
+        else URL.revokeObjectURL(img.src);
+      }, () => URL.revokeObjectURL(img.src));
+    });
+  }
+  // `el` in the drawing's place, or nothing there
+  function standIn(el) {
+    if (still?.src) URL.revokeObjectURL(still.src);
+    still?.remove();
+    still = el;
+    if (!el) return;
+    el.className = "ec-still";
+    canvas.after(el);
+  }
+  function wake() {
+    if (!near || !r.lost) return;
+    hold(held);
+    r.restore();
+  }
+  function back() {
+    redraw();
+    const was = still;
+    requestAnimationFrame(() => { if (still === was) standIn(null); });
+  }
+  inSight(root, (on) => {
+    near = on;
+    if (on) wake();
+    else release();
+  });
+  root.addEventListener("pointerenter", wake);
+  root.addEventListener("focusin", wake);
   readPacked(root, "labels").then((texts) => {
     labelTexts = texts;
     words.setTexts(texts);
-    redraw();
+    // The labels are drawn apart from the drawing, so one without its context stays so
+    if (r.lost) drawText();
+    else redraw();
   });
 
   // From a point on the page to the scene's units
@@ -2676,11 +2822,7 @@ async function readPacked(root, name) {
   const script = root.querySelector(`script.ec-${name}`);
   if (!script || typeof DecompressionStream === "undefined") return null;
   try {
-    const text = script.textContent.trim();
-    const bytes = Uint8Array.fromBase64
-      ? Uint8Array.fromBase64(text)
-      : Uint8Array.from(atob(text), (c) => c.charCodeAt(0));
-    const stream = new Blob([bytes]).stream().pipeThrough(new DecompressionStream("gzip"));
+    const stream = new Blob([fromBase64(script.textContent)]).stream().pipeThrough(new DecompressionStream("gzip"));
     return JSON.parse(await new Response(stream).text());
   } catch (_) {
     return null;
@@ -2698,3 +2840,54 @@ function tipRow(table, i) {
   }
   return out;
 }
+
+const fromBase64 = (text) => {
+  text = text.trim();
+  return Uint8Array.fromBase64 ? Uint8Array.fromBase64(text) : Uint8Array.from(atob(text), (c) => c.charCodeAt(0));
+};
+
+// The plots as each comes near the view (within `NEAR` of it) or goes from it: `f(true)` or
+// `f(false)`, at first and then on each change, with one observer for them all
+const NEAR = "25%";
+let sight = null;
+const sighted = new WeakMap();
+function inSight(el, f) {
+  sight ??= new IntersectionObserver((entries) => {
+    for (const e of entries) sighted.get(e.target)?.(e.isIntersecting);
+  }, { rootMargin: NEAR });
+  sighted.set(el, f);
+  sight.observe(el);
+}
+
+// The plots' contexts: a page keeps about 16, past which the browser takes the oldest one's, so the
+// plots hold `HELD` at most, which leaves room for others, and the one drawn longest ago lets its
+// context go for the one that needs it. Each holder (in the order they were drawn) has `release()`
+const HELD = 12;
+const holders = new Set();
+function hold(h) {
+  holders.delete(h);
+  holders.add(h);
+  while (holders.size > HELD) holders.values().next().value.release();
+}
+const letGo = (h) => holders.delete(h);
+
+// <ec-graph>, a plot (see `emit_viewer()` in `svg_renderer.py`): it holds the payload, the
+// tooltips and the labels' texts in scripts, with the options as JSON, and mounts the viewer once
+// it first comes near the view, as its `viewer` (what `mount()` returns). Defined once on a page,
+// by whichever copy of this code runs first, the page's own or one that a plot carries
+class GraphElement extends HTMLElement {
+  #seen = false;
+  connectedCallback() {
+    if (this.#seen) return;
+    this.#seen = true;
+    const watch = () => inSight(this, (on) => {
+      if (!on || this.viewer !== undefined) return;
+      const payload = fromBase64(this.querySelector("script.ec-payload").textContent);
+      this.viewer = mount(this, payload.buffer, JSON.parse(this.querySelector("script.ec-options").textContent));
+    });
+    // Its scripts come after it, so while the page is loading they may not be in yet
+    if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", watch, { once: true });
+    else watch();
+  }
+}
+if (!customElements.get("ec-graph")) customElements.define("ec-graph", GraphElement);
