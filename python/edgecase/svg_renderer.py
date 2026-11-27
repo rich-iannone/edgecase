@@ -111,9 +111,13 @@ class _Colors:
 
     `theme=None` is `"auto"` on screen and `"light"` in saved files, since programs other than
     browsers don't apply CSS variables.
+
+    The variables' names start with `prefix`. The viewer draws in variables of its own (see
+    `scoped()`), which saved files keep.
     """
 
-    def __init__(self, theme: Optional[str]) -> None:
+    def __init__(self, theme: Optional[str], prefix: str = "--ect-") -> None:
+        self.prefix = prefix
         self.auto = theme in (None, "auto")
         self.dark = theme == "dark"
         self.save_light = theme is None
@@ -137,7 +141,7 @@ class _Colors:
             return light
         # Named after its values, so that the definitions of every rendering on a page agree
         name = self._vars.setdefault(
-            (light, dark), "--ect-" + hashlib.sha1(f"{light}|{dark}".encode()).hexdigest()[:8]
+            (light, dark), self.prefix + hashlib.sha1(f"{light}|{dark}".encode()).hexdigest()[:8]
         )
         return f"var({name})"
 
@@ -164,6 +168,24 @@ class _Colors:
             f"@media (prefers-color-scheme: dark){{.ec-theme{{{dark}}}}}"
             f":is({_LIGHT_PAGES}) .ec-theme{{{light}}}"
             f":is({_DARK_PAGES}) .ec-theme{{{dark}}}"
+        )
+
+    def scoped(self, selector: str, given: "_Colors") -> str:
+        """The CSS that defines this automatic theme's variables under `selector`: as `given`'s
+        theme has them, or by a class there, `ec-light`, `ec-dark` or `ec-auto` (which follows
+        the page's scheme, as `_css()` does), so that the viewer can switch."""
+        defined = sorted(self._vars.items(), key=lambda item: item[1])
+
+        def block(pick: Callable[[Any, Any], Any]) -> str:
+            return ";".join(f"{name}:{pick(lt, dk)}" for (lt, dk), name in defined)
+
+        light, dark = block(lambda lt, _: lt), block(lambda _, dk: dk)
+        auto = f"{selector}.ec-auto"
+        return (
+            f"{selector}{{{block(given.pick)}}}"
+            f"{selector}.ec-light{{{light}}}{selector}.ec-dark{{{dark}}}"
+            f"{auto}{{{light}}}@media (prefers-color-scheme: dark){{{auto}{{{dark}}}}}"
+            f":is({_LIGHT_PAGES}) {auto}{{{light}}}:is({_DARK_PAGES}) {auto}{{{dark}}}"
         )
 
     def finish(
@@ -1392,6 +1414,7 @@ def render_plot(
     theme: Optional[str] = None,
     output: Optional[str] = None,
     backend: str = "auto",
+    call: Optional[Dict[str, Any]] = None,
     **options,
 ) -> "StepPlayer":
     """Render a graph as a static SVG wrapped in a StepPlayer: the scene that `build_scene()`
@@ -1399,7 +1422,8 @@ def render_plot(
     `backend="png"`, as images. With `backend="auto"`, they are images where their SVG would
     pass `NOTEBOOK_BYTES_MAX` or `SVG_ELEMENTS_MAX`, and the player's SVG is then drawn when it
     is first wanted. With `backend="viewer"`, the HTML is the viewer's (see `emit_viewer()`),
-    and the SVG is drawn when it is first wanted too."""
+    and the SVG is drawn when it is first wanted too; `call` is the `plot()` call, for the
+    viewer's "Copy as code" (see `plot_call()`)."""
     _check_style(options.get("layout", "force"), theme, stored_ok=True)
     if backend not in BACKENDS:
         raise ValueError(
@@ -1453,7 +1477,9 @@ def render_plot(
         return svg_str
 
     if backend == "viewer" and scene.node_count:
-        html_str = emit_viewer(scene, colors, css_width)
+        # Overlap removal lays the nodes out for their size
+        moves = options.get("node_overlap") != "allow" and options.get("layout") != "circular"
+        html_str = emit_viewer(scene, colors, css_width, call, moves)
         if len(html_str) > NOTEBOOK_BYTES_MAX:
             warnings.warn(
                 f"The plot is {len(html_str) / 1e6:,.0f} MB, past the "
@@ -1665,7 +1691,7 @@ def build_scene(
             legend_w,
             route,
             lean_min=LEAN_MIN,
-            tip_tables=backend == "viewer",
+            viewer=backend == "viewer",
         )
 
     if backend != "auto":
@@ -1721,7 +1747,45 @@ _viewer_counter = 0
 _viewer_js: Optional[str] = None
 
 
-def emit_viewer(scene: Scene, colors: "_Colors", css_width: Optional[str] = None) -> str:
+def plot_call(method: Callable[..., Any], given: Dict[str, Any]) -> Dict[str, Any]:
+    """A call of `method`, for the viewer to write out as code: `"params"`, the names of its
+    parameters in order, and `"args"`, `[name, source]` for those of `given` (its arguments)
+    that differ from their defaults. `output=` is left out, so that running the code doesn't
+    write over a file."""
+    import inspect
+
+    params = [name for name in inspect.signature(method).parameters if name != "self"]
+    args = []
+    for name, param in inspect.signature(method).parameters.items():
+        if name in ("self", "output") or name not in given:
+            continue
+        value = given[name]
+        if type(value) is type(param.default) and value == param.default:
+            continue
+        args.append([name, _source(value)])
+    return {"params": params, "args": args}
+
+
+def _source(value: Any) -> str:
+    """`value` as Python source, with strings in double quotes."""
+    if isinstance(value, str):
+        return json.dumps(value)
+    if isinstance(value, list):
+        return "[" + ", ".join(map(_source, value)) + "]"
+    if isinstance(value, tuple):
+        return "(" + ", ".join(map(_source, value)) + ("," if len(value) == 1 else "") + ")"
+    if isinstance(value, dict):
+        return "{" + ", ".join(f"{_source(k)}: {_source(v)}" for k, v in value.items()) + "}"
+    return repr(value)
+
+
+def emit_viewer(
+    scene: Scene,
+    colors: "_Colors",
+    css_width: Optional[str] = None,
+    call: Optional[Dict[str, Any]] = None,
+    moves: bool = False,
+) -> str:
     """The HTML that shows `scene` in the viewer (`static/viewer.js`), in the colors of
     `colors`'s theme: WebGL draws its edges and nodes, from `Scene.payload()`, to pan and zoom,
     under the legend as SVG. It holds the viewer's code, the payload and the tooltips (in
@@ -1731,9 +1795,14 @@ def emit_viewer(scene: Scene, colors: "_Colors", css_width: Optional[str] = None
     legend keeps its size in pixels, at the top right, and the viewer folds it into a button
     when the box is too small for it.
 
+    Its panel of controls writes the `plot()` call that draws what they show, from `call` (see
+    `plot_call()`), and `moves` says that the layout depends on the node size, as overlap
+    removal makes it.
+
     In the automatic theme, the viewer reads its theme from a variable of `colors` (one that
     holds "light" or "dark"), so that it follows the page by the same rules as the legend's
-    colors, and a saved file is in the light theme, as for SVG."""
+    colors, and a saved file is in the light theme, as for SVG. Its own colors are variables
+    that its theme control can switch (see `_Colors.scoped()`)."""
     global _viewer_counter, _viewer_js
     if _viewer_js is None:
         _viewer_js = (Path(__file__).parent / "static" / "viewer.js").read_text(encoding="utf-8")
@@ -1741,7 +1810,8 @@ def emit_viewer(scene: Scene, colors: "_Colors", css_width: Optional[str] = None
     _viewer_counter += 1
     # Unique on the page, even among the outputs of notebooks run in other sessions
     root_id = f"ec-viewer-{_viewer_counter}-{hashlib.sha1(payload).hexdigest()[:8]}"
-    th = colors.theme
+    chrome = _Colors("auto", prefix="--ecv-")
+    th = chrome.theme
     # Centered and scaled down, keeping its shape, where the page is narrower, as the SVG is.
     # With a CSS width, it keeps its height instead
     if css_width is None:
@@ -1750,7 +1820,7 @@ def emit_viewer(scene: Scene, colors: "_Colors", css_width: Optional[str] = None
         size = f"width:{css_width};height:{scene.height:g}px"
     box = (
         f"position:relative;{size};max-width:100%;margin:1em auto;"
-        f"background:{th.bg};color:{th.label_color};color-scheme:{colors.scheme()}"
+        f"background:{th.bg};color:{th.label_color};color-scheme:{chrome.scheme()}"
     )
     # The legend, over the drawing and fixed as it pans and zooms
     legend = ""
@@ -1762,7 +1832,7 @@ def emit_viewer(scene: Scene, colors: "_Colors", css_width: Optional[str] = None
             f'<svg xmlns="http://www.w3.org/2000/svg" width="{lw}" height="{lh}" '
             f'viewBox="0 0 {lw} {lh}" style="display:block">'
             f'<g class="ec-legend" transform="translate({_LEGEND_PAD:g} 0)">'
-            f"{_svg_legend(scene.legend, colors, th)}</g></svg></div>"
+            f"{_svg_legend(scene.legend, chrome, th)}</g></svg></div>"
         )
     # The tooltips, the SVG's: the nodes' in their order, and the edges' in the order drawn,
     # gzipped (to about a fifth) for the viewer to read on the first hover
@@ -1775,10 +1845,15 @@ def emit_viewer(scene: Scene, colors: "_Colors", css_width: Optional[str] = None
     options = json.dumps(
         {
             "theme": colors.pick("light", "dark"),
-            "tip": {"bg": th.tooltip_bg, "fg": th.tooltip_fg, "font": FONT_FAMILY},
+            "scheme": chrome.scheme(),
+            "font": FONT_FAMILY,
+            "tip": {"bg": th.tooltip_bg, "fg": th.tooltip_fg},
+            "call": call,
+            "moves": moves,
         }
     )
     return f"""<div class="ec-viewer" id="{root_id}" style="{box}">
+<style>{chrome.scoped("#" + root_id, colors)}</style>
 {legend}
 <script type="application/octet-stream" class="ec-payload">{encoded}</script>
 {tips}<script type="module">
