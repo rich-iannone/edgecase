@@ -106,7 +106,9 @@ def _html_payload(html):
 
 
 def _options(html):
-    return json.loads(re.search(r"mount\(root, bytes\.buffer, (\{.*\})\);", html).group(1))
+    return json.loads(
+        re.search(r'<script type="application/json" class="ec-options">([^<]+)<', html).group(1)
+    )
 
 
 def test_the_viewer_backend_holds_the_viewer_and_the_payload():
@@ -114,17 +116,18 @@ def test_the_viewer_backend_holds_the_viewer_and_the_payload():
     html = g.plot(backend="viewer", seed=1, color_by="c")._repr_html_()
     header, columns = _html_payload(html)
     assert (header["nodes"], header["edges"]) == (34, 78) and len(columns["x"]) == 34
-    # The viewer's code, and the legend over it, as SVG
-    assert '<script type="module">' in html and "export function mount(" in html
+    # The viewer's code, the runtime that defines the element, and the legend over it, as SVG
+    assert html.count('<script type="module">') == 1 and "export function mount(" in html
+    assert 'customElements.define("ec-graph"' in html
     assert 'class="ec-legend-layer"' in html and 'class="ec-legend"' in html
     # Not the SVG's nodes and edges, whose tooltips are in a table of their own
     drawing = html.split('class="ec-legend"')[0]
     assert "<circle" not in drawing and "<line" not in drawing and "data-attrs" not in html
     assert 'class="ec-tips"' in html
     # Each plot's root is its own
-    ids = re.findall(r'<div class="ec-viewer" id="([^"]+)"', html)
+    ids = re.findall(r'<ec-graph id="([^"]+)"', html)
     again = g.plot(backend="viewer", seed=1, color_by="c")._repr_html_()
-    assert len(ids) == 1 and ids != re.findall(r'<div class="ec-viewer" id="([^"]+)"', again)
+    assert len(ids) == 1 and ids != re.findall(r'<ec-graph id="([^"]+)"', again)
     with pytest.raises(ValueError, match="use one of 'auto', 'svg', 'png', 'viewer'"):
         g.plot(backend="webgl")
 
@@ -209,7 +212,7 @@ def test_the_viewer_follows_the_theme(tmp_path):
         # The box's colors are variables of its own, in the plot's theme unless the theme control
         # gives it another
         bg = svg_renderer.LIGHT.bg if given == "light" else svg_renderer.DARK.bg
-        root = re.search(r'<div class="ec-viewer" id="([^"]+)"', html).group(1)
+        root = re.search(r'<ec-graph id="([^"]+)"', html).group(1)
         base = re.search(rf"<style>#{root}\{{([^}}]+)\}}", html).group(1)
         assert re.search(r"background:var\(--ecv-\w+\);", _box(html))
         assert f":{bg};" in base and "var(--ect-" not in base
@@ -231,7 +234,7 @@ def test_the_viewer_has_the_svg_and_png_of_its_plot(tmp_path):
 
 def test_an_empty_viewer_plot_is_an_svg():
     html = ec.Graph().plot(backend="viewer")._repr_html_()
-    assert "ec-viewer" not in html and "<svg" in html
+    assert "ec-graph" not in html and "<svg" in html
 
 
 def test_the_viewer_has_smaller_nodes(monkeypatch):
@@ -258,7 +261,7 @@ def test_the_svg_of_a_large_viewer_plot_warns(monkeypatch):
 
 
 def _box(html):
-    return re.search(r'<div class="ec-viewer" id="[^"]+" style="([^"]+)"', html).group(1)
+    return re.search(r'<ec-graph id="[^"]+" style="([^"]+)"', html).group(1)
 
 
 def test_the_viewer_can_fill_its_container():
@@ -308,6 +311,52 @@ def test_the_viewers_code_is_ascii():
     # It is inlined in pages that may not say how they are encoded
     js = (Path(svg_renderer.__file__).parent / "static" / "viewer.js").read_bytes()
     assert js.isascii() and b"export function mount(" in js and b"export function parse(" in js
+
+
+def test_a_page_can_carry_the_runtime_once(tmp_path, monkeypatch):
+    monkeypatch.setattr(svg_renderer, "_runtime", "inline")
+    js = (Path(svg_renderer.__file__).parent / "static" / "viewer.js").read_text()
+    plot = ec.karate_club().plot(backend="viewer", seed=1)
+    # The element alone, which holds no code, and with the runtime after it, by default
+    alone = plot.as_raw_html(runtime="none")
+    assert alone.endswith("</ec-graph></div>") and '<script type="module"' not in alone
+    assert plot.as_raw_html() == plot._repr_html_() == f"{alone}\n{ec.runtime_tags()}"
+    assert ec.runtime_tags() == f'<script type="module">\n{js}</script>'
+    # With a nonce for the page's policy, or from a file
+    assert ec.runtime_tags(nonce="r4nd0m").startswith('<script type="module" nonce="r4nd0m">\n')
+    tag = ec.runtime_tags(nonce='a"b', src="/assets/ec-graph.js?v=1&x=2")
+    assert tag == (
+        '<script type="module" src="/assets/ec-graph.js?v=1&amp;x=2" nonce="a&quot;b"></script>'
+    )
+    ec.write_runtime(tmp_path / "ec-graph.js")
+    assert (tmp_path / "ec-graph.js").read_text() == js
+    # For the plots of a notebook, or of a page rendered from one, until set again; a file
+    # always has it
+    ec.set_runtime("none")
+    assert plot._repr_html_() == plot.as_raw_html() == alone
+    assert plot.as_raw_html(runtime="inline").endswith(f"{js}</script>")
+    plot.save(tmp_path / "plot.html")
+    assert (tmp_path / "plot.html").read_text().count(js) == 1
+    ec.set_runtime("inline")
+    assert plot._repr_html_().endswith(f"{js}</script>")
+    # The other renderings hold their own code
+    svg = ec.karate_club().plot(seed=1)
+    assert svg.as_raw_html(runtime="none") == svg.as_raw_html() == svg._repr_html_()
+    for bad in (lambda: ec.set_runtime("cdn"), lambda: plot.as_raw_html(runtime="once")):
+        with pytest.raises(ValueError, match="use one of 'inline', 'none'"):
+            bad()
+
+
+def test_the_viewers_options_stay_in_their_script():
+    # An argument's source can hold what would end the script
+    name = "</script><b>"
+    g = ec.karate_club()
+    ids = g.get_node_ids(limit=None)
+    g.set_node_attrs(name, {v: str(v % 3) for v in ids}, nodes=ids)
+    html = g.plot(backend="viewer", seed=1, color_by=name)._repr_html_()
+    raw = re.search(r'class="ec-options">([^<]+)<', html).group(1)
+    assert "\\u003c/script>" in raw
+    assert dict(_options(html)["call"]["args"])["color_by"] == json.dumps(name)
 
 
 def test_the_payload_has_what_the_controls_start_from():
@@ -370,7 +419,7 @@ def test_the_viewer_knows_whether_the_nodes_size_moves_them():
 
 def test_the_viewer_can_change_its_theme():
     html = ec.karate_club().plot(backend="viewer", seed=1, theme="light")._repr_html_()
-    root = re.search(r'<div class="ec-viewer" id="([^"]+)"', html).group(1)
+    root = re.search(r'<ec-graph id="([^"]+)"', html).group(1)
     # Its variables in each theme the control can choose, the automatic one following the page
     for name in ("ec-light", "ec-dark", "ec-auto"):
         assert f"#{root}.{name}{{" in html
