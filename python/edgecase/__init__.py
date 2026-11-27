@@ -124,7 +124,7 @@ from edgecase.io import (
     to_tsv_edge_list,
 )
 from edgecase.multiplex import MultiplexGraph
-from edgecase.svg_renderer import StepPlayer
+from edgecase.svg_renderer import StepPlayer, runtime_tags, set_runtime, write_runtime
 
 # Python-layer functionality
 # Polars integration: Use Graph(nodes_df=..., edges_df=...) to create from DataFrames
@@ -176,6 +176,9 @@ __all__ = [
     "from_adjacency_matrix",
     # Visualization
     "StepPlayer",
+    "runtime_tags",
+    "set_runtime",
+    "write_runtime",
     # "plot_graph",
     # "GraphWidget",
     # "graph_widget",
