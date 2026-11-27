@@ -359,12 +359,13 @@ fn shapes(scene: &Scene, view: &View, style: &Style) -> Shapes {
             edges.width[i],
             edges.opacity[i] as f32 * style.alphas[color],
         );
+        let head_width = edges.head_width(i);
         let bow = edges.bow[i];
         pts.clear();
         // As `svg::draw_edges()` picks the shape
         let head = if a == b {
             let (p, head) =
-                geometry::self_loop_points(x1, y1, r_src, width, directed, edges.loop_size[i]);
+                geometry::self_loop_points(x1, y1, r_src, head_width, directed, edges.loop_size[i]);
             let p = p.map(|p| view.pt(p));
             pts.push(p[0]);
             flatten_cubic(&mut pts, p[0], p[1], p[2], p[3]);
@@ -373,7 +374,7 @@ fn shapes(scene: &Scene, view: &View, style: &Style) -> Shapes {
         } else if scene.curved || bow.abs() > 1e-6 {
             let bow = if scene.curved { 0.2 + bow } else { bow };
             let Some((p, head)) =
-                geometry::curved_points(x1, y1, x2, y2, r_src, r_dst, width, directed, bow)
+                geometry::curved_points(x1, y1, x2, y2, r_src, r_dst, head_width, directed, bow)
             else {
                 continue;
             };
@@ -382,7 +383,7 @@ fn shapes(scene: &Scene, view: &View, style: &Style) -> Shapes {
             flatten_quad(&mut pts, p[0], p[1], p[2]);
             head
         } else if let Some(route) = edges.route[i].as_deref() {
-            let (route, head) = geometry::routed_points(route, r_src, r_dst, width, directed);
+            let (route, head) = geometry::routed_points(route, r_src, r_dst, head_width, directed);
             let Some(route) = route else { continue };
             pts.push(view.pt(route[0]));
             if route.len() == 2 {
@@ -396,7 +397,7 @@ fn shapes(scene: &Scene, view: &View, style: &Style) -> Shapes {
             }
             head
         } else {
-            let Some(line) = geometry::straight(x1, y1, x2, y2, r_src, r_dst, width, directed)
+            let Some(line) = geometry::straight(x1, y1, x2, y2, r_src, r_dst, head_width, directed)
             else {
                 continue;
             };
