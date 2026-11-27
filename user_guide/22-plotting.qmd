@@ -115,9 +115,18 @@ The text drawn on each node is chosen by `label_by=`:
 - the name of a node attribute shows its value, or the ID of nodes without the attribute
 - `"degree"` shows the number of edges of each node
 
-`show_labels=False` turns the text off altogether, which suits graphs with more than a few dozen
-nodes, where labels would cover each other. A name that no node has is an error rather than being
-silently ignored, so a misspelled attribute is caught immediately:
+A graph of up to 50 nodes has every label drawn. A larger one has 30 of them, those of the
+highlighted nodes first, then of the larger nodes and of the nodes with the most edges, leaving out
+any label that would cover one drawn before it. `max_labels=` sets how many are drawn at most, so
+that `max_labels=0` draws none and a large number draws as many as fit. The 77 characters of *Les
+Misérables*, with the names of the best connected:
+
+```{python}
+ec.les_miserables().plot(label_by="label", seed=2)
+```
+
+`show_labels=False` turns the text off altogether. A name that no node has is an error rather than
+being silently ignored, so a misspelled attribute is caught immediately:
 
 ```{python}
 try:
@@ -339,8 +348,8 @@ without a click; `Esc` or `F` again leaves it. Where a page doesn't allow full s
 notebooks, the plot fills the window instead.
 
 The button below it, Settings, opens a panel of controls in the terms of `plot()`'s arguments: the
-node size under Nodes, the edges' opacity, width and curve under Edges, and the theme (and, under
-More, the legend) under View. A changed control is marked, with a button that resets it. In a wide
+node size under Nodes, the edges' opacity, width and curve under Edges, whether the labels are
+shown and how many under Labels, and the theme (and, under More, the legend) under View. A changed control is marked, with a button that resets it. In a wide
 plot, or full screen, the panel docks at the side; in a smaller one it slides over the graph, and a
 click outside it or `Esc` closes it. "Copy as code" copies the `plot()` call that draws what the
 viewer shows, with the changed arguments, to paste back into the notebook. The plot is framed for
@@ -364,9 +373,15 @@ into a button that shows it.
 Hovering over a node or an edge outlines it and shows its tooltip, the same as in the SVG; on a
 touch screen, tap it. Dragging hides the tooltip until the drag ends.
 
-The viewer draws less than the SVG does, for now: no labels, no arrowheads or self-loops, and no
-routing of edges around nodes. The legend is drawn over it as SVG. The HTML holds the viewer's
-code, the drawing's data and the tooltips, compressed, about 2.6 MB for the wiki-vote network, and
+The labels stay the same size as the view zooms, and the viewer chooses them again, by the same
+rule as the SVG, for the part of the graph in view: zooming in on a crowded region shows the
+labels that had no room in the whole view. An edge's label is written along it, where it is long
+enough on screen.
+
+The viewer draws less than the SVG does, for now: no arrowheads or self-loops, and no routing of
+edges around nodes. The legend is drawn over it as SVG. The HTML holds the viewer's
+code, the drawing's data, the labels and the tooltips, compressed, about 2.7 MB for the wiki-vote
+network, and
 the viewer stays quick with hundreds of thousands of edges, in any browser with WebGL 2. The plot's `svg`
 property and `.svg` file hold the SVG elements, and its `.png` file is an image as for the other
 backends.
@@ -392,6 +407,7 @@ For graphs the size of the jazz network and larger, several strategies help:
 | `node_size=`, `edge_width=` | node radius and edge width, automatic at their defaults | `16`, `1.2` |
 | `edge_opacity=` | edge transparency, from 0 to 1 | `0.4` |
 | `label_by=`, `show_labels=` | the node text | `None`, `True` |
+| `max_labels=` | the most node labels drawn, all up to 50 nodes and 30 past that at `None` | `None` |
 | `edge_label_by=` | an edge attribute to write along the edges | `None` |
 | `curved_edges=` | curved rather than straight edges | `False` |
 | `node_overlap=`, `edge_routing=` | overlap removal and routing around nodes | `"remove"`, `"auto"` |
