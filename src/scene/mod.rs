@@ -176,11 +176,14 @@ pub struct Scene {
     viewbox: (f64, f64, f64, f64),
     #[pyo3(get)]
     colors: Vec<(String, String)>,
-    /// The legend's marks, which Python draws, and its width in pixels, at the right
+    /// The legend's marks, which Python draws, and its width in pixels, at the right, or with a
+    /// height, in a band that high along the bottom
     #[pyo3(get)]
     legend: PyObject,
     #[pyo3(get)]
     legend_w: f64,
+    #[pyo3(get)]
+    legend_h: f64,
     /// In lean SVG, the edges' tooltips as one JSON table
     #[pyo3(get)]
     edge_tip_table: Option<String>,
@@ -210,6 +213,7 @@ impl Scene {
         legend_w=0.0,
         edge_tip_table=None,
         tip_tables=None,
+        legend_h=0.0,
     ))]
     #[allow(clippy::too_many_arguments)]
     fn new(
@@ -225,6 +229,7 @@ impl Scene {
         legend_w: f64,
         edge_tip_table: Option<String>,
         tip_tables: Option<(String, String)>,
+        legend_h: f64,
     ) -> Self {
         Scene {
             width,
@@ -236,6 +241,7 @@ impl Scene {
             colors,
             legend: legend.unwrap_or_else(|| py.None()),
             legend_w,
+            legend_h,
             edge_tip_table,
             tip_tables,
             controls: None,
