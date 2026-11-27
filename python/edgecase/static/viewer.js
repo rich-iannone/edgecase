@@ -38,6 +38,8 @@ const ICONS = {
   settings: "M2.5 4.5h6M12 4.5h1.5M2.5 11.5h1.5M8 11.5h5.5M10 2.5v4M6 9.5v4",
   close: "M4 4l8 8M12 4l-8 8",
   reset: "M3.5 8a4.5 4.5 0 1 0 1.5-3.35M3.5 2.5v3h3",
+  search: "M7 2.5a4.5 4.5 0 1 0 0 9a4.5 4.5 0 1 0 0-9M10.5 10.5l3 3",
+  lasso: "M8 2.5c3 0 5.5 1.5 5.5 3.5S11 9.5 8 9.5S2.5 8 2.5 6S5 2.5 8 2.5M5 9.1c-.8.9-.8 2 0 2.6s1.2 1.4.5 2.3",
 };
 const icon = (path) => `<svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path d="${path}" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
 const el = (tag, className, text) => {
@@ -60,7 +62,8 @@ export function parse(buffer) {
   };
   const names = ["x", "y", "r", "fill", "border", "border_width", "border_opacity", "order",
     "src", "tgt", "color", "width", "opacity", "bow", "loop_size", "level", "base_width", "label_order",
-    "label_color"];
+    "label_color", "node_id", "node_id_hi", "base_fill", "base_border", "base_color", "base_label_order",
+    "node_key", "edge_key"];
   return { header, ...Object.fromEntries(names.map((name) => [name, column(name)])) };
 }
 
@@ -238,6 +241,11 @@ flat out float v_r, v_fill_gain, v_bw, v_border_gain;
 vec4 texel(highp sampler2D t, uint i) { return texelFetch(t, ivec2(int(i & 2047u), int(i >> 11)), 0); }
 void main() {
   vec4 nd = texel(u_nodes, a_index), st = texel(u_styles, a_index);
+  // Hidden by the legend
+  if (st.w > 0.5) {
+    gl_Position = vec4(2.0, 2.0, 2.0, 1.0);
+    return;
+  }
   vec4 fill = texel(u_colors, uint(nd.w)), border = texel(u_colors, uint(st.x));
   // A node or border thinner than a pixel is drawn a pixel across, as faint as it is small
   float r = nd.z * u_unit;
@@ -393,7 +401,9 @@ function renderer(canvas, data) {
 
   const nodeTable = () => table(gl, n, (t, j, i) => t.set([at(data.x, i), at(data.y, i), at(data.r, i), at(data.fill, i)], j));
   let nodes = nodeTable();
-  const styles = table(gl, n, (t, j, i) => t.set([at(data.border, i), at(data.border_width, i), at(data.border_opacity, i), 0], j));
+  // The last is 1 for a node hidden
+  const styleTable = () => table(gl, n, (t, j, i) => t.set([at(data.border, i), at(data.border_width, i), at(data.border_opacity, i), at(data.hidden, i)], j));
+  let styles = styleTable();
   let colors = null;
 
   // Edges: a strip per instance, along a quadratic curve (or a self-loop's two cubic ones) in
@@ -471,9 +481,12 @@ function renderer(canvas, data) {
   gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]), gl.STATIC_DRAW);
   gl.enableVertexAttribArray(point.a("a_quad"));
   gl.vertexAttribPointer(point.a("a_quad"), 2, gl.FLOAT, false, 0, 0);
-  const order = data.order ?? Uint32Array.from({ length: n }, (_, i) => i);
-  gl.bindBuffer(gl.ARRAY_BUFFER, gl.createBuffer());
-  gl.bufferData(gl.ARRAY_BUFFER, order, gl.STATIC_DRAW);
+  const orderBuf = gl.createBuffer();
+  const orderFor = () => {
+    gl.bindBuffer(gl.ARRAY_BUFFER, orderBuf);
+    gl.bufferData(gl.ARRAY_BUFFER, data.order ?? Uint32Array.from({ length: n }, (_, i) => i), gl.STATIC_DRAW);
+  };
+  orderFor();
   gl.enableVertexAttribArray(point.a("a_index"));
   gl.vertexAttribIPointer(point.a("a_index"), 1, gl.UNSIGNED_INT, 0, 0);
   gl.vertexAttribDivisor(point.a("a_index"), 1);
@@ -648,10 +661,15 @@ function renderer(canvas, data) {
     },
     update(names) {
       if (["width", "opacity", "color"].some((name) => names.includes(name))) lone = null;
-      if (names.includes("r")) {
+      if (names.includes("r") || names.includes("fill")) {
         gl.deleteTexture(nodes);
         nodes = nodeTable();
       }
+      if (["border", "border_width", "border_opacity", "hidden"].some((name) => names.includes(name))) {
+        gl.deleteTexture(styles);
+        styles = styleTable();
+      }
+      if (names.includes("order")) orderFor();
       for (const c of linkCols) if (names.includes(c.name)) edgeColumn(c);
       if (names.includes("bow")) stripFor();
     },
@@ -681,9 +699,11 @@ function renderer(canvas, data) {
 // The labels, as text on a canvas over the drawing, by the rule that `src/scene/labels.rs` has
 // for the SVG: up to `state.limit` of the nodes' labels in view (null for all of them), taken in
 // order of priority (the payload's `label_order`), each one that doesn't overlap one taken
-// before it, then the edges' labels likewise, highlighted edges first, each along its curve at
-// its middle where the edge is long enough for it. They keep their size in pixels as the view
-// zooms, in `state.size` for the nodes' and `EDGE_FONT` for the edges', ringed by the background
+// before it, then the edges' labels likewise, the selected edges first (`v.edgeFirst`), then the
+// highlighted ones, each along its curve at its middle where the edge is long enough for it.
+// Nodes that the legend hides (`data.hidden`), and edges drawn without opacity, have none. They
+// keep their size in pixels as the view zooms, in `state.size` for the nodes' and `EDGE_FONT` for
+// the edges', ringed by the background
 const EDGE_FONT = 10;
 const LABEL_GAP = 2;
 function labelLayer(layer, data, font) {
@@ -738,7 +758,7 @@ function labelLayer(layer, data, font) {
       for (let q = 0; q < n && (limit === null || placed.length < limit); q++) {
         const k = at(data.label_order, q);
         const text = texts.nodes[k];
-        if (!text) continue;
+        if (!text || at(data.hidden, k) > 0) continue;
         const top = Y(k) + at(data.r, k) * v.grow + 2;
         if (top > v.ch || top + 1.25 * size < 0) continue;
         if (nodeW[k] < 0) nodeW[k] = ctx.measureText(text).width;
@@ -759,23 +779,23 @@ function labelLayer(layer, data, font) {
       drawn.nodes = placed.map(([k]) => k);
     }
 
-    // The edges', the last drawn first, which are the highlighted ones
+    // The edges', the selected first, then the last drawn, which are the highlighted ones
     if (texts.edges && m) {
       ctx.font = `${EDGE_FONT}px ${font}`;
       edgeW ??= new Float32Array(m).fill(-1);
       const placed = [], hh = 0.625 * EDGE_FONT;
-      for (let j = m - 1; j >= 0 && (limit === null || placed.length < limit); j--) {
+      const edge = (j) => {
         const row = v.edgeRow ? v.edgeRow[j] : j;
         const text = texts.edges[row];
         const s = at(data.src, j), t = at(data.tgt, j);
-        if (!text || s === t) continue;
+        if (!text || s === t || at(data.opacity, j) <= 0) return;
         // The middle of its curve (see `hover()`), and the curve's direction there, the chord's
         const sx = X(s), sy = Y(s), tx = X(t), ty = Y(t), bow = at(data.bow, j);
         const mx = (sx + tx) / 2 - (ty - sy) * bow / 2, my = (sy + ty) / 2 + (tx - sx) * bow / 2;
-        if (mx < 0 || mx > v.cw || my < 0 || my > v.ch) continue;
+        if (mx < 0 || mx > v.cw || my < 0 || my > v.ch) return;
         if (edgeW[row] < 0) edgeW[row] = ctx.measureText(text).width;
         const w = edgeW[row];
-        if (Math.hypot(tx - sx, ty - sy) < w + (at(data.r, s) + at(data.r, t)) * v.grow + 8) continue;
+        if (Math.hypot(tx - sx, ty - sy) < w + (at(data.r, s) + at(data.r, t)) * v.grow + 8) return;
         // Read from left to right
         let a = Math.atan2(ty - sy, tx - sx);
         if (a > Math.PI / 2) a -= Math.PI;
@@ -783,10 +803,13 @@ function labelLayer(layer, data, font) {
         const cos = Math.abs(Math.cos(a)), sin = Math.abs(Math.sin(a));
         const hx = (cos * w) / 2 + sin * hh, hy = (sin * w) / 2 + cos * hh;
         const b = [mx - hx, my - hy, mx + hx, my + hy];
-        if (limit !== null && !clear(b)) continue;
+        if (limit !== null && !clear(b)) return;
         take(b);
         placed.push([text, mx, my, a, j]);
-      }
+      };
+      const first = v.edgeFirst ?? [], skip = new Set(first);
+      for (let q = 0; q < first.length && (limit === null || placed.length < limit); q++) edge(first[q]);
+      for (let j = m - 1; j >= 0 && (limit === null || placed.length < limit); j--) if (!skip.has(j)) edge(j);
       ctx.textBaseline = "middle";
       ctx.fillStyle = v.ink;
       const base = ctx.getTransform();
@@ -827,7 +850,7 @@ const STYLE = `
 .ec-viewer button svg { display: block; }
 .ec-viewer .ec-controls { position: absolute; left: 8px; top: 8px; display: flex; flex-direction: column; gap: 4px; }
 .ec-viewer .ec-controls .ec-apart { margin-top: 6px; }
-.ec-viewer .ec-controls [aria-expanded=true] { opacity: 1; background: color-mix(in srgb, currentColor 26%, transparent); }
+.ec-viewer .ec-controls [aria-expanded=true], .ec-viewer .ec-controls [aria-pressed=true] { opacity: 1; background: color-mix(in srgb, currentColor 26%, transparent); }
 .ec-viewer .ec-legend-toggle { position: absolute; right: calc(var(--ec-side, 0px) + 8px); top: 8px; display: none; }
 .ec-viewer.ec-legend-folded .ec-legend-toggle { display: flex; }
 .ec-viewer.ec-legend-folded .ec-legend-layer, .ec-viewer.ec-legend-off .ec-legend-layer, .ec-viewer.ec-legend-off .ec-legend-toggle { display: none; }
@@ -838,6 +861,23 @@ const STYLE = `
 html.ec-expanded-page, html.ec-expanded-page body { overflow: hidden !important; }
 .ec-viewer .ec-mark { position: absolute; inset: 0; width: calc(100% - var(--ec-side, 0px)); height: 100%; pointer-events: none; overflow: visible; }
 .ec-viewer .ec-mark path { fill: none; stroke: currentColor; stroke-linecap: round; }
+.ec-viewer .ec-mark path.ec-lasso { stroke-width: 1.5; stroke-dasharray: 4 3; stroke-linejoin: round; fill: color-mix(in srgb, currentColor 6%, transparent); }
+.ec-viewer .ec-search { position: absolute; left: 38px; top: 8px; width: 26px; height: 26px; border-radius: 6px; background: color-mix(in srgb, currentColor 14%, transparent); opacity: 0.75; overflow: hidden; transition: width 0.15s ease; }
+.ec-viewer .ec-search:hover { opacity: 1; }
+.ec-viewer .ec-search:focus-within { width: min(200px, calc(100% - var(--ec-side, 0px) - 46px)); opacity: 1; background: inherit; box-shadow: 0 0 0 1.5px color-mix(in srgb, currentColor 60%, transparent); }
+.ec-viewer .ec-search svg { position: absolute; left: 5px; top: 5px; pointer-events: none; }
+.ec-viewer .ec-search input { position: absolute; inset: 0; width: 100%; height: 100%; box-sizing: border-box; margin: 0; padding: 0 8px 0 26px; border: 0; outline: none; background: transparent; color: inherit; font-size: 12px; cursor: pointer; }
+.ec-viewer .ec-search:focus-within input { cursor: text; }
+.ec-viewer .ec-search input::placeholder { color: inherit; opacity: 0.6; }
+.ec-viewer .ec-search:not(:focus-within) input::placeholder { color: transparent; }
+.ec-viewer .ec-results { position: absolute; left: 38px; top: 38px; width: min(200px, calc(100% - var(--ec-side, 0px) - 46px)); box-sizing: border-box; margin: 0; padding: 4px; list-style: none; background: inherit; border-radius: 8px; box-shadow: 0 0 0 1px color-mix(in srgb, currentColor 15%, transparent), 0 4px 12px rgba(0, 0, 0, 0.15); font-size: 12px; line-height: 1.4; text-align: left; }
+.ec-viewer .ec-results li { padding: 4px 6px; border-radius: 4px; cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ec-viewer .ec-results li[aria-selected=true] { background: color-mix(in srgb, currentColor 14%, transparent); }
+.ec-viewer .ec-results .ec-dim { margin-left: 6px; opacity: 0.6; }
+.ec-viewer .ec-results .ec-none { cursor: default; opacity: 0.7; }
+.ec-viewer .ec-legend-layer .ec-key { pointer-events: auto; cursor: pointer; outline: none; }
+.ec-viewer .ec-legend-layer .ec-key.ec-off { opacity: 0.35; }
+.ec-viewer .ec-legend-layer .ec-key:focus-visible rect { stroke: currentColor; stroke-width: 1.5; }
 .ec-viewer .ec-tip { position: absolute; left: 0; top: 0; display: none; padding: 6px 10px; border-radius: 6px; font-size: 12px; line-height: 1.4; pointer-events: none; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.18); max-width: min(260px, 100%); box-sizing: border-box; overflow-wrap: anywhere; }
 .ec-viewer .ec-tip.ec-on { display: block; }
 .ec-viewer .ec-hint { position: absolute; left: calc((100% - var(--ec-side, 0px)) / 2); bottom: 10px; transform: translateX(-50%); padding: 4px 10px; border-radius: 6px; font: 12px system-ui, sans-serif; color: inherit; background: color-mix(in srgb, currentColor 14%, transparent); pointer-events: none; opacity: 0; transition: opacity 0.3s; white-space: nowrap; }
@@ -846,7 +886,7 @@ html.ec-expanded-page, html.ec-expanded-page body { overflow: hidden !important;
 .ec-viewer .ec-panel { position: absolute; top: 0; right: 0; bottom: 0; width: min(${PANEL_W}px, calc(100% - 40px)); box-sizing: border-box; display: flex; flex-direction: column; background: inherit; color: inherit; font-size: 12px; line-height: 1.4; text-align: left; user-select: text; -webkit-user-select: text; box-shadow: -6px 0 18px rgba(0, 0, 0, 0.18), 0 0 0 1px color-mix(in srgb, currentColor 15%, transparent); transform: translateX(calc(100% + 24px)); visibility: hidden; transition: transform 0.2s ease, visibility 0s linear 0.2s; }
 .ec-viewer.ec-panel-open .ec-panel { transform: none; visibility: visible; transition: transform 0.2s ease, visibility 0s; }
 .ec-viewer.ec-docked .ec-panel { width: ${PANEL_W}px; box-shadow: -1px 0 0 color-mix(in srgb, currentColor 15%, transparent); }
-@media (prefers-reduced-motion: reduce) { .ec-viewer .ec-panel, .ec-viewer.ec-panel-open .ec-panel { transition: none; } }
+@media (prefers-reduced-motion: reduce) { .ec-viewer .ec-panel, .ec-viewer.ec-panel-open .ec-panel, .ec-viewer .ec-search { transition: none; } }
 .ec-viewer .ec-panel button { width: auto; height: auto; padding: 4px 8px; font: inherit; background: none; opacity: 1; }
 .ec-viewer .ec-panel :focus-visible { outline: 2px solid currentColor; outline-offset: 1px; }
 .ec-viewer .ec-panel-head { display: flex; align-items: flex-end; gap: 4px; padding: 6px 6px 0 8px; border-bottom: 1px solid color-mix(in srgb, currentColor 15%, transparent); }
@@ -871,6 +911,7 @@ html.ec-expanded-page, html.ec-expanded-page body { overflow: hidden !important;
 .ec-viewer .ec-more summary { cursor: pointer; opacity: 0.8; }
 .ec-viewer .ec-more[open] summary { margin-bottom: 10px; }
 .ec-viewer .ec-more .ec-field + .ec-field { margin-top: 14px; }
+.ec-viewer .ec-panel-foot .ec-note { flex-basis: 100%; }
 .ec-viewer .ec-panel-foot { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 10px 12px; border-top: 1px solid color-mix(in srgb, currentColor 15%, transparent); }
 .ec-viewer .ec-panel .ec-copy { padding: 6px 10px; font-weight: 600; background: color-mix(in srgb, currentColor 12%, transparent); }
 .ec-viewer .ec-status { opacity: 0.8; }
@@ -898,6 +939,8 @@ function themeOf(root, theme) {
 export function mount(root, buffer, options = {}) {
   const data = parse(buffer);
   const { header } = data;
+  // The nodes that the legend hides, none at first
+  data.hidden = 0;
   if (!document.getElementById("ec-viewer-style")) {
     const style = document.createElement("style");
     style.id = "ec-viewer-style";
@@ -908,11 +951,30 @@ export function mount(root, buffer, options = {}) {
   canvas.tabIndex = 0;
   canvas.className = "ec-grab";
   canvas.setAttribute("role", "img");
-  canvas.setAttribute("aria-label", `Graph of ${header.nodes} nodes and ${header.edges} edges. Drag to pan; zoom with the buttons, the keys + and -, or the wheel once clicked; F for full screen; hover over a node or an edge for its details; the Settings button opens the plot's controls`);
+  canvas.setAttribute("aria-label", `Graph of ${header.nodes} nodes and ${header.edges} edges. Drag to pan; zoom with the buttons, the keys + and -, or the wheel once clicked; F for full screen; hover over a node or an edge for its details; click one to select it, with Shift to add it, Shift and drag to lasso nodes, Esc to clear; / to search the nodes; the Settings button opens the plot's controls`);
   root.prepend(canvas);
   // A moved view draws `BUDGET` edges at once, so they go in a random order, to be a fair share;
   // `edgeRow` is each one's place in the scene's order, its row of the tooltips
   const edgeRow = header.edges > BUDGET ? shuffleEdges(data) : null;
+  // The selection, drawn as `highlight=` would draw what is selected, which "Copy as code"
+  // writes: the nodes chosen, and the edges (j, in the drawing order), whose ends are highlighted
+  // with them as `highlight_edges=` has them. An edge is chosen with the others between its ends,
+  // as `highlight_edges=[(u, v)]` takes them. And the legend's swatches turned off (their places
+  // plus 1, as the payload's "node_key" and "edge_key" count them), whose nodes and edges are
+  // hidden, with the edges of the nodes hidden. Without a selection, the payload's own
+  // highlighting is drawn
+  const sel = header.select;
+  const chosen = { nodes: new Set(), edges: new Set() };
+  const off = new Set();
+  // The columns as the payload has them (in the shuffled order, where the edges are shuffled)
+  const orig = {
+    r: data.r, width: data.width, opacity: data.opacity, bow: data.bow, fill: data.fill, border: data.border,
+    border_width: data.border_width, border_opacity: data.border_opacity, order: data.order, color: data.color,
+    label_color: data.label_color, label_order: data.label_order, hidden: data.hidden,
+  };
+  // The columns that the selection and the legend give, the edges' levels with a selection, those
+  // hidden, and the selected edges, whose labels come first
+  let styled = { ...orig, edgeLevel: null, edgeHidden: null, edgeFirst: null };
   const r = renderer(canvas, data);
   if (!r) {
     canvas.remove();
@@ -927,6 +989,7 @@ export function mount(root, buffer, options = {}) {
   textCanvas.setAttribute("aria-hidden", "true");
   canvas.after(textCanvas);
   const words = labelLayer(textCanvas, data, options.font ?? "system-ui, sans-serif");
+  let labelTexts = null;
 
   // The camera: the scene point at the center, and the zoom. At zoom 1 the scene's frame fits
   // the canvas as the SVG's viewBox fits its box
@@ -990,11 +1053,13 @@ export function mount(root, buffer, options = {}) {
     words.draw({
       w: canvas.width, h: canvas.height, cw, ch, cx: cam.cx, cy: cam.cy, px: unit * cam.zoom,
       grow: unit * Math.sqrt(cam.zoom), colors: shown.colors, bg: shown.bg, ink: shown.ink, edgeRow,
+      edgeFirst: styled.edgeFirst,
     });
   }
   r.draw(view());
   drawText();
   readPacked(root, "labels").then((texts) => {
+    labelTexts = texts;
     words.setTexts(texts);
     redraw();
   });
@@ -1058,15 +1123,19 @@ export function mount(root, buffer, options = {}) {
       hover();
     });
   }
+  // What is drawn under a point on the page
+  function under(ex, ey) {
+    const b = canvas.getBoundingClientRect();
+    if (!(b.width > 0)) return null;
+    const unit = fit(b.width, b.height);
+    const [x, y] = toScene(ex, ey);
+    return pick(x, y, { px: unit * cam.zoom, radius: unit * Math.sqrt(cam.zoom), unit, thin: b.width / Math.max(canvas.width, 1) });
+  }
   function hover() {
     const b = canvas.getBoundingClientRect();
     const unit = fit(b.width, b.height), px = unit * cam.zoom, grow = unit * Math.sqrt(cam.zoom);
     const thin = b.width / Math.max(canvas.width, 1);
-    hovered = null;
-    if (pointer && down.size === 0 && b.width > 0) {
-      const [x, y] = toScene(...pointer);
-      hovered = pick(x, y, { px, radius: grow, unit, thin });
-    }
+    hovered = pointer && down.size === 0 ? under(...pointer) : null;
     if (!hovered) {
       outline.removeAttribute("d");
       tip.classList.remove("ec-on");
@@ -1133,18 +1202,180 @@ export function mount(root, buffer, options = {}) {
     tip.style.top = `${Math.max(0, Math.min(pointer[1] - box.top - 10, box.height - h))}px`;
   }
 
+  // A node's ID, as Python writes it
+  const idOf = (i) => String((BigInt(at(data.node_id_hi, i)) << 32n) | BigInt(at(data.node_id, i)));
+  function relook() {
+    const n = header.nodes, m = header.edges;
+    let hidden = 0, edgeHidden = null;
+    if (off.size) {
+      hidden = new Float32Array(n);
+      for (let i = 0; i < n; i++) if (off.has(at(data.node_key, i))) hidden[i] = 1;
+      edgeHidden = new Uint8Array(m);
+      for (let j = 0; j < m; j++) {
+        if (off.has(at(data.edge_key, j)) || hidden[at(data.src, j)] || hidden[at(data.tgt, j)]) edgeHidden[j] = 1;
+      }
+    }
+    styled = { ...orig, hidden, edgeLevel: null, edgeHidden, edgeFirst: null };
+    if (chosen.nodes.size || chosen.edges.size) {
+      const level = new Uint8Array(n), edgeLevel = new Uint8Array(m);
+      for (const i of chosen.nodes) level[i] = 2;
+      for (const j of chosen.edges) {
+        edgeLevel[j] = 2;
+        level[at(data.src, j)] = level[at(data.tgt, j)] = 2;
+      }
+      // By the builder's rules (see `SceneBuilder.scene()`), from the columns without highlighting
+      const fill = data.base_fill ?? orig.fill, border = data.base_border ?? orig.border;
+      const color = data.base_color ?? orig.color, priority = data.base_label_order ?? orig.label_order;
+      // Items of level `first`, then the others, each in their order
+      const apart = (count, item, first) => {
+        const out = new Uint32Array(count);
+        let p = 0;
+        for (const want of [first, 2 - first]) {
+          for (let q = 0; q < count; q++) {
+            const k = item(q);
+            if (level[k] === want) out[p++] = k;
+          }
+        }
+        return out;
+      };
+      Object.assign(styled, {
+        fill: Uint32Array.from(level, (l, i) => (l ? (sel.node_colors ? at(fill, i) : sel.accent) : sel.muted)),
+        border: Uint32Array.from(level, (l, i) => (l ? (sel.node_colors ? at(border, i) : sel.accent_border) : sel.muted_border)),
+        border_width: 1.5,
+        border_opacity: 0.3,
+        // Highlighted nodes are drawn over the muted ones, and labelled first
+        order: apart(n, (q) => q, 0),
+        label_color: orig.label_color === null ? null : Uint32Array.from(level, (l) => (l ? sel.label : sel.muted_label)),
+        label_order: priority === null ? null : apart(n, (q) => at(priority, q), 2),
+        // A highlighted edge keeps a color that edge_color_by= gives it, or else takes the accent
+        color: Uint32Array.from(edgeLevel, (l, j) => {
+          const c = at(color, j);
+          return l ? (!sel.edge_colors || c === sel.edge ? sel.accent : c) : sel.edge;
+        }),
+        edgeLevel,
+        edgeFirst: [...chosen.edges],
+      });
+    }
+    restyle();
+  }
+  function choose(nodes, edges) {
+    chosen.nodes = new Set(nodes);
+    chosen.edges = new Set(edges);
+    relook();
+  }
+  // A click chooses what is under it, or with `add` (Shift, Command or Ctrl) adds it to the
+  // selection or takes it out; on nothing, it clears the selection
+  function clickAt(ex, ey, add) {
+    if (!sel) return;
+    const hit = under(ex, ey);
+    if (!hit) {
+      if (!add && (chosen.nodes.size || chosen.edges.size)) choose([], []);
+      return;
+    }
+    if (hit.node !== undefined) {
+      const nodes = new Set(add ? chosen.nodes : []);
+      if (add && nodes.has(hit.node)) nodes.delete(hit.node);
+      else nodes.add(hit.node);
+      choose(nodes, add ? chosen.edges : []);
+      return;
+    }
+    const s = at(data.src, hit.edge), t = at(data.tgt, hit.edge);
+    const edges = new Set(add ? chosen.edges : []), had = add && edges.has(hit.edge);
+    for (let j = 0; j < header.edges; j++) {
+      if (at(data.src, j) !== s || at(data.tgt, j) !== t) continue;
+      if (had) edges.delete(j);
+      else edges.add(j);
+    }
+    choose(add ? chosen.nodes : [], edges);
+  }
+
+  // The lasso: a loop drawn with Shift held, or in lasso mode, whose nodes (those shown) join the
+  // selection. Its points are in pixels of the canvas's box
+  let lasso = null, lassoOn = false;
+  const lassoPath = document.createElementNS(NS, "path");
+  lassoPath.setAttribute("class", "ec-lasso");
+  mark.append(lassoPath);
+  function lassoTo(ex, ey) {
+    const b = canvas.getBoundingClientRect(), p = [ex - b.left, ey - b.top], last = lasso[lasso.length - 1];
+    if (Math.hypot(p[0] - last[0], p[1] - last[1]) < 3) return;
+    lasso.push(p);
+    lassoPath.setAttribute("d", `M${lasso.map(([x, y]) => `${x.toFixed(1)} ${y.toFixed(1)}`).join("L")}Z`);
+  }
+  // Ends the lasso; true if it was a loop
+  function lassoEnd(take) {
+    const b = canvas.getBoundingClientRect();
+    const loop = lasso.map(([x, y]) => toScene(x + b.left, y + b.top));
+    lasso = null;
+    lassoPath.removeAttribute("d");
+    if (!take || loop.length < 3) return false;
+    let [x0, y0, x1, y1] = [Infinity, Infinity, -Infinity, -Infinity];
+    for (const [x, y] of loop) [x0, y0, x1, y1] = [Math.min(x0, x), Math.min(y0, y), Math.max(x1, x), Math.max(y1, y)];
+    const nodes = new Set(chosen.nodes);
+    for (let i = 0; i < header.nodes; i++) {
+      const x = at(data.x, i), y = at(data.y, i);
+      if (x < x0 || x > x1 || y < y0 || y > y1 || at(data.hidden, i) > 0) continue;
+      let inside = false;
+      for (let a = 0, z = loop.length - 1; a < loop.length; z = a++) {
+        const [xa, ya] = loop[a], [xz, yz] = loop[z];
+        if (ya > y !== yz > y && x < ((xz - xa) * (y - ya)) / (yz - ya) + xa) inside = !inside;
+      }
+      if (inside) nodes.add(i);
+    }
+    choose(nodes, chosen.edges);
+    return true;
+  }
+  function setLasso(on) {
+    lassoOn = on;
+    lassoButton.setAttribute("aria-pressed", String(on));
+    // A touch draws the loop rather than scrolling the page
+    canvas.style.cursor = on ? "crosshair" : "";
+    canvas.style.touchAction = on ? "none" : "";
+  }
+
+  // Flies to node i, close enough to draw it at least 8 pixels across
+  let flight = 0;
+  function flyTo(i) {
+    cancelAnimationFrame(flight);
+    const unit = fit(canvas.clientWidth, canvas.clientHeight), size = at(data.r, i) * unit;
+    const zoom = size > 0 ? Math.min(ZOOM_MAX, Math.max(cam.zoom, (8 / size) ** 2)) : cam.zoom;
+    const from = { ...cam }, to = { cx: at(data.x, i), cy: at(data.y, i), zoom };
+    if (matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      Object.assign(cam, to);
+      redraw();
+      return;
+    }
+    const t0 = performance.now();
+    const step = (now) => {
+      const u = Math.min(1, (now - t0) / 450), e = u < 0.5 ? 4 * u ** 3 : 1 - (2 - 2 * u) ** 3 / 2;
+      cam.cx = from.cx + (to.cx - from.cx) * e;
+      cam.cy = from.cy + (to.cy - from.cy) * e;
+      cam.zoom = from.zoom * (to.zoom / from.zoom) ** e;
+      redraw();
+      if (u < 1) flight = requestAnimationFrame(step);
+    };
+    flight = requestAnimationFrame(step);
+  }
+
   // Pointers: one drags, two pinch. A touch scrolls the page unless two fingers are down. The
-  // wheel zooms once the plot has been clicked (`active`), until the pointer leaves it
+  // wheel zooms once the plot has been clicked (`active`), until the pointer leaves it. A press
+  // that doesn't move is a click, or a tap
   const down = new Map();
   let pinch = null, active = false;
-  let tap = null;
+  let tap = null, press = null;
   canvas.addEventListener("pointerdown", (e) => {
     if (e.pointerType === "mouse" && e.button !== 0) return;
+    cancelAnimationFrame(flight);
     down.set(e.pointerId, [e.clientX, e.clientY]);
     tap = down.size === 1 ? [e.clientX, e.clientY] : null;
+    press = down.size === 1 ? { x: e.clientX, y: e.clientY, add: e.shiftKey || e.metaKey || e.ctrlKey, moved: false } : null;
+    if (lasso) lassoEnd(false);
+    if (sel && down.size === 1 && (e.shiftKey || lassoOn)) {
+      const b = canvas.getBoundingClientRect();
+      lasso = [[e.clientX - b.left, e.clientY - b.top]];
+    }
     hoverAt();
-    if (e.pointerType !== "touch" || down.size === 2) canvas.setPointerCapture(e.pointerId);
-    if (e.pointerType !== "touch") canvas.className = "ec-grabbing";
+    if (e.pointerType !== "touch" || down.size === 2 || lasso) canvas.setPointerCapture(e.pointerId);
+    if (e.pointerType !== "touch" && !lasso) canvas.className = "ec-grabbing";
     active = true;
     pinch = null;
   });
@@ -1152,6 +1383,13 @@ export function mount(root, buffer, options = {}) {
     if (!down.delete(e.pointerId)) return;
     pinch = null;
     canvas.className = "ec-grab";
+    const click = e.type === "pointerup" && press && !press.moved;
+    if (lasso) {
+      if (!lassoEnd(e.type === "pointerup") && click) clickAt(e.clientX, e.clientY, press.add);
+    } else if (click) {
+      clickAt(e.clientX, e.clientY, press.add);
+    }
+    press = null;
     // A mouse hovers again where it was let go; a touch that didn't move is a tap
     if (e.type === "pointerup" && (e.pointerType !== "touch" || (tap && Math.hypot(e.clientX - tap[0], e.clientY - tap[1]) < 10))) {
       hoverAt(e.clientX, e.clientY);
@@ -1167,6 +1405,11 @@ export function mount(root, buffer, options = {}) {
       return;
     }
     if (tap && Math.hypot(e.clientX - tap[0], e.clientY - tap[1]) >= 10) tap = null;
+    if (press && Math.hypot(e.clientX - press.x, e.clientY - press.y) >= (e.pointerType === "touch" ? 10 : 5)) press.moved = true;
+    if (lasso) {
+      lassoTo(e.clientX, e.clientY);
+      return;
+    }
     if (down.size === 1 && e.pointerType !== "touch") {
       panBy(e.clientX - last[0], e.clientY - last[1]);
     } else if (down.size === 2) {
@@ -1200,11 +1443,20 @@ export function mount(root, buffer, options = {}) {
       return;
     }
     e.preventDefault();
+    cancelAnimationFrame(flight);
     const step = e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? 400 : 1;
     zoomBy(Math.exp(-e.deltaY * step * (e.ctrlKey ? 0.01 : 0.002)), e.clientX, e.clientY);
   }, { passive: false });
 
   canvas.addEventListener("keydown", (e) => {
+    // Esc leaves lasso mode, or clears the selection, unless it's closing the panel
+    if (e.key === "Escape" && sel && !isOpen() && (lassoOn || chosen.nodes.size || chosen.edges.size)) {
+      e.preventDefault();
+      e.stopPropagation();
+      if (lassoOn) setLasso(false);
+      else choose([], []);
+      return;
+    }
     const keys = {
       "+": () => zoomBy(1.5), "=": () => zoomBy(1.5), "-": () => zoomBy(1 / 1.5), "0": reset,
       ArrowLeft: () => panBy(40, 0), ArrowRight: () => panBy(-40, 0),
@@ -1229,16 +1481,137 @@ export function mount(root, buffer, options = {}) {
   const controls = document.createElement("div");
   controls.className = "ec-controls";
   const fullButton = button(ICONS.full, "Full screen (F)", () => toggleFull());
-  fullButton.classList.add("ec-apart");
+  const lassoButton = button(ICONS.lasso, "Lasso (or Shift and drag)", () => setLasso(!lassoOn));
+  lassoButton.setAttribute("aria-pressed", "false");
   const panelButton = button(ICONS.settings, "Settings", () => setOpen(!isOpen()));
   controls.append(
     button(ICONS.in, "Zoom in", () => zoomBy(1.5)),
     button(ICONS.out, "Zoom out", () => zoomBy(1 / 1.5)),
     button(ICONS.fit, "Fit the graph (0)", reset),
+    ...(sel ? [lassoButton] : []),
     fullButton,
     panelButton,
   );
+  (sel ? lassoButton : fullButton).classList.add("ec-apart");
   root.append(controls);
+  const search = sel ? searchPill() : null;
+  // "/" goes to the search
+  root.addEventListener("keydown", (e) => {
+    if (e.key !== "/" || !search || e.ctrlKey || e.metaKey || e.altKey || /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName)) return;
+    e.preventDefault();
+    search.input.focus();
+  });
+
+  // The search: a pill by the buttons that widens on focus, for a node by its ID or its label,
+  // giving those that are what is typed, then those that start with it, then those that hold it,
+  // up to 8 (leaving out those the legend hides). Choosing one flies to it and selects it
+  function searchPill() {
+    const uid = root.id || `ec-viewer-${Math.random().toString(36).slice(2)}`;
+    const box = el("div", "ec-search");
+    box.innerHTML = icon(ICONS.search);
+    const input = el("input");
+    Object.assign(input, { type: "text", placeholder: "Search nodes", spellcheck: false, autocomplete: "off" });
+    input.style.fontFamily = options.font ?? "";
+    const list = el("ul", "ec-results");
+    list.id = `${uid}-results`;
+    list.style.fontFamily = options.font ?? "";
+    list.setAttribute("role", "listbox");
+    list.setAttribute("aria-label", "Nodes found");
+    list.hidden = true;
+    for (const [k, v] of [["role", "combobox"], ["aria-label", "Search the nodes by ID or label (/)"],
+      ["aria-autocomplete", "list"], ["aria-expanded", "false"], ["aria-controls", list.id]]) input.setAttribute(k, v);
+    box.append(input);
+    root.append(box, list);
+    // The IDs and the labels in lower case, once wanted
+    let ids = null, labels = null, found = [], current = -1;
+    function find(q) {
+      q = q.trim().toLowerCase();
+      if (!q) return [];
+      const n = header.nodes;
+      ids ??= Array.from({ length: n }, (_, i) => idOf(i).toLowerCase());
+      if (!labels && labelTexts?.nodes) labels = labelTexts.nodes.map((t) => (t ?? "").toLowerCase());
+      const tiers = [[], [], []];
+      for (let i = 0; i < n && tiers[0].length < 8; i++) {
+        if (at(data.hidden, i) > 0) continue;
+        let best = 3;
+        for (const text of labels ? [ids[i], labels[i]] : [ids[i]]) {
+          if (text === q) best = 0;
+          else if (best > 1 && text.startsWith(q)) best = 1;
+          else if (best > 2 && text.includes(q)) best = 2;
+        }
+        if (best < 3 && tiers[best].length < 8) tiers[best].push(i);
+      }
+      return tiers.flat().slice(0, 8);
+    }
+    function mark() {
+      [...list.children].forEach((li, k) => li.setAttribute("aria-selected", String(k === current)));
+      if (current >= 0) input.setAttribute("aria-activedescendant", `${uid}-result${current}`);
+      else input.removeAttribute("aria-activedescendant");
+    }
+    function render() {
+      found = find(input.value);
+      current = found.length ? 0 : -1;
+      list.replaceChildren(...found.map((i, k) => {
+        const li = el("li");
+        li.id = `${uid}-result${k}`;
+        li.setAttribute("role", "option");
+        const id = idOf(i), label = labelTexts?.nodes?.[i];
+        if (label && label !== id) li.append(label, el("span", "ec-dim", id));
+        else li.append(id);
+        // Chosen before the input loses the focus
+        li.addEventListener("pointerdown", (e) => {
+          e.preventDefault();
+          choice(k);
+        });
+        return li;
+      }));
+      if (!found.length && input.value.trim()) {
+        const none = el("li", "ec-none", "No nodes found");
+        none.setAttribute("role", "option");
+        none.setAttribute("aria-disabled", "true");
+        list.append(none);
+      }
+      list.hidden = !list.childElementCount;
+      input.setAttribute("aria-expanded", String(!list.hidden));
+      mark();
+    }
+    function close() {
+      list.hidden = true;
+      input.setAttribute("aria-expanded", "false");
+    }
+    function choice(k) {
+      const i = found[k];
+      if (i === undefined) return;
+      close();
+      canvas.focus({ preventScroll: true });
+      flyTo(i);
+      choose([i], []);
+    }
+    input.addEventListener("input", render);
+    input.addEventListener("focus", () => { if (input.value.trim()) render(); });
+    input.addEventListener("blur", close);
+    // Its keys are its own, Esc included
+    input.addEventListener("keydown", (e) => {
+      e.stopPropagation();
+      if ((e.key === "ArrowDown" || e.key === "ArrowUp") && found.length) {
+        e.preventDefault();
+        current = (current + (e.key === "ArrowDown" ? 1 : -1) + found.length) % found.length;
+        mark();
+      } else if (e.key === "Enter") {
+        e.preventDefault();
+        choice(Math.max(current, 0));
+      } else if (e.key === "Escape") {
+        e.preventDefault();
+        if (input.value) {
+          input.value = "";
+          render();
+        } else {
+          canvas.focus({ preventScroll: true });
+        }
+      }
+    });
+    return { input, find, choose: (i) => { found = [i]; choice(0); } };
+  }
 
   // Full screen: the plot's box, or where the page doesn't allow that (as in some notebooks'
   // frames and VS Code's webviews), an overlay over the whole window. The camera keeps its
@@ -1306,7 +1679,43 @@ export function mount(root, buffer, options = {}) {
     }
   }
 
-  const { setOpen, isOpen, panelControls } = controlPanel();
+  const { setOpen, isOpen, panelControls, restyle, syncNote } = controlPanel();
+
+  // The legend's swatches show or hide what they stand for, or with Alt (Option) show it alone of
+  // its block, or the whole block again where it was alone
+  const keys = legend && sel ? [...legend.querySelectorAll(".ec-key")] : [];
+  const place = (g) => Number(g.dataset.key) + 1;
+  function toggleKey(key, alone) {
+    const g = keys[key - 1];
+    if (!g) return;
+    if (alone) {
+      const block = keys.filter((k) => k.dataset.block === g.dataset.block).map(place);
+      const only = !off.has(key) && block.every((k) => k === key || off.has(k));
+      for (const k of block) {
+        if (only || k === key) off.delete(k);
+        else off.add(k);
+      }
+    } else if (off.has(key)) {
+      off.delete(key);
+    } else {
+      off.add(key);
+    }
+    for (const k of keys) {
+      const on = !off.has(place(k));
+      k.setAttribute("aria-checked", String(on));
+      k.classList.toggle("ec-off", !on);
+    }
+    syncNote();
+    relook();
+  }
+  for (const g of keys) {
+    g.addEventListener("click", (e) => toggleKey(place(g), e.altKey));
+    g.addEventListener("keydown", (e) => {
+      if (e.key !== "Enter" && e.key !== " ") return;
+      e.preventDefault();
+      toggleKey(place(g), e.altKey);
+    });
+  }
   // The panel docks where the box is wide, and the drawing narrows to make room
   function layout() {
     root.classList.toggle("ec-docked", root.clientWidth >= DOCK_MIN);
@@ -1335,8 +1744,6 @@ export function mount(root, buffer, options = {}) {
     const call = options.call ?? { args: [], params: [] };
     const given = new Map(call.args);
     const n = header.nodes, m = header.edges;
-    // The columns as the payload has them (in the shuffled order, where the edges are shuffled)
-    const orig = { r: data.r, width: data.width, opacity: data.opacity, bow: data.bow };
     const startTheme = /^var\(/.test(options.theme ?? "") ? "auto" : options.theme ?? "light";
     const list = [];
     if (style) {
@@ -1376,10 +1783,11 @@ export function mount(root, buffer, options = {}) {
     for (const c of list) c.value = c.start;
     const byName = Object.fromEntries(list.map((c) => [c.name, c]));
 
-    // Redraws with the controls' values
+    // Redraws with the controls' values, the selection and the legend's filters (`styled`)
     const times = (col, count, k) => (typeof col === "number" ? col * k : Float32Array.from(col, (v) => v * k));
     const each = (count, f) => Float32Array.from({ length: count }, (_, j) => f(j));
     function restyle() {
+      if (!style) return;
       const v = (name) => byName[name].value;
       const changed = [];
       const set = (name, col) => {
@@ -1388,29 +1796,41 @@ export function mount(root, buffer, options = {}) {
         changed.push(name);
       };
       const k = v("edge_width") / style.edge_width, o = v("edge_opacity");
-      const { level, base_width: base } = data;
+      // The edges' levels, the selection's or else the payload's own, and their widths before
+      const { edgeLevel, edgeHidden } = styled;
+      const level = edgeLevel ?? data.level, base = data.base_width ?? orig.width;
       // The labels' font follows the node size, as `plot()`'s does
       if (info) words.state.size = v("node_size") === style.node_size ? info.font_size : Math.max(8, Math.min(13, 0.7 * v("node_size")));
       set("r", v("node_size") === style.node_size ? orig.r : times(orig.r, n, v("node_size") / style.node_size));
+      for (const name of ["fill", "border", "border_width", "border_opacity", "order", "label_color", "label_order", "color", "hidden"]) {
+        set(name, styled[name]);
+      }
       if (level === null) {
         set("width", k === 1 ? orig.width : times(orig.width, m, k));
-        set("opacity", o === style.edge_opacity ? orig.opacity : o);
       } else {
         // Muted, soft and accent edges
-        set("width", k === 1 ? orig.width : each(m, (j) => {
+        set("width", k === 1 && !edgeLevel ? orig.width : each(m, (j) => {
           const w = at(base, j) * k, l = at(level, j);
           return l === 0 ? w : l === 1 ? Math.max(1.3 * w, 1) : Math.max(2 * w, 1.5);
         }));
-        set("opacity", o === style.edge_opacity ? orig.opacity : each(m, (j) => {
-          const l = at(level, j);
-          return l === 0 ? 0.5 * o : Math.max(o, l === 1 ? 0.5 : 0.9);
-        }));
       }
+      // The payload's own where the opacity and the levels are; none for an edge hidden
+      const own = o === style.edge_opacity && !edgeLevel;
+      const opacity = (j) => {
+        if (own) return at(orig.opacity, j);
+        if (level === null) return o;
+        const l = at(level, j);
+        return l === 0 ? 0.5 * o : Math.max(o, l === 1 ? 0.5 : 0.9);
+      };
+      if (edgeHidden) set("opacity", each(m, (j) => (edgeHidden[j] ? 0 : opacity(j))));
+      else set("opacity", own ? orig.opacity : level === null ? o : each(m, opacity));
       const curve = v("curved_edges");
       set("bow", curve === style.curved ? orig.bow : typeof orig.bow === "number" ? orig.bow + (curve ? 0.2 : -0.2) : each(m, (j) => orig.bow[j] + (curve ? 0.2 : -0.2)));
       if (!changed.length) return;
       r.update(changed);
-      pick = picker(data, isCurved(data) ? 16 : 1);
+      // The grids of the picker hold the nodes' sizes and the edges' curves
+      if (changed.includes("r") || changed.includes("bow")) pick = picker(data, isCurved(data) ? 16 : 1);
+      else pick.refresh();
       redraw();
     }
     function apply(c) {
@@ -1590,8 +2010,9 @@ export function mount(root, buffer, options = {}) {
     }
     for (const c of list) c.sync();
 
-    // "Copy as code": the call, with the changed controls' arguments, in the parameters' order,
-    // on one line where it fits in 88 characters
+    // "Copy as code": the call, with the changed controls' arguments and the selection, in the
+    // parameters' order, on one line where it fits in 88 characters. The legend's filters are the
+    // view's, which no argument of `plot()` has
     function code() {
       const args = new Map(given);
       for (const c of list) {
@@ -1599,6 +2020,22 @@ export function mount(root, buffer, options = {}) {
         const source = c.code ? c.code(c.value) : pyNumber(c.value);
         if (source === null) args.delete(c.name);
         else args.set(c.name, source);
+      }
+      if (chosen.nodes.size || chosen.edges.size) {
+        args.delete("highlight");
+        args.delete("highlight_edges");
+        const byId = (a, b) => a.length - b.length || (a < b ? -1 : a > b ? 1 : 0);
+        const ids = [...chosen.nodes].map(idOf).sort(byId);
+        if (ids.length) args.set("highlight", ids.length === 1 ? ids[0] : `{${ids.join(", ")}}`);
+        const ends = new Map();
+        for (const j of chosen.edges) {
+          let [a, b] = [idOf(at(data.src, j)), idOf(at(data.tgt, j))];
+          // An undirected edge's ends in the order of their IDs
+          if (!header.directed && byId(a, b) > 0) [a, b] = [b, a];
+          ends.set(`${a} ${b}`, [a, b]);
+        }
+        const pairs = [...ends.values()].sort((p, q) => byId(p[0], q[0]) || byId(p[1], q[1]));
+        if (pairs.length) args.set("highlight_edges", `[${pairs.map(([a, b]) => `(${a}, ${b})`).join(", ")}]`);
       }
       const rank = (name) => { const i = call.params.indexOf(name); return i < 0 ? Infinity : i; };
       const parts = [...args].sort((a, b) => rank(a[0]) - rank(b[0])).map(([k, v]) => `${k}=${v}`);
@@ -1635,7 +2072,10 @@ export function mount(root, buffer, options = {}) {
       clearTimeout(said);
       said = setTimeout(() => { status.textContent = ""; }, 2500);
     });
-    foot.append(copy, status, text);
+    const filtered = el("p", "ec-note", "The legend's filters aren't in the code");
+    filtered.hidden = true;
+    const syncNote = () => { filtered.hidden = off.size === 0; };
+    foot.append(copy, status, filtered, text);
     panel.append(foot);
     root.append(panel);
 
@@ -1665,10 +2105,16 @@ export function mount(root, buffer, options = {}) {
       set(name, value) { if (byName[name]) setValue(byName[name], value); },
       code,
     };
-    return { setOpen, isOpen: () => shownOpen, panelControls };
+    return { setOpen, isOpen: () => shownOpen, panelControls, restyle, syncNote };
   }
 
-  return { camera: cam, redraw, reset, renderer: r, data, labels: words, controls: { ...panelControls, open: setOpen } };
+  return {
+    camera: cam, redraw, reset, renderer: r, data, labels: words, controls: { ...panelControls, open: setOpen },
+    selection: { nodes: () => [...chosen.nodes], edges: () => [...chosen.edges], choose, clickAt, setLasso },
+    legend: { off: () => [...off], toggle: toggleKey },
+    search,
+    flyTo,
+  };
 }
 
 // A value as it reads in Python
@@ -1687,7 +2133,7 @@ function shuffleEdges(data) {
     const j = (s >>> 0) % (i + 1);
     const t = perm[i]; perm[i] = perm[j]; perm[j] = t;
   }
-  for (const name of ["src", "tgt", "color", "width", "opacity", "bow", "loop_size", "level", "base_width"]) {
+  for (const name of ["src", "tgt", "color", "width", "opacity", "bow", "loop_size", "level", "base_width", "base_color", "edge_key"]) {
     const col = data[name];
     if (col === null || typeof col === "number") continue;
     const out = new col.constructor(m);
@@ -1746,7 +2192,9 @@ function grid(frame, cols, rows, count, visit) {
 // It looks in grids over the scene, built when first wanted: of the nodes' centers, and of the
 // edges' curves, in straight pieces about as long as a cell is wide. Curves are taken in
 // `segments` pieces, as the shader draws them, and self-loops, which grow with the nodes as the
-// view zooms, in `LOOP_PIECES`, each in the box of the largest it's drawn
+// view zooms, in `LOOP_PIECES`, each in the box of the largest it's drawn. Nodes hidden and edges
+// drawn without opacity aren't picked. `pick.refresh()` takes in new colors, widths, opacities
+// and drawing order of the nodes, which don't move anything in the grids
 const LOOP_PIECES = 16;
 function picker(data, segments) {
   const { header } = data;
@@ -1758,7 +2206,6 @@ function picker(data, segments) {
   // pieces it's in, 0 for one that isn't drawn
   function curve(j, f) {
     const s = at(data.src, j), t = at(data.tgt, j);
-    if (at(data.opacity, j) <= 0) return 0;
     const sx = at(data.x, s), sy = at(data.y, s), tx = at(data.x, t), ty = at(data.y, t);
     if (s === t) {
       const q = loopPoints(sx, sy, at(data.r, s) * f, at(data.loop_size, j));
@@ -1789,9 +2236,12 @@ function picker(data, segments) {
   ];
 
   let nodes = null, rank = null, rmax = 0;
-  function nodeGrid() {
+  function ranks() {
     rank = new Uint32Array(n);
     for (let j = 0; j < n; j++) rank[data.order ? data.order[j] : j] = j;
+  }
+  function nodeGrid() {
+    ranks();
     for (let i = 0; i < n; i++) rmax = Math.max(rmax, at(data.r, i));
     // A few nodes to a cell
     const [cols, rows] = side(1.5 * Math.sqrt((vw * vh) / Math.max(n, 1)));
@@ -1802,11 +2252,15 @@ function picker(data, segments) {
   }
 
   let edges = null, seen = null, stamp = 0, wmax = 0;
+  function widest() {
+    wmax = 0;
+    for (let j = 0; j < m; j++) wmax = Math.max(wmax, at(data.width, j));
+  }
   function edgeGrid() {
     // Cells about as wide as half the average edge is long, so that an edge is in a few
     let length = 0;
+    widest();
     for (let j = 0; j < m; j++) {
-      wmax = Math.max(wmax, at(data.width, j));
       if (at(data.src, j) === at(data.tgt, j)) continue;
       const count = curve(j);
       for (let k = 0; k < count; k++) {
@@ -1854,12 +2308,13 @@ function picker(data, segments) {
     return best;
   }
 
-  return function pick(x, y, v) {
+  function pick(x, y, v) {
     if (!nodes) nodeGrid();
     // How far outside its disc the point is, in pixels, for the nodes near it
     let node = -1, gap = Infinity, over = -1;
     let reach = (Math.max(rmax * v.radius, v.thin / 2) + HIT) / v.px;
     nodes(x - reach, y - reach, x + reach, y + reach, (i) => {
+      if (at(data.hidden, i) > 0) return;
       const d = Math.hypot(at(data.x, i) - x, at(data.y, i) - y) * v.px - Math.max(at(data.r, i) * v.radius, v.thin / 2);
       if (d <= 0 && (over < 0 || rank[i] > rank[over])) over = i;
       if (d < gap) [node, gap] = [i, d];
@@ -1874,6 +2329,7 @@ function picker(data, segments) {
     edges(x - reach, y - reach, x + reach, y + reach, (j) => {
       if (seen[j] === stamp) return;
       seen[j] = stamp;
+      if (at(data.opacity, j) <= 0) return;
       const count = curve(j, v.radius / v.px);
       if (!count) return;
       const d = distance(x, y, count) * v.px - Math.max(at(data.width, j) * v.unit, v.thin) / 2;
@@ -1881,7 +2337,12 @@ function picker(data, segments) {
     });
     if (Math.min(gap, egap) > HIT) return null;
     return gap <= egap ? { node } : { edge };
+  }
+  pick.refresh = () => {
+    if (nodes) ranks();
+    if (edges) widest();
   };
+  return pick;
 }
 
 // What the plot's gzipped script `ec-<name>` holds: the tooltips' tables (`tips`) or the labels'
