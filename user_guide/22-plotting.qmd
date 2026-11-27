@@ -441,7 +441,7 @@ compressed, about 2.8 MB for the wiki-vote network, and the viewer's code, and t
 quick with hundreds of thousands of edges, in any browser with WebGL 2. The plot's `svg` property
 and `.svg` file hold the SVG elements, and its `.png` file is an image as for the other backends.
 
-Each plot is an `<ec-graph>` element, and the viewer's code (about 135 kB) is its runtime, which a
+Each plot is an `<ec-graph>` element, and the viewer's code (about 150 kB) is its runtime, which a
 page needs only once. A plot carries it unless told otherwise, so that a saved file or a lone
 output works by itself. For a page or a notebook of several plots, `ec.runtime_tags()` gives the
 `<script>` to put in the page's `<head>`, with a `nonce=` for a Content Security Policy or a `src=`
@@ -508,6 +508,99 @@ For graphs the size of the jazz network and larger, several strategies help:
   when individual nodes can't be told apart (see [Aesthetics](aesthetics.qmd))
 - use `plot_cosmo()`, which lays out and draws graphs of hundreds of thousands of nodes on the GPU
   in the browser (see [Interactive widgets](interactive.qmd))
+
+## The viewer in apps
+
+In an app of Shiny, Streamlit, Panel or Solara, a plot of the viewer's has its `selection`, `view`
+and `filters` as the framework has its state, as inputs, parameters or reactive variables, in the
+forms that the plot has them. They are each session's, and start as the plot's, but the app
+doesn't change the plot's own, since its sessions may share the plot, and the graph's selection
+stays as it is. Each framework has a module, which needs the framework (`pip install
+edgecase[shiny]`, `[streamlit]`, `[panel]` or `[solara]`). Each takes a plot drawn with
+`backend="viewer"`, or a graph, which it plots so, with `seed=1`. A plot of the force layout drawn
+without a seed is placed anew each time the app draws it, so a plot of one's own is best drawn with
+a seed, or once.
+
+In Shiny, `output_graph()` places the plot in the UI and `render_graph` renders it. The plot's
+state is the inputs of its ID with `_selection`, `_view` and `_filters`, and `update_graph()` sets
+it, where what is left out stays as it is:
+
+```{python}
+#| eval: false
+from edgecase.shiny import output_graph, render_graph, update_graph
+from shiny import App, reactive, render, ui
+
+g = ec.karate_club()
+app_ui = ui.page_fluid(
+    ui.input_action_button("leaders", "Select the leaders"),
+    output_graph("club"),
+    ui.output_text("picked"),
+)
+
+def server(input, output, session):
+    @render_graph
+    def club():
+        return g.plot(seed=1, backend="viewer")
+
+    @render.text
+    def picked():
+        return f"Selected: {input.club_selection()['nodes']}"
+
+    @reactive.effect
+    @reactive.event(input.leaders)
+    def _():
+        update_graph("club", selection={"nodes": [1, 34]}, view={"zoom": 2})
+
+app = App(app_ui, server)
+```
+
+In Streamlit, `st_graph()` shows the plot and returns its state. A new selection or filters in the
+viewer run the script again, while a pan or a zoom doesn't, and comes back with the next selection
+or filters. The plot keeps its state as the script runs again, by its `key=`, and what
+`selection=`, `view=` or `filters=` gives is set when it is first given and when it changes:
+
+```{python}
+#| eval: false
+import streamlit as st
+from edgecase.streamlit import st_graph
+
+if st.button("Select the leaders"):
+    st.session_state.pick = {"nodes": [1, 34]}
+state = st_graph(ec.karate_club(), key="club", selection=st.session_state.get("pick"))
+st.write("Selected:", state["selection"]["nodes"])
+```
+
+In Panel, `GraphPane` is a pane whose `selection`, `view` and `filters` are parameters, to watch,
+bind or set, and in Solara, `GraphView` is a component that takes them as values or reactive
+variables, with `on_selection=`, `on_view=` and `on_filters=` to call as they change:
+
+```{python}
+#| eval: false
+import panel as pn
+from edgecase.panel import GraphPane
+
+pn.extension()
+pane = GraphPane(ec.karate_club(), selection={"nodes": [1, 34]})
+picked = pn.bind(lambda s: f"Selected: {s['nodes']}", pane.param.selection)
+pn.Column(pane, picked).servable()
+```
+
+```{python}
+#| eval: false
+import solara
+from edgecase.solara import GraphView
+
+selection = solara.reactive({"nodes": [1, 34], "edges": []})
+
+@solara.component
+def Page():
+    GraphView(ec.karate_club(), selection=selection)
+    solara.Text(f"Selected: {selection.value['nodes']}")
+```
+
+A plain web app, of Flask, Django or FastHTML, puts the plot's `as_raw_html()` in its page, or
+`as_raw_html(runtime="none")` with `ec.runtime_tags()` in the page's `<head>`. The plot works there
+as in a saved file, without telling the server what is done in it.
 
 ## Summary
 
