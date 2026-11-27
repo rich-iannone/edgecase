@@ -1217,11 +1217,31 @@ def _legend_layout(blocks: List[Dict[str, Any]]) -> Tuple[List[Tuple[Any, ...]],
     return marks, widest + 2 * _LEGEND_PAD, y
 
 
-def _svg_legend(marks: List[Tuple[Any, ...]], colors: "_Colors", th: Theme) -> str:
-    """The legend's `marks` (from `_legend_layout()`) in SVG."""
+def _svg_legend(
+    marks: List[Tuple[Any, ...]], colors: "_Colors", th: Theme, keys: bool = False
+) -> str:
+    """The legend's `marks` (from `_legend_layout()`) in SVG.
+
+    With `keys`, as the viewer has it, each swatch and its text are a checkbox that shows or
+    hides what the swatch stands for: its `data-key` is its place among the swatches and its
+    `data-block` the place of its block, as the payload's "node_key" and "edge_key" count them.
+    """
     parts = []
     font = f'font-family="{FONT_FAMILY}" font-size="{_LEGEND_FONT:g}"'
-    for kind, *mark in marks:
+    key = block = -1
+    for i, (kind, *mark) in enumerate(marks):
+        if kind == "text" and mark[3] == "600":
+            block += 1
+        if keys and kind in ("node", "edge"):
+            key += 1
+            label = marks[i + 1][3]
+            width = 22 + _text_width(label) + 4
+            parts.append(
+                f'<g class="ec-key" data-key="{key}" data-block="{block}" role="checkbox" '
+                f'aria-checked="true" tabindex="0" aria-label="{html_mod.escape(label)}">'
+                f'<rect x="-4" y="{mark[0] - _LEGEND_ROW / 2:.1f}" width="{width:.1f}" '
+                f'height="{_LEGEND_ROW:g}" fill="transparent"/>'
+            )
         if kind == "text":
             x, ty, s, weight = mark
             w = f' font-weight="{weight}"' if weight else ""
@@ -1229,6 +1249,8 @@ def _svg_legend(marks: List[Tuple[Any, ...]], colors: "_Colors", th: Theme) -> s
                 f'<text x="{x:.1f}" y="{ty:.1f}" {font}{w} fill="{th.label_color}" '
                 f'dominant-baseline="middle">{html_mod.escape(s)}</text>'
             )
+            if keys and i > 0 and marks[i - 1][0] in ("node", "edge"):
+                parts.append("</g>")
         elif kind == "node":
             y, pair = mark
             border = colors.pick(_darken(pair[0], 0.3), _darken(pair[1], 0.3))
@@ -1914,7 +1936,7 @@ def emit_viewer(
             f'<svg xmlns="http://www.w3.org/2000/svg" width="{lw}" height="{lh}" '
             f'viewBox="0 0 {lw} {lh}" style="display:block">'
             f'<g class="ec-legend" transform="translate({_LEGEND_PAD:g} 0)">'
-            f"{_svg_legend(scene.legend, chrome, th)}</g></svg></div>"
+            f"{_svg_legend(scene.legend, chrome, th, keys=True)}</g></svg></div>"
         )
 
     # The tooltips, the SVG's: the nodes' in their order, and the edges' in the order drawn,
