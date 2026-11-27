@@ -383,3 +383,50 @@ def test_the_viewer_has_its_controls():
     # A panel behind a button, of tabs, that docks in a wide box, and writes the call
     for part in ('"Settings"', '"tablist"', '"Copy as code"', "aria-expanded", "ec-docked"):
         assert part in js
+
+
+def _label_texts(html):
+    packed = re.search(r'<script type="application/octet-stream" class="ec-labels">([^<]+)<', html)
+    return packed and json.loads(gzip.decompress(base64.b64decode(packed.group(1))))
+
+
+def test_the_viewer_has_the_labels():
+    g = ec.les_miserables()
+    html = g.plot(backend="viewer", seed=1, label_by="label")._repr_html_()
+    header, columns = _html_payload(html)
+    # What the plot draws at most, and the order in which the viewer chooses again for the view
+    labels = header["labels"]
+    assert (labels["show"], labels["limit"], labels["auto"]) == (True, 30, 30)
+    assert labels["font_size"] > 0
+    assert sorted(columns["label_order"]) == list(range(77))
+    color = columns.get("label_color") or (header["constants"]["label_color"],) * 77
+    assert len(color) == 77
+    # The texts, out of the payload, as the tooltips are
+    texts = _label_texts(html)
+    assert len(texts["nodes"]) == 77 and "Valjean" in texts["nodes"] and texts["edges"] is None
+    # Which the viewer has without show_labels= too, for its control to show them
+    html = g.plot(backend="viewer", seed=1, show_labels=False, max_labels=5)._repr_html_()
+    labels = _html_payload(html)[0]["labels"]
+    assert (labels["show"], labels["limit"], labels["auto"]) == (False, 5, 30)
+    assert len(_label_texts(html)["nodes"]) == 77
+    assert dict(_options(html)["call"]["args"])["max_labels"] == "5"
+    # A small graph's are all drawn
+    labels = _html_payload(ec.karate_club().plot(backend="viewer", seed=1)._repr_html_())[0]
+    assert (labels["labels"]["limit"], labels["labels"]["auto"]) == (None, None)
+    # The scene that isn't a plot's has none
+    assert _payload(_scene().payload())[0]["labels"] is None
+
+
+def test_the_viewer_has_the_edges_labels_in_drawing_order():
+    g = ec.karate_club()
+    g.set_edge_attrs("tag", {i: f"e{i}" for i in g.get_edge_ids()})
+    html = g.plot(backend="viewer", seed=1, edge_label_by="tag", highlight=[30, 34])._repr_html_()
+    # As the tooltips are, highlighted edges last
+    edges = _label_texts(html)["edges"]
+    assert edges == [f"e{tip['id']}" for tip in _tips(html)[1]]
+    assert len(edges) == 78 and len(set(edges)) == 78
+
+
+def test_the_viewer_has_a_labels_tab():
+    js = (Path(svg_renderer.__file__).parent / "static" / "viewer.js").read_text()
+    assert 'tab: "Labels"' in js and "function labelLayer(" in js and 'name: "max_labels"' in js
