@@ -10,6 +10,7 @@ import html as html_mod
 import json
 import re
 import struct
+import sys
 from pathlib import Path
 
 import edgecase as ec
@@ -694,3 +695,185 @@ def test_the_viewer_selects_searches_and_filters():
     # The search pill, and the legend's swatches as checkboxes
     assert "function searchPill(" in js and '"combobox"' in js and "function flyTo(" in js
     assert ".ec-key" in js and "The legend's filters aren't in the code" in js
+
+
+def _kernel(monkeypatch, kernel=True):
+    """IPython, as a notebook's kernel has it, or as a terminal's (without a kernel)."""
+    shell = type("Shell", (), {"kernel": object()})() if kernel else object()
+    fake = type(sys)("IPython")
+    fake.get_ipython = lambda: shell
+    monkeypatch.setitem(sys.modules, "IPython", fake)
+    monkeypatch.delenv("QUARTO_FIG_FORMAT", raising=False)
+
+
+def test_a_viewer_plot_is_a_widget_in_a_notebooks_kernel(monkeypatch):
+    js = (Path(svg_renderer.__file__).parent / "static" / "viewer.js").read_text()
+    plot = ec.karate_club().plot(backend="viewer", seed=1)
+    svg = ec.karate_club().plot(seed=1)
+    # A kernel, but not one that Quarto runs to render a page, nor IPython in a terminal
+    with monkeypatch.context() as m:
+        _kernel(m)
+        assert svg_renderer._widget_host()
+        m.setenv("QUARTO_FIG_FORMAT", "png")
+        assert not svg_renderer._widget_host()
+        _kernel(m, kernel=False)
+        assert not svg_renderer._widget_host()
+        m.delitem(sys.modules, "IPython")
+        assert not svg_renderer._widget_host()
+    monkeypatch.setattr(svg_renderer, "_widget_host", lambda: False)
+    assert plot._repr_mimebundle_() is None
+    monkeypatch.setattr(svg_renderer, "_widget_host", lambda: True)
+    data, metadata = plot._repr_mimebundle_()
+    widget = plot.widget
+    assert widget is plot.widget and data["text/plain"] == repr(plot)
+    assert data["application/vnd.jupyter.widget-view+json"]["model_id"] == widget.model_id
+    # The widget holds the plot and its state, and its module is the runtime
+    assert widget._esm == js and widget.html == plot.as_raw_html(runtime="none")
+    assert widget.selection == plot._raw("selection") and widget.view == plot.view
+    assert widget.filters == []
+    # Not the other renderings
+    assert svg._repr_mimebundle_() is None and svg.widget is None
+    # marimo shows the widget, and the other renderings as before
+    assert plot._display_() is widget
+    shown = svg._display_()
+    assert shown._repr_html_() == svg._repr_html_() and shown._repr_png_() == svg._repr_png_()
+
+
+def test_the_viewers_state_is_what_the_viewer_has():
+    plot = ec.karate_club().plot(backend="viewer", seed=1)
+    home = plot.view
+    assert plot.selection == {"nodes": [], "edges": []} and plot.filters == []
+    assert set(home) == {"x", "y", "zoom"} and home["zoom"] == 1
+    # Each ID once and in order, and an undirected edge's ends in order
+    plot.selection = {"nodes": [3, 1, 3, "2"], "edges": [(2, 1), [1, 2], (4, 3)]}
+    assert plot.selection == {"nodes": [1, 2, 3], "edges": [(1, 2), (3, 4)]}
+    plot.selection = {"edges": [(2, 1)]}
+    assert plot.selection == {"nodes": [], "edges": [(1, 2)]}
+    plot.selection = None
+    assert plot.selection == {"nodes": [], "edges": []}
+    g = ec.Graph(directed=True)
+    g.add_edges([("a", "b"), ("b", "a")], auto_create_nodes=True)
+    directed = g.plot(backend="viewer", seed=1)
+    directed.selection = {"edges": [(2, 1), (1, 2)]}
+    assert directed.selection["edges"] == [(1, 2), (2, 1)]
+    # The view keeps what is left out, and the viewer's zooms; None is the view that fits
+    plot.view = {"zoom": 5000}
+    assert plot.view == {**home, "zoom": 1000.0}
+    plot.view = {"x": 10, "zoom": 0.1}
+    assert plot.view == {"x": 10.0, "y": home["y"], "zoom": 0.25}
+    plot.view = None
+    assert plot.view == home
+    # A filter's "of" can be left out, and its range is from low to high
+    plot.filters = [
+        {"attr": "age", "range": [30, 40]},
+        {"attr": "w", "of": "edges", "range": (1, 1)},
+    ]
+    assert plot.filters == [
+        {"attr": "age", "of": None, "range": (30.0, 40.0)},
+        {"attr": "w", "of": "edges", "range": (1.0, 1.0)},
+    ]
+    plot.filters = None
+    assert plot.filters == []
+    bad = [
+        ("selection", [1, 2], TypeError, "takes a dict"),
+        ("selection", {"node": [1]}, ValueError, "not 'node'"),
+        ("selection", {"nodes": [True]}, TypeError, "takes node IDs"),
+        ("selection", {"nodes": ["a"]}, TypeError, "takes node IDs"),
+        ("selection", {"edges": [(1, 2, 3)]}, TypeError, r"takes \(u, v\) pairs"),
+        ("view", {"zoom": 0}, ValueError, "more than 0"),
+        ("view", {"x": float("nan")}, TypeError, "finite number"),
+        ("view", {"cx": 1}, ValueError, "not 'cx'"),
+        ("filters", {"attr": "age"}, TypeError, "list of dicts"),
+        ("filters", [{"attr": 1, "range": (0, 1)}], TypeError, "attribute's name"),
+        ("filters", [{"attr": "a", "of": "graph", "range": (0, 1)}], ValueError, "'nodes' or"),
+        ("filters", [{"attr": "a", "range": 1}], TypeError, r"\(low, high\) pair"),
+        ("filters", [{"attr": "a", "range": (2, 1)}], ValueError, "from low to high"),
+    ]
+    for name, value, error, match in bad:
+        with pytest.raises(error, match=match):
+            setattr(plot, name, value)
+    assert plot.selection == {"nodes": [], "edges": []} and plot.filters == []
+    # The other renderings have none of it
+    svg = ec.karate_club().plot(seed=1)
+    assert svg.selection is svg.view is svg.filters is None
+    for name in ("selection", "view", "filters"):
+        with pytest.raises(ValueError, match="Only a plot with backend='viewer'"):
+            setattr(svg, name, None)
+    with pytest.raises(ValueError, match="Only a plot with backend='viewer'"):
+        svg.on_change(print)
+
+
+def test_the_viewers_selection_is_the_graphs():
+    g = ec.karate_club()
+    plot = g.plot(backend="viewer", seed=1)
+    plot.selection = {"nodes": [1, 34, 99]}
+    assert sorted(g.get_selected_node_ids()) == [1, 34]
+    assert g.plot(highlight="selection", seed=1).svg == g.plot(highlight=[1, 34], seed=1).svg
+    # A pair selects every edge between its ends
+    plot.selection = {"edges": [(2, 1), (1, 3), (5, 99)]}
+    edges = sorted(g.find_edge_ids(1, 2) + g.find_edge_ids(1, 3))
+    assert g.get_selected_node_ids() == [] and sorted(g.get_selected_edge_ids()) == edges
+    assert (
+        g.plot(highlight_edges="selection", seed=1).svg == g.plot(highlight_edges=edges, seed=1).svg
+    )
+    # A graph selects nodes or edges, so it has the nodes of both
+    plot.selection = {"nodes": [5], "edges": [(1, 2)]}
+    assert g.get_selected_node_ids() == [5] and g.get_selected_edge_ids() == []
+    plot.selection = None
+    assert g.get_selected_node_ids() == [] and g.get_selected_edge_ids() == []
+    # Selecting in the graph leaves the viewer's selection
+    g.select_nodes_by_id([7])
+    assert plot.selection == {"nodes": [], "edges": []}
+    g2 = ec.Graph(directed=True)
+    g2.add_edges([("a", "b"), ("a", "b"), ("b", "a")], auto_create_nodes=True)
+    directed = g2.plot(backend="viewer", seed=1)
+    directed.selection = {"edges": [(1, 2)]}
+    assert sorted(g2.get_selected_edge_ids()) == sorted(g2.find_edge_ids(1, 2)) != []
+    assert len(g2.get_selected_edge_ids()) == 2
+
+
+def test_on_change_follows_the_viewer_and_python():
+    g = ec.karate_club()
+    plot = g.plot(backend="viewer", seed=1)
+    seen = []
+
+    @plot.on_change
+    def changed(name, value):
+        seen.append((name, value, sorted(g.get_selected_node_ids())))
+
+    assert callable(changed)
+    plot.selection = {"nodes": [2, 1]}
+    plot.selection = {"nodes": [1, 2]}
+    plot.view = {"zoom": 2}
+    plot.filters = []
+    assert seen == [
+        ("selection", {"nodes": [1, 2], "edges": []}, [1, 2]),
+        ("view", {**plot.view, "zoom": 2.0}, [1, 2]),
+    ]
+    # Once there is a widget, it holds the state, which the viewer changes through it
+    widget = plot.widget
+    assert widget.selection == {"nodes": [1, 2], "edges": []} and widget.view["zoom"] == 2
+    seen.clear()
+    widget.selection = {"nodes": [34], "edges": []}
+    widget.filters = [{"attr": "faction", "of": "nodes", "range": [1, 1]}]
+    assert seen == [
+        ("selection", {"nodes": [34], "edges": []}, [34]),
+        ("filters", [{"attr": "faction", "of": "nodes", "range": (1.0, 1.0)}], [34]),
+    ]
+    assert plot.selection["nodes"] == [34]
+    plot.view = None
+    assert widget.view == plot.view and seen[-1][0] == "view"
+    with pytest.raises(TypeError, match="takes a function"):
+        plot.on_change("print")
+
+
+def test_the_widgets_module_renders_the_plot():
+    js = (Path(svg_renderer.__file__).parent / "static" / "viewer.js").read_text()
+    # anywidget's render(): the element, once upgraded, with its state both ways
+    assert "export default { render };" in js and "function render({ model, el })" in js
+    assert "customElements.upgrade(plot)" in js and "model.save_changes()" in js
+    assert '"ec-change"' in js and 'const STATES = ["selection", "view", "filters"];' in js
+    assert tuple(svg_renderer.STATES) == ("selection", "view", "filters")
+    # A shadow root, as marimo shows a widget in, has the style, the focus and the clicks
+    assert "root.getRootNode()" in js and "e.composedPath()" in js
+    assert "document.activeElement" not in js
