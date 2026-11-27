@@ -115,6 +115,10 @@ pub struct Scene {
     /// In lean SVG, the edges' tooltips as one JSON table
     #[pyo3(get)]
     edge_tip_table: Option<String>,
+    /// For the viewer, the nodes' tooltips and the edges', in the order they are drawn, as
+    /// JSON tables
+    #[pyo3(get)]
+    tip_tables: Option<(String, String)>,
     nodes: Nodes,
     labels: Option<Labels>,
     edges: Edges,
@@ -135,6 +139,7 @@ impl Scene {
         legend=None,
         legend_w=0.0,
         edge_tip_table=None,
+        tip_tables=None,
     ))]
     #[allow(clippy::too_many_arguments)]
     fn new(
@@ -149,6 +154,7 @@ impl Scene {
         legend: Option<PyObject>,
         legend_w: f64,
         edge_tip_table: Option<String>,
+        tip_tables: Option<(String, String)>,
     ) -> Self {
         Scene {
             width,
@@ -161,6 +167,7 @@ impl Scene {
             legend: legend.unwrap_or_else(|| py.None()),
             legend_w,
             edge_tip_table,
+            tip_tables,
             nodes: Nodes::default(),
             labels: None,
             edges: Edges::default(),
