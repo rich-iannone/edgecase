@@ -185,6 +185,53 @@ def test_the_svg_of_a_large_viewer_plot_warns(monkeypatch):
         plot.svg
 
 
+def _box(html):
+    return re.search(r'<div class="ec-viewer" id="[^"]+" style="([^"]+)"', html).group(1)
+
+
+def test_the_viewer_can_fill_its_container():
+    g = ec.karate_club()
+    # By default it's the plot's size, or scaled down to fit, keeping its shape
+    box = _box(g.plot(backend="viewer", seed=1)._repr_html_())
+    assert "width:700px;aspect-ratio:700/500;max-width:100%" in box
+    # A CSS width keeps the height, and the layout keeps the default canvas's shape
+    plot = g.plot(backend="viewer", seed=1, width="100%", height=400)
+    box = _box(plot._repr_html_())
+    assert "width:100%;height:400px;max-width:100%" in box and "aspect-ratio" not in box
+    header, _ = _html_payload(plot._repr_html_())
+    assert (header["width"], header["height"]) == (560, 400)
+    assert 'width="560" height="400"' in plot.svg
+    assert "width:40em;" in _box(g.plot(backend="viewer", seed=1, width="40em")._repr_html_())
+    with pytest.raises(ValueError, match="width='100%' needs backend='viewer'"):
+        g.plot(width="100%")
+    for bad in ("wide", "100", "-5px", "100%; color:red"):
+        with pytest.raises(ValueError, match="isn't a CSS length"):
+            g.plot(backend="viewer", width=bad)
+
+
+def test_the_viewers_legend_keeps_its_size():
+    g = ec.karate_club().cmty_louvain(attr_name="c")
+    for width in (700, "100%"):
+        html = g.plot(backend="viewer", seed=1, color_by="c", width=width)._repr_html_()
+        layer = re.search(r'<div class="ec-legend-layer"[^>]*><svg [^>]*>', html).group(0)
+        # In pixels, the same whatever the plot's size, for the viewer to fold when it's small
+        size = re.search(r'width="(\d+)" height="(\d+)" viewBox="0 0 (\d+) (\d+)"', layer)
+        lw, lh = int(size.group(1)), int(size.group(2))
+        assert (size.group(3), size.group(4)) == (str(lw), str(lh))
+        # A title and a row for each community
+        rows = 1 + html.split("ec-legend-layer")[1].count("<circle")
+        assert 40 < lw < 200 and lh > rows * svg_renderer._LEGEND_ROW
+    # Without a legend there's no layer
+    html = ec.karate_club().plot(backend="viewer", seed=1)._repr_html_()
+    assert 'class="ec-legend-layer"' not in html
+
+
+def test_the_viewer_shows_full_screen():
+    js = (Path(svg_renderer.__file__).parent / "static" / "viewer.js").read_text()
+    # The plot's box, or an overlay over the window where the page doesn't allow that
+    assert "requestFullscreen" in js and "ec-expanded" in js and "ec-legend-folded" in js
+
+
 def test_the_viewers_code_is_ascii():
     # It is inlined in pages that may not say how they are encoded
     js = (Path(svg_renderer.__file__).parent / "static" / "viewer.js").read_bytes()
