@@ -4729,8 +4729,11 @@ class Graph:
             screen (its button, or the key `F`). Hovering over a node or an edge (or tapping it)
             shows its tooltip, as in the SVG. The legend stays SVG, over it, and folds into a
             button when the plot is too small for it; there are no labels, arrowheads or
-            self-loops yet, and edges aren't routed. The HTML holds the viewer's code (about
-            45 kB), the drawing's data and the tooltips, about 15 MB for 600,000 edges, half of
+            self-loops yet, and edges aren't routed. Its Settings button opens a panel of
+            controls (the node size, the edges' opacity, width and curve, the theme and the
+            legend), docked at the side when the plot is wide, whose "Copy as code" writes the
+            `plot()` call that draws what it shows. The HTML holds the viewer's code (about
+            67 kB), the drawing's data and the tooltips, about 15 MB for 600,000 edges, half of
             it the tooltips, and the browser needs WebGL 2. Any other value raises
             `ValueError`.
 
@@ -4870,10 +4873,13 @@ class Graph:
         [Static plots](../user-guide/plotting.qmd#a-first-plot) draws the karate club, and then
         covers saving, labels, layouts, curved edges, themes and larger graphs.
         """
-        from edgecase.svg_renderer import render_plot
+        from edgecase.svg_renderer import plot_call, render_plot
 
+        # The call, for the viewer to write out as code with what its controls change
+        call = plot_call(self.plot, locals()) if backend == "viewer" else None
         return render_plot(
             self,
+            call=call,
             layout=layout,
             color_by=color_by,
             edge_color_by=edge_color_by,
