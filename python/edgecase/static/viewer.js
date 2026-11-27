@@ -46,6 +46,7 @@ const ICONS = {
   in: "M8 3v10M3 8h10",
   out: "M3 8h10",
   fit: "M8 2.5a5.5 5.5 0 1 0 0 11a5.5 5.5 0 1 0 0-11M8 8h.01",
+  camera: "M2.5 5.5h2.75l1.25-2h3l1.25 2h2.75v7h-11zM8 6.75a2.25 2.25 0 1 0 0 4.5a2.25 2.25 0 1 0 0-4.5",
   full: "M2.5 6V2.5H6M10 2.5h3.5V6M13.5 10v3.5H10M6 13.5H2.5V10",
   exit: "M6 2.5V6H2.5M10 2.5V6h3.5M13.5 10H10v3.5M2.5 10H6v3.5",
   legend: "M6.5 4.5h7M6.5 8h7M6.5 11.5h7M3 4.5h.01M3 8h.01M3 11.5h.01",
@@ -1252,6 +1253,7 @@ export function mount(root, buffer, options = {}) {
       drawText();
       if (pointer) hover();
       report("view", true);
+      syncCamera();
       const more = (now) => {
         timed(now);
         if (r.refine(budget.value)) refining = requestAnimationFrame(more);
@@ -1777,14 +1779,20 @@ export function mount(root, buffer, options = {}) {
   let hintTimer = 0;
   const hint = document.createElement("div");
   hint.className = "ec-hint";
-  hint.textContent = `Click the plot to zoom with the wheel, or hold ${/Mac|iPhone|iPad/.test(navigator.platform) ? "\u2318" : "Ctrl"}`;
+  hint.setAttribute("role", "status");
   root.append(hint);
+  // A message over the drawing, for a moment: the wheel's hint, or what "Capture view" did
+  function flash(message) {
+    hint.textContent = message;
+    hint.classList.add("ec-on");
+    clearTimeout(hintTimer);
+    hintTimer = setTimeout(() => hint.classList.remove("ec-on"), 1500);
+  }
+  const wheelHint = `Click the plot to zoom with the wheel, or hold ${/Mac|iPhone|iPad/.test(navigator.platform) ? "\u2318" : "Ctrl"}`;
   root.addEventListener("pointerleave", () => { active = false; });
   canvas.addEventListener("wheel", (e) => {
     if (!active && !isFull() && !e.ctrlKey && !e.metaKey) {
-      hint.classList.add("ec-on");
-      clearTimeout(hintTimer);
-      hintTimer = setTimeout(() => hint.classList.remove("ec-on"), 1500);
+      flash(wheelHint);
       return;
     }
     e.preventDefault();
@@ -1806,7 +1814,7 @@ export function mount(root, buffer, options = {}) {
       "+": () => zoomBy(1.5), "=": () => zoomBy(1.5), "-": () => zoomBy(1 / 1.5), "0": reset,
       ArrowLeft: () => panBy(40, 0), ArrowRight: () => panBy(-40, 0),
       ArrowUp: () => panBy(0, 40), ArrowDown: () => panBy(0, -40),
-      f: toggleFull, F: toggleFull,
+      f: toggleFull, F: toggleFull, c: () => capture(), C: () => capture(),
     };
     if (keys[e.key] && !e.ctrlKey && !e.metaKey && !e.altKey) {
       e.preventDefault();
@@ -1829,10 +1837,12 @@ export function mount(root, buffer, options = {}) {
   const lassoButton = button(ICONS.lasso, "Lasso (or Shift and drag)", () => setLasso(!lassoOn));
   lassoButton.setAttribute("aria-pressed", "false");
   const panelButton = button(ICONS.settings, "Settings", () => setOpen(!isOpen()));
+  const cameraButton = button(ICONS.camera, "Capture view, as code (C)", () => capture());
   controls.append(
     button(ICONS.in, "Zoom in", () => zoomBy(1.5)),
     button(ICONS.out, "Zoom out", () => zoomBy(1 / 1.5)),
     button(ICONS.fit, "Fit the graph (0)", reset),
+    cameraButton,
     ...(sel ? [lassoButton] : []),
     fullButton,
     panelButton,
@@ -2026,7 +2036,7 @@ export function mount(root, buffer, options = {}) {
     }
   }
 
-  const { setOpen, isOpen, panelControls, restyle, syncFilters, syncRun, filterControls } = controlPanel();
+  const { setOpen, isOpen, panelControls, restyle, syncFilters, syncRun, filterControls, capture, syncCamera } = controlPanel();
 
   // The simulation (see `simulation()`), in a worker where the page allows one (see `engine()`),
   // from where the payload has the nodes, and warm (`WARM`), as their layout is most of the way
@@ -2207,8 +2217,16 @@ export function mount(root, buffer, options = {}) {
   function layout() {
     root.classList.toggle("ec-docked", root.clientWidth >= DOCK_MIN);
     fold();
+    fitButtons();
     hoverAt();
     redraw();
+  }
+  // Where the buttons would reach down to the legend, the camera leaves them (the View tab and
+  // `C` still capture)
+  function fitButtons() {
+    cameraButton.hidden = false;
+    const band = legend && !root.classList.contains("ec-legend-off") ? parseFloat(root.style.getPropertyValue("--ec-legend-h")) || 0 : 0;
+    cameraButton.hidden = controls.offsetTop + controls.offsetHeight > root.clientHeight - band;
   }
   layout();
   new ResizeObserver(layout).observe(root);
@@ -2348,6 +2366,7 @@ export function mount(root, buffer, options = {}) {
         recolor();
       } else if (c.name === "legend") {
         root.classList.toggle("ec-legend-off", !c.value);
+        fitButtons();
       } else if (c.name === "shade") {
         r.setShade(c.value);
         redraw();
@@ -2389,6 +2408,45 @@ export function mount(root, buffer, options = {}) {
       run.button.setAttribute("aria-label", on ? "Pause the simulation" : "Run the simulation");
       run.restore.disabled = !sim.moved;
       run.state.textContent = { off: "Off", running: "Running", settled: "Settled", paused: "Paused" }[sim.status];
+    }
+
+    // The camera as `view=` writes it: the center to a tenth of a pixel, on screen and in the
+    // figure that `plot()` draws at it, and the zoom to 4 digits, which keeps the figure's edges
+    // within a pixel of where they are; and the View tab's camera, with "Capture view"
+    function viewParts() {
+      const px = cam.zoom * Math.max(fit(canvas.clientWidth, canvas.clientHeight), fit(header.width, header.height));
+      const d = Math.max(0, Math.min(10, Math.ceil(Math.log10(10 * px))));
+      const round = (v) => Number(v.toFixed(d));
+      return { x: round(cam.cx), y: round(cam.cy), zoom: Number(cam.zoom.toPrecision(4)), hx: round(home.cx), hy: round(home.cy) };
+    }
+    // Leaving out the center where it is the frame's, as `plot()` takes it then
+    function viewSource() {
+      const v = viewParts();
+      const keys = [v.x === v.hx ? null : `"x": ${v.x}`, v.y === v.hy ? null : `"y": ${v.y}`, `"zoom": ${v.zoom}`];
+      return `{${keys.filter(Boolean).join(", ")}}`;
+    }
+    const camera = { out: null, status: null };
+    function cameraField() {
+      const box = el("div", "ec-field");
+      const top = el("div", "ec-field-head");
+      top.append(el("span", "ec-name", "Camera"));
+      camera.out = el("output", "ec-camera");
+      camera.out.setAttribute("aria-label", "The camera, as view= writes it");
+      const row = el("div", "ec-run");
+      const act = el("button", "ec-act");
+      act.type = "button";
+      act.innerHTML = `${icon(ICONS.camera)}<span>Capture view</span>`;
+      act.addEventListener("click", () => capture(true));
+      camera.status = el("span", "ec-status");
+      camera.status.setAttribute("role", "status");
+      row.append(act, camera.status, el("p", "ec-note", "Copies the code with view=, which draws this view as an SVG or PNG too"));
+      box.append(top, camera.out, row);
+      return box;
+    }
+    function syncCamera() {
+      if (!shownOpen || !camera.out) return;
+      const v = viewParts();
+      camera.out.textContent = `x ${v.x}, y ${v.y}, zoom ${v.zoom}`;
     }
 
     // The panel: tabs of fields, and a footer
@@ -2436,6 +2494,7 @@ export function mount(root, buffer, options = {}) {
       const more = el("details", "ec-more");
       more.append(el("summary", "", "More"));
       for (const c of list.filter((c) => c.tab === name)) (c.more ? more : page).append(field(c, `${uid}-${c.name}`));
+      if (name === "View") page.append(cameraField());
       if (more.childElementCount > 1) page.append(more);
       if (name === "Filter") filterPage = filterTab(page, tab);
     });
@@ -2851,11 +2910,13 @@ export function mount(root, buffer, options = {}) {
 
     // "Copy as code": the call, with the changed controls' arguments, the selection and the
     // filters (the Filter tab's and the legend's), in the parameters' order, on one line where it
-    // fits in 88 characters. The camera is left out, as it moves all the time. The simulation's
-    // forces and where it moved the nodes are the view's, which no argument of `plot()` has yet
-    function code() {
+    // fits in 88 characters. The camera is left out, as it moves all the time, but for "Capture
+    // view" (`withView`). The simulation's forces and where it moved the nodes are the view's,
+    // which no argument of `plot()` has yet
+    function code(withView = false) {
       const args = new Map(given);
       args.delete("view");
+      if (withView) args.set("view", viewSource());
       const fs = [
         ...filters.filter(narrowed).map((q) => `{"attr": ${JSON.stringify(q.col.name)}, "of": "${q.col.of}", "range": (${q.lo}, ${q.hi})}`),
         ...keyFilters().map((f) => `{"attr": ${JSON.stringify(f.attr)}, "of": "${f.of}", "values": [${f.sources.join(", ")}]}`),
@@ -2889,27 +2950,43 @@ export function mount(root, buffer, options = {}) {
     text.readOnly = true;
     text.hidden = true;
     text.setAttribute("aria-label", "The plot() call");
-    let said = 0;
-    copy.addEventListener("click", async () => {
-      const source = code();
+    copy.addEventListener("click", () => copyOut(code(), status));
+    // A status for a while
+    const saying = new Map();
+    function say(where, message) {
+      where.textContent = message;
+      clearTimeout(saying.get(where));
+      saying.set(where, setTimeout(() => { where.textContent = ""; }, 2500));
+    }
+    // Copies the code, saying so in `where` if given, or where the page doesn't allow it (as in
+    // some notebooks' frames), puts it in the footer's box to copy from, with the panel open
+    async function copyOut(source, where) {
       let done = false;
       try {
         await navigator.clipboard.writeText(source);
         done = true;
       } catch (_) {
-        // Not allowed here (as in some notebooks' frames), so in a box to copy from
+        // In the box, then
       }
       text.value = source;
       text.hidden = done;
       if (!done) {
+        setOpen(true);
         text.focus();
         text.select();
         try { done = document.execCommand("copy"); } catch (_) { done = false; }
       }
-      status.textContent = done ? "Copied" : "Copy the code from the box";
-      clearTimeout(said);
-      said = setTimeout(() => { status.textContent = ""; }, 2500);
-    });
+      if (!text.hidden) say(status, done ? "Copied" : "Copy the code from the box");
+      else if (where) say(where, "Copied");
+      return done;
+    }
+    // "Capture view": the code with the camera, from the button by the zoom buttons (or `C`), with
+    // a message over the drawing, or from the View tab's. A press outside the panel closes it
+    // where it covers the drawing, so the message shows
+    async function capture(inTab = false) {
+      const done = await copyOut(code(true), inTab ? camera.status : null);
+      if (done && !inTab) flash("Copied the code with this view");
+    }
     const movedNote = el("p", "ec-note", "The simulation's positions aren't in the code");
     foot.append(copy, status, movedNote, text);
     panel.append(foot);
@@ -2927,6 +3004,7 @@ export function mount(root, buffer, options = {}) {
       else if (panel.contains(tree.activeElement)) panelButton.focus({ preventScroll: true });
       if (!on) text.hidden = true;
       layout();
+      syncCamera();
     }
     root.addEventListener("keydown", (e) => {
       if (e.key !== "Escape" || !shownOpen) return;
@@ -2943,9 +3021,13 @@ export function mount(root, buffer, options = {}) {
       values: () => Object.fromEntries(list.map((c) => [c.name, c.value])),
       set(name, value) { if (byName[name]) setValue(byName[name], value); },
       code,
+      capture,
     };
     const syncFilters = () => filterPage?.sync();
-    return { setOpen, isOpen: () => shownOpen, panelControls, restyle, syncFilters, syncRun, filterControls: filterPage?.controls ?? null };
+    return {
+      setOpen, isOpen: () => shownOpen, panelControls, restyle, syncFilters, syncRun, filterControls: filterPage?.controls ?? null,
+      capture, syncCamera,
+    };
   }
 
   // The state that a host follows and sets (see `GraphElement`): the selection, as the nodes'
