@@ -76,13 +76,45 @@ struct Edges {
 
 /// For the viewer's controls, which redraw the scene as `plot()` would with other values: the
 /// node size, edge width and edge opacity that the encodings started from (after their automatic
-/// values), and with highlighting, each edge's level (0 muted, 1 soft, 2 accent) and its width
-/// before highlighting widened it
+/// values), with highlighting, each edge's level (0 muted, 1 soft, 2 accent) and its width
+/// before highlighting widened it, and what the viewer's selection draws with
 struct Controls {
     node_size: f64,
     edge_width: f64,
     edge_opacity: f64,
     highlight: Option<(Vec<u8>, Vec<f64>)>,
+    selection: Selection,
+}
+
+/// What the viewer draws a selection with, as `highlight=` would draw what is selected: the
+/// indexes of the accent and muted colors and their borders, of the labels' colors and of the
+/// edges' default color, and whether `color_by=` and `edge_color_by=` color the nodes and the
+/// edges. The indexes run on past the scene's colors into `extra`, which only the payload has,
+/// so that the SVG's colors are as they were. With highlighting, `base` has what the nodes,
+/// edges and labels were before it; and with a legend, `keys` has which of its swatches each
+/// node and edge falls under (0 for none, else the swatch's place among them plus 1)
+struct Selection {
+    accent: usize,
+    accent_border: usize,
+    muted: usize,
+    muted_border: usize,
+    label: usize,
+    muted_label: usize,
+    edge: usize,
+    node_colors: bool,
+    edge_colors: bool,
+    extra: Vec<(String, String)>,
+    base: Option<Base>,
+    keys: Option<(Vec<u32>, Vec<u32>)>,
+}
+
+/// The nodes' fills and borders, the edges' colors and the labels' order of priority, as they
+/// are without highlighting
+struct Base {
+    fill: Vec<usize>,
+    border: Vec<usize>,
+    color: Vec<usize>,
+    label_order: Vec<usize>,
 }
 
 fn check_len(column: &str, len: usize, n: usize, of: &str) -> PyResult<()> {
