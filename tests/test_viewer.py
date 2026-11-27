@@ -206,8 +206,13 @@ def test_the_viewer_follows_the_theme(tmp_path):
     for given in ("light", "dark"):
         html = g.plot(backend="viewer", seed=1, theme=given)._repr_html_()
         assert _options(html)["theme"] == given
+        # The box's colors are variables of its own, in the plot's theme unless the theme control
+        # gives it another
         bg = svg_renderer.LIGHT.bg if given == "light" else svg_renderer.DARK.bg
-        assert f"background:{bg};" in html
+        root = re.search(r'<div class="ec-viewer" id="([^"]+)"', html).group(1)
+        base = re.search(rf"<style>#{root}\{{([^}}]+)\}}", html).group(1)
+        assert re.search(r"background:var\(--ecv-\w+\);", _box(html))
+        assert f":{bg};" in base and "var(--ect-" not in base
 
 
 def test_the_viewer_has_the_svg_and_png_of_its_plot(tmp_path):
@@ -303,3 +308,78 @@ def test_the_viewers_code_is_ascii():
     # It is inlined in pages that may not say how they are encoded
     js = (Path(svg_renderer.__file__).parent / "static" / "viewer.js").read_bytes()
     assert js.isascii() and b"export function mount(" in js and b"export function parse(" in js
+
+
+def test_the_payload_has_what_the_controls_start_from():
+    g = ec.karate_club()
+    header, _ = _html_payload(g.plot(backend="viewer", seed=1)._repr_html_())
+    style = header["style"]
+    assert set(style) == {"node_size", "edge_width", "edge_opacity", "curved"}
+    assert style["curved"] is False and style["edge_opacity"] == pytest.approx(0.4)
+    # The nodes' radii and the edges' widths are the style's, where nothing encodes them
+    assert header["constants"]["r"] == pytest.approx(style["node_size"])
+    assert header["constants"]["width"] == pytest.approx(style["edge_width"])
+    html = g.plot(backend="viewer", seed=1, curved_edges=True, node_size=9, edge_width=2)
+    style = _html_payload(html._repr_html_())[0]["style"]
+    assert style["curved"] is True and (style["node_size"], style["edge_width"]) == (9, 2)
+    # A scene that isn't a plot's has none
+    assert _payload(_scene().payload())[0]["style"] is None
+
+
+def test_the_payload_has_the_highlighted_edges_levels():
+    g = ec.karate_club()
+    header, columns = _html_payload(
+        g.plot(backend="viewer", seed=1, highlight=[1, 2, 3])._repr_html_()
+    )
+    level = columns.get("level") or (header["constants"]["level"],) * header["edges"]
+    assert {0, 2} <= set(level) <= {0, 1, 2}
+    base = columns.get("base_width") or (header["constants"]["base_width"],) * header["edges"]
+    width = columns["width"]
+    w = header["style"]["edge_width"]
+    for lv, b, wd in zip(level, base, width):
+        want = b if lv == 0 else max(1.3 * b, 1.0) if lv == 1 else max(2 * b, 1.5)
+        assert wd == pytest.approx(want, rel=1e-6)
+    assert all(b == pytest.approx(w) for b in base)
+    # Without highlighting there are no levels
+    header, columns = _html_payload(g.plot(backend="viewer", seed=1)._repr_html_())
+    assert "level" not in columns and "level" not in header["constants"]
+
+
+def test_the_viewer_has_the_call_for_its_code():
+    g = ec.karate_club().cmty_louvain(attr_name="c")
+    html = g.plot(backend="viewer", seed=1, color_by="c", width=700, highlight=[1, 2])._repr_html_()
+    call = _options(html)["call"]
+    # The parameters in order, and the arguments that aren't the defaults, as Python source
+    assert call["params"][:2] == ["layout", "color_by"] and "self" not in call["params"]
+    assert dict(call["args"]) == {
+        "color_by": '"c"', "seed": "1", "highlight": "[1, 2]", "backend": '"viewer"',
+    }  # fmt: skip
+    # Not the file it was written to
+    plot = g.plot(backend="viewer", seed=1, output=None)
+    assert "output" not in dict(_options(plot._repr_html_())["call"]["args"])
+    assert svg_renderer._source(("a", 1)) == '("a", 1)' and svg_renderer._source(("a",)) == '("a",)'
+    assert svg_renderer._source({"x": [1.5, None]}) == '{"x": [1.5, None]}'
+
+
+def test_the_viewer_knows_whether_the_nodes_size_moves_them():
+    g = ec.karate_club()
+    assert _options(g.plot(backend="viewer", seed=1)._repr_html_())["moves"] is True
+    for opts in ({"node_overlap": "allow"}, {"layout": "circular"}):
+        assert _options(g.plot(backend="viewer", seed=1, **opts)._repr_html_())["moves"] is False
+
+
+def test_the_viewer_can_change_its_theme():
+    html = ec.karate_club().plot(backend="viewer", seed=1, theme="light")._repr_html_()
+    root = re.search(r'<div class="ec-viewer" id="([^"]+)"', html).group(1)
+    # Its variables in each theme the control can choose, the automatic one following the page
+    for name in ("ec-light", "ec-dark", "ec-auto"):
+        assert f"#{root}.{name}{{" in html
+    assert f"@media (prefers-color-scheme: dark){{#{root}.ec-auto{{" in html
+    assert svg_renderer.DARK.bg in html
+
+
+def test_the_viewer_has_its_controls():
+    js = (Path(svg_renderer.__file__).parent / "static" / "viewer.js").read_text()
+    # A panel behind a button, of tabs, that docks in a wide box, and writes the call
+    for part in ('"Settings"', '"tablist"', '"Copy as code"', "aria-expanded", "ec-docked"):
+        assert part in js
