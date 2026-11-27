@@ -13,6 +13,11 @@
 // encodings started from and whether the edges are curved (by 0.2 of their length), and with
 // highlighting, the edges' "level" and "base_width" columns have each one's level (0 muted,
 // 1 soft, 2 accent) and its width before highlighting.
+//
+// With node labels, "labels" has their font size, whether they are shown, the most of them that
+// are drawn ("limit", null for all) and what that is when `max_labels=` doesn't say ("auto"), and
+// the columns "label_order", the nodes in order of priority (see `labels.rs`), and "label_color".
+// Their texts aren't in the payload (see `Scene.label_texts`).
 use super::{css, Scene};
 use pyo3::prelude::*;
 use serde_json::{json, Map, Value};
@@ -85,6 +90,10 @@ pub fn payload(scene: &Scene) -> PyResult<Vec<u8>> {
         ("opacity", f32s(&in_order(&edges.opacity, order))),
         ("bow", f32s(&bow)),
     ]);
+    if let Some(labels) = &scene.labels {
+        columns.push(("label_order", u32s(&labels.order)));
+        columns.push(("label_color", u32s(&labels.colors)));
+    }
     let controls = scene.controls.as_ref();
     if let Some((level, base_width)) = controls.and_then(|c| c.highlight.as_ref()) {
         let level: Vec<usize> = order.iter().map(|&i| level[i] as usize).collect();
@@ -142,6 +151,12 @@ pub fn payload(scene: &Scene) -> PyResult<Vec<u8>> {
                 "edge_width": c.edge_width,
                 "edge_opacity": c.edge_opacity,
                 "curved": scene.curved,
+            })),
+            "labels": scene.labels.as_ref().map(|l| json!({
+                "font_size": l.font_size,
+                "show": l.show,
+                "limit": l.limit,
+                "auto": l.auto,
             })),
             "constants": constants,
             "columns": cols,
