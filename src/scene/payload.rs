@@ -8,6 +8,11 @@
 // under "columns", each column's type, offset in bytes and length. A column whose entries are
 // all the same is left out, and its value is under "constants" instead. The edges are in the
 // order in which they are drawn.
+//
+// For the viewer's controls, "style" has the node size, edge width and edge opacity that the
+// encodings started from and whether the edges are curved (by 0.2 of their length), and with
+// highlighting, the edges' "level" and "base_width" columns have each one's level (0 muted,
+// 1 soft, 2 accent) and its width before highlighting.
 use super::{css, Scene};
 use pyo3::prelude::*;
 use serde_json::{json, Map, Value};
@@ -80,6 +85,12 @@ pub fn payload(scene: &Scene) -> PyResult<Vec<u8>> {
         ("opacity", f32s(&in_order(&edges.opacity, order))),
         ("bow", f32s(&bow)),
     ]);
+    let controls = scene.controls.as_ref();
+    if let Some((level, base_width)) = controls.and_then(|c| c.highlight.as_ref()) {
+        let level: Vec<usize> = order.iter().map(|&i| level[i] as usize).collect();
+        columns.push(("level", u32s(&level)));
+        columns.push(("base_width", f32s(&in_order(base_width, order))));
+    }
 
     let mut light = Vec::with_capacity(scene.colors.len());
     let mut dark = Vec::with_capacity(scene.colors.len());
@@ -126,6 +137,12 @@ pub fn payload(scene: &Scene) -> PyResult<Vec<u8>> {
             "viewbox": [scene.viewbox.0, scene.viewbox.1, scene.viewbox.2, scene.viewbox.3],
             "legend_w": scene.legend_w,
             "colors": {"light": light, "dark": dark},
+            "style": controls.map(|c| json!({
+                "node_size": c.node_size,
+                "edge_width": c.edge_width,
+                "edge_opacity": c.edge_opacity,
+                "curved": scene.curved,
+            })),
             "constants": constants,
             "columns": cols,
         })
