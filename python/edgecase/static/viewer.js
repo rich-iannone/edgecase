@@ -19,6 +19,8 @@ const ZOOM_MAX = 1000;
 const CANVAS_MAX = 4096; // the canvas's longer side, in pixels
 // The legend folds into a button when it would take more of the box than this
 const LEGEND_SHARE = 0.35;
+// A node or an edge is under the pointer when it is drawn within this many pixels of it
+const HIT = 4;
 
 // The buttons' icons, as paths on a 16 by 16 grid, stroked in the text color
 const ICONS = {
@@ -436,6 +438,10 @@ const STYLE = `
 .ec-viewer:fullscreen, .ec-viewer.ec-expanded { width: 100vw !important; height: 100vh !important; max-width: none !important; aspect-ratio: auto !important; margin: 0 !important; }
 .ec-viewer.ec-expanded { position: fixed !important; inset: 0; z-index: 2147483000; }
 html.ec-expanded-page, html.ec-expanded-page body { overflow: hidden !important; }
+.ec-viewer .ec-mark { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; overflow: visible; }
+.ec-viewer .ec-mark path { fill: none; stroke: currentColor; stroke-linecap: round; }
+.ec-viewer .ec-tip { position: absolute; left: 0; top: 0; display: none; padding: 6px 10px; border-radius: 6px; font-size: 12px; line-height: 1.4; pointer-events: none; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.18); max-width: min(260px, 100%); box-sizing: border-box; overflow-wrap: anywhere; }
+.ec-viewer .ec-tip.ec-on { display: block; }
 .ec-viewer .ec-hint { position: absolute; left: 50%; bottom: 10px; transform: translateX(-50%); padding: 4px 10px; border-radius: 6px; font: 12px system-ui, sans-serif; color: inherit; background: color-mix(in srgb, currentColor 14%, transparent); pointer-events: none; opacity: 0; transition: opacity 0.3s; white-space: nowrap; }
 .ec-viewer .ec-hint.ec-on { opacity: 1; }
 .ec-viewer .ec-message { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font: 13px system-ui, sans-serif; }
@@ -463,10 +469,11 @@ export function mount(root, buffer, options = {}) {
   canvas.tabIndex = 0;
   canvas.className = "ec-grab";
   canvas.setAttribute("role", "img");
-  canvas.setAttribute("aria-label", `Graph of ${header.nodes} nodes and ${header.edges} edges. Drag to pan; zoom with the buttons, the keys + and -, or the wheel once clicked; F for full screen`);
+  canvas.setAttribute("aria-label", `Graph of ${header.nodes} nodes and ${header.edges} edges. Drag to pan; zoom with the buttons, the keys + and -, or the wheel once clicked; F for full screen; hover over a node or an edge for its details`);
   root.prepend(canvas);
-  // A moved view draws `BUDGET` edges at once, so they go in a random order, to be a fair share
-  if (header.edges > BUDGET) shuffleEdges(data);
+  // A moved view draws `BUDGET` edges at once, so they go in a random order, to be a fair share;
+  // `edgeRow` is each one's place in the scene's order, its row of the tooltips
+  const edgeRow = header.edges > BUDGET ? shuffleEdges(data) : null;
   const r = renderer(canvas, data, options.shade);
   if (!r) {
     canvas.remove();
@@ -520,6 +527,7 @@ export function mount(root, buffer, options = {}) {
     requestAnimationFrame(() => {
       pending = false;
       r.draw(view(), BUDGET);
+      if (pointer) hover();
       const more = () => { if (r.refine(BUDGET)) refining = requestAnimationFrame(more); };
       refining = requestAnimationFrame(more);
     });
@@ -555,28 +563,140 @@ export function mount(root, buffer, options = {}) {
     redraw();
   }
 
+  // Hover: the node or the edge under the pointer, outlined, with its tooltip, the SVG's, from
+  // the tables of them, read on the first hover. A touch shows them with a tap
+  const NS = "http://www.w3.org/2000/svg";
+  const mark = document.createElementNS(NS, "svg");
+  mark.setAttribute("class", "ec-mark");
+  mark.setAttribute("aria-hidden", "true");
+  const outline = document.createElementNS(NS, "path");
+  mark.append(outline);
+  canvas.after(mark);
+  const tip = document.createElement("div");
+  tip.className = "ec-tip";
+  tip.setAttribute("role", "tooltip");
+  const look = options.tip ?? {};
+  Object.assign(tip.style, { background: look.bg ?? "", color: look.fg ?? "", fontFamily: look.font ?? "" });
+  root.append(tip);
+  const curved = typeof data.bow !== "number" || data.bow !== 0;
+  const pick = picker(data, curved ? 16 : 1);
+  // The pointer, on the page, and what it's over; the tooltips once read (null if there are
+  // none), and the element whose tooltip is shown
+  let pointer = null, hovered = null, tips, reading = null, filled = "";
+  let queued = false;
+  function hoverAt(ex, ey) {
+    pointer = ex === undefined ? null : [ex, ey];
+    if (queued) return;
+    queued = true;
+    requestAnimationFrame(() => {
+      queued = false;
+      hover();
+    });
+  }
+  function hover() {
+    const b = canvas.getBoundingClientRect();
+    const unit = fit(b.width, b.height), px = unit * cam.zoom, grow = unit * Math.sqrt(cam.zoom);
+    const thin = b.width / Math.max(canvas.width, 1);
+    hovered = null;
+    if (pointer && down.size === 0 && b.width > 0) {
+      const [x, y] = toScene(...pointer);
+      hovered = pick(x, y, { px, radius: grow, unit, thin });
+    }
+    if (!hovered) {
+      outline.removeAttribute("d");
+      tip.classList.remove("ec-on");
+      return;
+    }
+    // The outline: a ring around the node, or the edge drawn over itself
+    const X = (sx) => (b.width / 2 + (sx - cam.cx) * px).toFixed(1);
+    const Y = (sy) => (b.height / 2 + (sy - cam.cy) * px).toFixed(1);
+    let key;
+    if (hovered.node !== undefined) {
+      const i = hovered.node;
+      const ring = Math.max(at(data.r, i) * grow, thin / 2) + 2.5;
+      const cx = b.width / 2 + (at(data.x, i) - cam.cx) * px;
+      outline.setAttribute("d", `M${(cx - ring).toFixed(1)} ${Y(at(data.y, i))}a${ring} ${ring} 0 1 0 ${2 * ring} 0a${ring} ${ring} 0 1 0 ${-2 * ring} 0`);
+      outline.setAttribute("stroke-width", "1.5");
+      key = `n${i}`;
+    } else {
+      const j = hovered.edge, s = at(data.src, j), t = at(data.tgt, j);
+      const sx = at(data.x, s), sy = at(data.y, s), tx = at(data.x, t), ty = at(data.y, t);
+      const bow = at(data.bow, j);
+      const cx = (sx + tx) / 2 - (ty - sy) * bow, cy = (sy + ty) / 2 + (tx - sx) * bow;
+      outline.setAttribute("d", `M${X(sx)} ${Y(sy)}Q${X(cx)} ${Y(cy)} ${X(tx)} ${Y(ty)}`);
+      outline.setAttribute("stroke-width", String(Math.max(at(data.width, j) * unit, 1) + 1));
+      key = `e${j}`;
+    }
+    if (tips === undefined) {
+      reading ??= readTips(root).then((t) => {
+        tips = t;
+        hover();
+      });
+      return;
+    }
+    if (!tips) return;
+    // Its rows, as text, since the values are the graph's own
+    if (key !== filled) {
+      filled = key;
+      const rows = hovered.node !== undefined
+        ? tipRow(tips.nodes, hovered.node)
+        : tipRow(tips.edges, edgeRow ? edgeRow[hovered.edge] : hovered.edge);
+      tip.replaceChildren(...rows.map(([k, v]) => {
+        const line = document.createElement("div");
+        const name = document.createElement("b");
+        name.textContent = k;
+        line.append(name, `: ${v}`);
+        return line;
+      }));
+    }
+    if (!tip.childElementCount) {
+      tip.classList.remove("ec-on");
+      return;
+    }
+    // Next to the pointer but inside the box, flipped to its left near the right edge
+    tip.classList.add("ec-on");
+    const box = root.getBoundingClientRect();
+    const [w, h] = [tip.offsetWidth, tip.offsetHeight];
+    let x = pointer[0] - box.left + 12;
+    if (x + w > box.width) x = pointer[0] - box.left - 12 - w;
+    tip.style.left = `${Math.max(0, Math.min(x, box.width - w))}px`;
+    tip.style.top = `${Math.max(0, Math.min(pointer[1] - box.top - 10, box.height - h))}px`;
+  }
+
   // Pointers: one drags, two pinch. A touch scrolls the page unless two fingers are down. The
   // wheel zooms once the plot has been clicked (`active`), until the pointer leaves it
   const down = new Map();
   let pinch = null, active = false;
+  let tap = null;
   canvas.addEventListener("pointerdown", (e) => {
     if (e.pointerType === "mouse" && e.button !== 0) return;
     down.set(e.pointerId, [e.clientX, e.clientY]);
+    tap = down.size === 1 ? [e.clientX, e.clientY] : null;
+    hoverAt();
     if (e.pointerType !== "touch" || down.size === 2) canvas.setPointerCapture(e.pointerId);
     if (e.pointerType !== "touch") canvas.className = "ec-grabbing";
     active = true;
     pinch = null;
   });
   const up = (e) => {
-    down.delete(e.pointerId);
+    if (!down.delete(e.pointerId)) return;
     pinch = null;
     canvas.className = "ec-grab";
+    // A mouse hovers again where it was let go; a touch that didn't move is a tap
+    if (e.type === "pointerup" && (e.pointerType !== "touch" || (tap && Math.hypot(e.clientX - tap[0], e.clientY - tap[1]) < 10))) {
+      hoverAt(e.clientX, e.clientY);
+    }
   };
   canvas.addEventListener("pointerup", up);
   canvas.addEventListener("pointercancel", up);
+  canvas.addEventListener("pointerleave", (e) => { if (e.pointerType !== "touch") hoverAt(); });
   canvas.addEventListener("pointermove", (e) => {
     const last = down.get(e.pointerId);
-    if (!last) return;
+    if (!last) {
+      if (e.pointerType !== "touch") hoverAt(e.clientX, e.clientY);
+      return;
+    }
+    if (tap && Math.hypot(e.clientX - tap[0], e.clientY - tap[1]) >= 10) tap = null;
     if (down.size === 1 && e.pointerType !== "touch") {
       panBy(e.clientX - last[0], e.clientY - last[1]);
     } else if (down.size === 2) {
@@ -730,7 +850,8 @@ export function mount(root, buffer, options = {}) {
   return { camera: cam, redraw, reset, renderer: r };
 }
 
-// The edges in a random (but fixed) order, so that the first k of them are a fair share
+// The edges in a random (but fixed) order, so that the first k of them are a fair share. Gives
+// the order, each edge's place in the scene's drawing order
 function shuffleEdges(data) {
   const m = data.header.edges;
   const perm = new Uint32Array(m);
@@ -748,4 +869,193 @@ function shuffleEdges(data) {
     for (let i = 0; i < m; i++) out[i] = col[perm[i]];
     data[name] = out;
   }
+  return perm;
+}
+
+// A grid of `cols` by `rows` cells over `frame`, of the `count` items that `visit(i, add)` puts
+// in the cells that `add(x0, y0, x1, y1)` boxes cover (points outside the frame are in its edge
+// cells). Gives `each(x0, y0, x1, y1, f)`, which calls `f` on the items of the cells a box
+// covers, once for each time an item was added to one
+function grid(frame, cols, rows, count, visit) {
+  const [fx, fy, fw, fh] = frame;
+  const cw = fw / cols || 1, ch = fh / rows || 1;
+  const ix = (x) => Math.min(cols - 1, Math.max(0, Math.floor((x - fx) / cw)));
+  const iy = (y) => Math.min(rows - 1, Math.max(0, Math.floor((y - fy) / ch)));
+  const cells = cols * rows;
+  // The cells' lists follow one another in `items`, cell k's from `start[k]`: counted, then filled
+  const start = new Uint32Array(cells + 1);
+  let items = null, fill = null, item = 0;
+  const add = (x0, y0, x1, y1) => {
+    const a = ix(x0), b = ix(x1), c = iy(y0), d = iy(y1);
+    for (let y = c; y <= d; y++) {
+      for (let x = a; x <= b; x++) {
+        const k = y * cols + x;
+        if (items) items[fill[k]++] = item;
+        else start[k + 1]++;
+      }
+    }
+  };
+  for (item = 0; item < count; item++) visit(item, add);
+  for (let k = 0; k < cells; k++) start[k + 1] += start[k];
+  fill = start.slice(0, cells);
+  items = new Uint32Array(start[cells]);
+  for (item = 0; item < count; item++) visit(item, add);
+  return (x0, y0, x1, y1, f) => {
+    const a = ix(x0), b = ix(x1), c = iy(y0), d = iy(y1);
+    for (let y = c; y <= d; y++) {
+      for (let x = a; x <= b; x++) {
+        const k = y * cols + x;
+        for (let p = start[k]; p < start[k + 1]; p++) f(items[p]);
+      }
+    }
+  };
+}
+
+// What is drawn at a point. `pick(x, y, v)` gives the node or the edge drawn nearest the scene
+// point (x, y), as `{ node: i }` or `{ edge: j }` (j in the drawing order), if one is within
+// `HIT` pixels of it, or null. A node drawn over the point comes first, the one on top if
+// several are. `v` holds the pixels per unit of the scene (`px`), of node radius (`radius`) and
+// of edge width (`unit`), and the thinnest line drawn (`thin`, the smallest node is half as
+// wide), all in CSS pixels.
+//
+// It looks in grids over the scene, built when first wanted: of the nodes' centers, and of the
+// edges' curves, in straight pieces about as long as a cell is wide. Curves are taken in
+// `segments` pieces, as the shader draws them
+function picker(data, segments) {
+  const { header } = data;
+  const n = header.nodes, m = header.edges;
+  const [, , vw, vh] = header.viewbox;
+  const frame = header.viewbox;
+  const pts = new Float64Array(2 * (segments + 1));
+  // Edge j's curve, into `pts`; false for one that isn't drawn: a self-loop or an invisible edge
+  function curve(j) {
+    const s = at(data.src, j), t = at(data.tgt, j);
+    if (s === t || at(data.opacity, j) <= 0) return false;
+    const sx = at(data.x, s), sy = at(data.y, s), tx = at(data.x, t), ty = at(data.y, t);
+    const bow = at(data.bow, j);
+    const cx = (sx + tx) / 2 - (ty - sy) * bow, cy = (sy + ty) / 2 + (tx - sx) * bow;
+    for (let k = 0; k <= segments; k++) {
+      const u = k / segments, a = (1 - u) * (1 - u), b = 2 * u * (1 - u), c = u * u;
+      pts[2 * k] = a * sx + b * cx + c * tx;
+      pts[2 * k + 1] = a * sy + b * cy + c * ty;
+    }
+    return true;
+  }
+  const side = (size) => [
+    Math.max(1, Math.min(1024, Math.ceil(vw / size))),
+    Math.max(1, Math.min(1024, Math.ceil(vh / size))),
+  ];
+
+  let nodes = null, rank = null, rmax = 0;
+  function nodeGrid() {
+    rank = new Uint32Array(n);
+    for (let j = 0; j < n; j++) rank[data.order ? data.order[j] : j] = j;
+    for (let i = 0; i < n; i++) rmax = Math.max(rmax, at(data.r, i));
+    // A few nodes to a cell
+    const [cols, rows] = side(1.5 * Math.sqrt((vw * vh) / Math.max(n, 1)));
+    nodes = grid(frame, cols, rows, n, (i, add) => {
+      const x = at(data.x, i), y = at(data.y, i);
+      add(x, y, x, y);
+    });
+  }
+
+  let edges = null, seen = null, stamp = 0, wmax = 0;
+  function edgeGrid() {
+    // Cells about as wide as half the average edge is long, so that an edge is in a few
+    let length = 0;
+    for (let j = 0; j < m; j++) {
+      wmax = Math.max(wmax, at(data.width, j));
+      if (!curve(j)) continue;
+      for (let k = 0; k < segments; k++) {
+        length += Math.hypot(pts[2 * k + 2] - pts[2 * k], pts[2 * k + 3] - pts[2 * k + 1]);
+      }
+    }
+    const size = Math.max(length / (2 * Math.max(m, 1)), Math.sqrt(vw * vh) / 1024);
+    const [cols, rows] = side(size);
+    const cell = Math.min(vw / cols, vh / rows) || 1;
+    edges = grid(frame, cols, rows, m, (j, add) => {
+      if (!curve(j)) return;
+      for (let k = 0; k < segments; k++) {
+        const x0 = pts[2 * k], y0 = pts[2 * k + 1], x1 = pts[2 * k + 2], y1 = pts[2 * k + 3];
+        const parts = Math.max(1, Math.ceil(Math.hypot(x1 - x0, y1 - y0) / cell));
+        for (let p = 0; p < parts; p++) {
+          const a = p / parts, b = (p + 1) / parts;
+          const ax = x0 + (x1 - x0) * a, ay = y0 + (y1 - y0) * a;
+          const bx = x0 + (x1 - x0) * b, by = y0 + (y1 - y0) * b;
+          add(Math.min(ax, bx), Math.min(ay, by), Math.max(ax, bx), Math.max(ay, by));
+        }
+      }
+    });
+    seen = new Uint32Array(m);
+  }
+
+  // The distance from (x, y) to the curve in `pts`
+  function distance(x, y) {
+    let best = Infinity;
+    for (let k = 0; k < segments; k++) {
+      const x0 = pts[2 * k], y0 = pts[2 * k + 1];
+      const dx = pts[2 * k + 2] - x0, dy = pts[2 * k + 3] - y0;
+      const len = dx * dx + dy * dy;
+      const u = len > 0 ? Math.min(1, Math.max(0, ((x - x0) * dx + (y - y0) * dy) / len)) : 0;
+      best = Math.min(best, Math.hypot(x - x0 - u * dx, y - y0 - u * dy));
+    }
+    return best;
+  }
+
+  return function pick(x, y, v) {
+    if (!nodes) nodeGrid();
+    // How far outside its disc the point is, in pixels, for the nodes near it
+    let node = -1, gap = Infinity, over = -1;
+    let reach = (Math.max(rmax * v.radius, v.thin / 2) + HIT) / v.px;
+    nodes(x - reach, y - reach, x + reach, y + reach, (i) => {
+      const d = Math.hypot(at(data.x, i) - x, at(data.y, i) - y) * v.px - Math.max(at(data.r, i) * v.radius, v.thin / 2);
+      if (d <= 0 && (over < 0 || rank[i] > rank[over])) over = i;
+      if (d < gap) [node, gap] = [i, d];
+    });
+    if (over >= 0) return { node: over };
+    if (!edges) edgeGrid();
+    // And outside its stroke, for the edges, each looked at once
+    let edge = -1, egap = Infinity;
+    stamp = stamp === 0xffffffff ? 1 : stamp + 1;
+    if (stamp === 1) seen.fill(0);
+    reach = (Math.max(wmax * v.unit, v.thin) / 2 + HIT) / v.px;
+    edges(x - reach, y - reach, x + reach, y + reach, (j) => {
+      if (seen[j] === stamp) return;
+      seen[j] = stamp;
+      if (!curve(j)) return;
+      const d = distance(x, y) * v.px - Math.max(at(data.width, j) * v.unit, v.thin) / 2;
+      if (d < egap) [edge, egap] = [j, d];
+    });
+    if (Math.min(gap, egap) > HIT) return null;
+    return gap <= egap ? { node } : { edge };
+  };
+}
+
+// The tooltips' tables, `{ nodes, edges }`, from the plot's gzipped script of them, or null
+// where there is none or the browser can't read it
+async function readTips(root) {
+  const script = root.querySelector("script.ec-tips");
+  if (!script || typeof DecompressionStream === "undefined") return null;
+  try {
+    const text = script.textContent.trim();
+    const bytes = Uint8Array.fromBase64
+      ? Uint8Array.fromBase64(text)
+      : Uint8Array.from(atob(text), (c) => c.charCodeAt(0));
+    const stream = new Blob([bytes]).stream().pipeThrough(new DecompressionStream("gzip"));
+    return JSON.parse(await new Response(stream).text());
+  } catch (_) {
+    return null;
+  }
+}
+
+// Row i of a tooltip table (see `Tips::table()` in `src/scene/tips.rs`), as [key, text] pairs
+function tipRow(table, i) {
+  const out = [];
+  for (let k = 0; k < table.k.length; k++) {
+    const v = table.c[k][i];
+    if (v === undefined) continue;
+    const text = Array.isArray(v) ? v.join(", ") : v !== null && typeof v === "object" ? JSON.stringify(v) : String(v);
+    out.push([String(table.k[k]), text]);
+  }
+  return out;
 }
