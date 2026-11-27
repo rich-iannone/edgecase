@@ -62,6 +62,17 @@ struct Edges {
     tips: Vec<String>,
 }
 
+/// For the viewer's controls, which redraw the scene as `plot()` would with other values: the
+/// node size, edge width and edge opacity that the encodings started from (after their automatic
+/// values), and with highlighting, each edge's level (0 muted, 1 soft, 2 accent) and its width
+/// before highlighting widened it
+struct Controls {
+    node_size: f64,
+    edge_width: f64,
+    edge_opacity: f64,
+    highlight: Option<(Vec<u8>, Vec<f64>)>,
+}
+
 fn check_len(column: &str, len: usize, n: usize, of: &str) -> PyResult<()> {
     if len == n {
         Ok(())
@@ -119,6 +130,7 @@ pub struct Scene {
     /// JSON tables
     #[pyo3(get)]
     tip_tables: Option<(String, String)>,
+    controls: Option<Controls>,
     nodes: Nodes,
     labels: Option<Labels>,
     edges: Edges,
@@ -168,6 +180,7 @@ impl Scene {
             legend_w,
             edge_tip_table,
             tip_tables,
+            controls: None,
             nodes: Nodes::default(),
             labels: None,
             edges: Edges::default(),
