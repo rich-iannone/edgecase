@@ -28,6 +28,12 @@
 // edge's value less the least, which keeps a float's precision for values far from 0, and NaN
 // for none.
 //
+// For the Layout tab's cluster force, with a categorical `color_by=`, "cluster" has the
+// attribute's name and the number of its values ("count"), and the column "cluster" each node's
+// value's place among them sorted, plus 1 (0 for none). "legend_h" is the height of the band
+// along the bottom that the viewer's legend takes, in the plot's pixels, as "legend_w" is its
+// width.
+//
 // With node labels, "labels" has their font size, whether they are shown, the most of them that
 // are drawn ("limit", null for all) and what that is when `max_labels=` doesn't say ("auto"), and
 // the columns "label_order", the nodes in order of priority (see `labels.rs`), and "label_color".
@@ -127,6 +133,10 @@ pub fn payload(scene: &Scene) -> PyResult<Vec<u8>> {
         let column = values.iter().map(|&v| (v - f.min) as f32).collect();
         columns.push((name, Column::F32(column)));
     }
+    let cluster = controls.and_then(|c| c.cluster.as_ref());
+    if let Some((_, of)) = cluster {
+        columns.push(("cluster", Column::U32(of.clone())));
+    }
     let selection = controls.map(|c| &c.selection);
     if let Some(sel) = selection {
         // The nodes' IDs, which the viewer's selection writes out
@@ -202,6 +212,7 @@ pub fn payload(scene: &Scene) -> PyResult<Vec<u8>> {
             "height": scene.height,
             "viewbox": [scene.viewbox.0, scene.viewbox.1, scene.viewbox.2, scene.viewbox.3],
             "legend_w": scene.legend_w,
+            "legend_h": scene.legend_h,
             "colors": {"light": light, "dark": dark},
             "style": controls.map(|c| json!({
                 "node_size": c.node_size,
@@ -235,6 +246,10 @@ pub fn payload(scene: &Scene) -> PyResult<Vec<u8>> {
                 "integer": f.integer,
                 "missing": f.values.iter().filter(|v| v.is_nan()).count(),
             })).collect::<Vec<_>>()),
+            "cluster": cluster.map(|(name, of)| json!({
+                "name": name,
+                "count": of.iter().max(),
+            })),
             "constants": constants,
             "columns": cols,
         })
