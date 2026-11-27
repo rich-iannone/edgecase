@@ -308,6 +308,17 @@ reference:
         - write_runtime
         - set_runtime
 
+    - title: Apps
+      desc: The viewer in apps of Shiny, Streamlit, Panel and Solara, with its selection, view and filters as the framework has its state
+      contents:
+        - shiny.output_graph
+        - name: shiny.render_graph
+          members: false
+        - shiny.update_graph
+        - streamlit.st_graph
+        - panel.GraphPane
+        - solara.GraphView
+
     - title: Step Log
       desc: The record of operations performed on a graph, which play() replays
       contents:
