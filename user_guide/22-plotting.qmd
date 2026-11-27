@@ -297,6 +297,14 @@ rest of the novel only through Myriel himself. Valjean is the hub at the center,
 cluster to the lower right holds Marius and the students of the ABC society. The theme changes only the background, the default node and edge colors, and
 the text; the palettes for colored nodes are described in [Aesthetics](aesthetics.qmd).
 
+`shade=True` shades the nodes as spheres, lit from the upper left: each is lighter there and darker
+toward the far side, with its own color in between. It looks the same in the SVG, the images and
+the viewer:
+
+```{python}
+ec.karate_club().plot(color_by="faction", shade=True, seed=1)
+```
+
 ## Larger graphs
 
 `plot()` draws graphs of tens of thousands of nodes and edges in a few seconds, into a few
@@ -332,11 +340,20 @@ this way, and `backend="svg"` keeps the SVG elements, however many there are, up
 which a plot raises an error rather than being drawn. An output that passes 10 MB even as images,
 with thousands of labels, comes with a warning.
 
+How the edges show where they cross is `edge_tone=`. With `"over"`, each edge is drawn over the
+ones under it, as SVG strokes stack up, so that where many cross the drawing goes solid. With
+`"log"`, the images show the edges' density on a log scale, from a lone edge's opacity up to opaque
+at the densest point, so that a dense core still shows how dense each part of it is. The default,
+`"auto"`, is `"log"` for images and `"over"` for SVG, which can't draw the log tone; given
+`edge_tone="log"`, `backend="auto"` draws images whatever the graph's size, and `backend="svg"`
+raises an error.
+
 `backend="viewer"` draws the edges and nodes in the browser instead, with WebGL, so that the drawing
 can be panned and zoomed. Drag it to pan, and zoom with the buttons in its corner, the `+`, `-` and
 `0` keys, a double click (with Shift to zoom out), or the mouse wheel once the plot has been clicked;
-until then the wheel scrolls the page. As in the images, the edges show their density, and the
-nodes can be as small as a pixel. Zooming in on the core of the wiki-vote network pulls apart edges
+until then the wheel scrolls the page. As in the images, the edges show their density, in the tone
+that `backend="auto"` would draw them in unless `edge_tone=` says otherwise, with the log tone
+opaque at the densest point in view, and the nodes can be as small as a pixel. Zooming in on the core of the wiki-vote network pulls apart edges
 that the whole view runs together:
 
 ```{python}
@@ -348,7 +365,8 @@ without a click; `Esc` or `F` again leaves it. Where a page doesn't allow full s
 notebooks, the plot fills the window instead.
 
 The button below it, Settings, opens a panel of controls in the terms of `plot()`'s arguments: the
-node size under Nodes, the edges' opacity, width and curve under Edges, whether the labels are
+node size and shading under Nodes, the edges' opacity, width and curve (and, under More, their
+tone) under Edges, whether the labels are
 shown and how many under Labels, and the theme (and, under More, the legend) under View. A changed control is marked, with a button that resets it. In a wide
 plot, or full screen, the panel docks at the side; in a smaller one it slides over the graph, and a
 click outside it or `Esc` closes it. "Copy as code" copies the `plot()` call that draws what the
@@ -378,8 +396,8 @@ rule as the SVG, for the part of the graph in view: zooming in on a crowded regi
 labels that had no room in the whole view. An edge's label is written along it, where it is long
 enough on screen.
 
-The viewer draws less than the SVG does, for now: no arrowheads or self-loops, and no routing of
-edges around nodes. The legend is drawn over it as SVG. The HTML holds the viewer's
+The viewer draws arrowheads and self-loops as the SVG does, but doesn't route edges around nodes.
+The legend is drawn over it as SVG. The HTML holds the viewer's
 code, the drawing's data, the labels and the tooltips, compressed, about 2.7 MB for the wiki-vote
 network, and
 the viewer stays quick with hundreds of thousands of edges, in any browser with WebGL 2. The plot's `svg`
@@ -412,6 +430,8 @@ For graphs the size of the jazz network and larger, several strategies help:
 | `curved_edges=` | curved rather than straight edges | `False` |
 | `node_overlap=`, `edge_routing=` | overlap removal and routing around nodes | `"remove"`, `"auto"` |
 | `theme=` | `"auto"`, `"light"` or `"dark"` | `None` (automatic on screen, light in files) |
+| `shade=` | nodes shaded as spheres rather than flat | `False` |
+| `edge_tone=` | how crossing edges show: `"over"`, or `"log"` for images and the viewer | `"auto"` |
 | `backend=` | SVG elements (`"svg"`), images (`"png"`) or the viewer (`"viewer"`) for the edges and nodes | `"auto"` |
 | `output=` | a path to save to, as `.svg`, `.html` or `.png` | `None` |
 
