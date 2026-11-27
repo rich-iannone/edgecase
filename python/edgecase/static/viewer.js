@@ -57,7 +57,7 @@ export function parse(buffer) {
     return new (c.type === "f32" ? Float32Array : Uint32Array)(buffer, c.offset, c.length);
   };
   const names = ["x", "y", "r", "fill", "border", "border_width", "border_opacity", "order",
-    "src", "tgt", "color", "width", "opacity", "bow", "level", "base_width"];
+    "src", "tgt", "color", "width", "opacity", "bow", "level", "base_width", "label_order", "label_color"];
   return { header, ...Object.fromEntries(names.map((name) => [name, column(name)])) };
 }
 
@@ -456,6 +456,134 @@ function renderer(canvas, data, shade) {
   };
 }
 
+// The labels, as text on a canvas over the drawing, by the rule that `src/scene/labels.rs` has
+// for the SVG: up to `state.limit` of the nodes' labels in view (null for all of them), taken in
+// order of priority (the payload's `label_order`), each one that doesn't overlap one taken
+// before it, then the edges' labels likewise, highlighted edges first, each along its curve at
+// its middle where the edge is long enough for it. They keep their size in pixels as the view
+// zooms, in `state.size` for the nodes' and `EDGE_FONT` for the edges', ringed by the background
+const EDGE_FONT = 10;
+const LABEL_GAP = 2;
+function labelLayer(layer, data, font) {
+  const { header } = data;
+  const n = header.nodes, m = header.edges;
+  const info = header.labels;
+  const state = { show: info ? info.show : false, limit: info ? info.limit : null, size: info ? info.font_size : 12 };
+  const ctx = layer.getContext("2d");
+  let texts = null;
+  // The labels' widths, measured once at each font size
+  let nodeW = null, edgeW = null, measured = "";
+  // What the last frame drew: the nodes whose labels it drew, the edges', and their boxes
+  const drawn = { nodes: [], edges: [], boxes: [] };
+  function draw(v) {
+    if (layer.width !== v.w || layer.height !== v.h) [layer.width, layer.height] = [v.w, v.h];
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.clearRect(0, 0, v.w, v.h);
+    drawn.nodes = [];
+    drawn.edges = [];
+    drawn.boxes = [];
+    if (!texts || !(v.cw > 0 && v.ch > 0)) return;
+    ctx.setTransform(v.w / v.cw, 0, 0, v.h / v.ch, 0, 0);
+    Object.assign(ctx, { lineJoin: "round", lineWidth: 3, strokeStyle: v.bg, textAlign: "center" });
+    // The boxes taken, by the cells of a grid over the view that they cover
+    const cell = 64, cols = Math.ceil(v.cw / cell) + 2, rows = Math.ceil(v.ch / cell) + 2;
+    const taken = new Map();
+    const cells = (b, f) => {
+      const c0 = Math.max(-1, Math.floor(b[0] / cell)), c1 = Math.min(cols, Math.floor(b[2] / cell));
+      const r0 = Math.max(-1, Math.floor(b[1] / cell)), r1 = Math.min(rows, Math.floor(b[3] / cell));
+      for (let c = c0; c <= c1; c++) for (let r = r0; r <= r1; r++) if (f((c + 1) * (rows + 2) + r + 1) === false) return false;
+      return true;
+    };
+    const clear = (b) => cells(b, (key) => !(taken.get(key) ?? []).some((o) =>
+      b[0] < o[2] + LABEL_GAP && o[0] < b[2] + LABEL_GAP && b[1] < o[3] + LABEL_GAP && o[1] < b[3] + LABEL_GAP));
+    const take = (b) => {
+      drawn.boxes.push(b);
+      cells(b, (key) => { const list = taken.get(key); if (list) list.push(b); else taken.set(key, [b]); });
+    };
+    const limit = state.limit;
+    const X = (i) => v.cw / 2 + (at(data.x, i) - v.cx) * v.px;
+    const Y = (i) => v.ch / 2 + (at(data.y, i) - v.cy) * v.px;
+
+    // The nodes', under them
+    if (state.show && texts.nodes) {
+      const size = state.size;
+      ctx.font = `${size}px ${font}`;
+      if (measured !== ctx.font) {
+        nodeW = new Float32Array(n).fill(-1);
+        measured = ctx.font;
+      }
+      const placed = [];
+      for (let q = 0; q < n && (limit === null || placed.length < limit); q++) {
+        const k = at(data.label_order, q);
+        const text = texts.nodes[k];
+        if (!text) continue;
+        const top = Y(k) + at(data.r, k) * v.grow + 2;
+        if (top > v.ch || top + 1.25 * size < 0) continue;
+        if (nodeW[k] < 0) nodeW[k] = ctx.measureText(text).width;
+        const x = X(k), half = nodeW[k] / 2;
+        if (x + half < 0 || x - half > v.cw) continue;
+        const b = [x - half, top, x + half, top + 1.25 * size];
+        if (limit !== null && !clear(b)) continue;
+        take(b);
+        placed.push([k, x, top + size]);
+      }
+      // The first taken over the rest
+      for (let p = placed.length - 1; p >= 0; p--) {
+        const [k, x, y] = placed[p];
+        ctx.strokeText(texts.nodes[k], x, y);
+        ctx.fillStyle = v.colors[at(data.label_color, k)];
+        ctx.fillText(texts.nodes[k], x, y);
+      }
+      drawn.nodes = placed.map(([k]) => k);
+    }
+
+    // The edges', the last drawn first, which are the highlighted ones
+    if (texts.edges && m) {
+      ctx.font = `${EDGE_FONT}px ${font}`;
+      edgeW ??= new Float32Array(m).fill(-1);
+      const placed = [], hh = 0.625 * EDGE_FONT;
+      for (let j = m - 1; j >= 0 && (limit === null || placed.length < limit); j--) {
+        const row = v.edgeRow ? v.edgeRow[j] : j;
+        const text = texts.edges[row];
+        const s = at(data.src, j), t = at(data.tgt, j);
+        if (!text || s === t) continue;
+        // The middle of its curve (see `hover()`), and the curve's direction there, the chord's
+        const sx = X(s), sy = Y(s), tx = X(t), ty = Y(t), bow = at(data.bow, j);
+        const mx = (sx + tx) / 2 - (ty - sy) * bow / 2, my = (sy + ty) / 2 + (tx - sx) * bow / 2;
+        if (mx < 0 || mx > v.cw || my < 0 || my > v.ch) continue;
+        if (edgeW[row] < 0) edgeW[row] = ctx.measureText(text).width;
+        const w = edgeW[row];
+        if (Math.hypot(tx - sx, ty - sy) < w + (at(data.r, s) + at(data.r, t)) * v.grow + 8) continue;
+        // Read from left to right
+        let a = Math.atan2(ty - sy, tx - sx);
+        if (a > Math.PI / 2) a -= Math.PI;
+        else if (a < -Math.PI / 2) a += Math.PI;
+        const cos = Math.abs(Math.cos(a)), sin = Math.abs(Math.sin(a));
+        const hx = (cos * w) / 2 + sin * hh, hy = (sin * w) / 2 + cos * hh;
+        const b = [mx - hx, my - hy, mx + hx, my + hy];
+        if (limit !== null && !clear(b)) continue;
+        take(b);
+        placed.push([text, mx, my, a, j]);
+      }
+      ctx.textBaseline = "middle";
+      ctx.fillStyle = v.ink;
+      const base = ctx.getTransform();
+      for (const [text, x, y, a] of placed) {
+        ctx.translate(x, y);
+        ctx.rotate(a);
+        ctx.strokeText(text, 0, 0);
+        ctx.globalAlpha = 0.7;
+        ctx.fillText(text, 0, 0);
+        ctx.globalAlpha = 1;
+        ctx.setTransform(base);
+      }
+      ctx.textBaseline = "alphabetic";
+      drawn.edges = placed.map((p) => p[4]);
+    }
+  }
+  return { state, draw, drawn, setTexts(t) { texts = t; } };
+}
+
 // A computed CSS color, "rgb(r, g, b)" or "rgba(...)", from 0 to 1
 function cssRgb(color) {
   const v = (color.match(/[\d.]+/g) ?? [255, 255, 255]).slice(0, 3).map(Number);
@@ -468,6 +596,7 @@ const STYLE = `
 .ec-viewer.ec-docked.ec-panel-open { --ec-side: ${PANEL_W}px; }
 .ec-viewer [hidden] { display: none !important; }
 .ec-viewer canvas { position: absolute; inset: 0; width: calc(100% - var(--ec-side, 0px)); height: 100%; display: block; touch-action: pan-x pan-y; outline: none; }
+.ec-viewer canvas.ec-text { pointer-events: none; }
 .ec-viewer canvas.ec-grab { cursor: grab; }
 .ec-viewer canvas.ec-grabbing { cursor: grabbing; }
 .ec-viewer .ec-legend-layer { position: absolute; top: 0; right: var(--ec-side, 0px) !important; pointer-events: none; }
@@ -570,6 +699,11 @@ export function mount(root, buffer, options = {}) {
     root.append(msg);
     return null;
   }
+  const textCanvas = document.createElement("canvas");
+  textCanvas.className = "ec-text";
+  textCanvas.setAttribute("aria-hidden", "true");
+  canvas.after(textCanvas);
+  const words = labelLayer(textCanvas, data, options.font ?? "system-ui, sans-serif");
 
   // The camera: the scene point at the center, and the zoom. At zoom 1 the scene's frame fits
   // the canvas as the SVG's viewBox fits its box
@@ -593,14 +727,17 @@ export function mount(root, buffer, options = {}) {
     return { w, h, scale, offset: [-cam.cx * scale[0], -cam.cy * scale[1]], unit, radius: unit * Math.sqrt(cam.zoom) };
   }
 
-  // The theme's color table, and the background, which change with the page's color scheme
+  // The theme's color table, and the background, which change with the page's color scheme,
+  // and the text color, the edge labels'
   let shown = null;
   function applyTheme() {
     const dark = themeOf(root, options.scheme ?? options.theme) === "dark";
-    const bg = getComputedStyle(root).backgroundColor;
-    if (shown && shown.dark === dark && shown.bg === bg) return false;
-    shown = { dark, bg };
-    r.setColors(dark ? header.colors.dark : header.colors.light, cssRgb(bg));
+    const { backgroundColor: bg, color: ink } = getComputedStyle(root);
+    if (shown && shown.dark === dark && shown.bg === bg && shown.ink === ink) return false;
+    const table4 = dark ? header.colors.dark : header.colors.light;
+    const colors = table4.map(([cr, cg, cb, ca]) => `rgba(${Math.round(cr * 255)}, ${Math.round(cg * 255)}, ${Math.round(cb * 255)}, ${ca})`);
+    shown = { dark, bg, ink, colors };
+    r.setColors(table4, cssRgb(bg));
     return true;
   }
   applyTheme();
@@ -614,12 +751,26 @@ export function mount(root, buffer, options = {}) {
     requestAnimationFrame(() => {
       pending = false;
       r.draw(view(), BUDGET);
+      drawText();
       if (pointer) hover();
       const more = () => { if (r.refine(BUDGET)) refining = requestAnimationFrame(more); };
       refining = requestAnimationFrame(more);
     });
   };
+  // The labels over the drawing, once their texts are read
+  function drawText() {
+    const cw = canvas.clientWidth, ch = canvas.clientHeight, unit = fit(cw, ch);
+    words.draw({
+      w: canvas.width, h: canvas.height, cw, ch, cx: cam.cx, cy: cam.cy, px: unit * cam.zoom,
+      grow: unit * Math.sqrt(cam.zoom), colors: shown.colors, bg: shown.bg, ink: shown.ink, edgeRow,
+    });
+  }
   r.draw(view());
+  drawText();
+  readPacked(root, "labels").then((texts) => {
+    words.setTexts(texts);
+    redraw();
+  });
 
   // From a point on the page to the scene's units
   const toScene = (ex, ey) => {
@@ -658,7 +809,7 @@ export function mount(root, buffer, options = {}) {
   mark.setAttribute("aria-hidden", "true");
   const outline = document.createElementNS(NS, "path");
   mark.append(outline);
-  canvas.after(mark);
+  textCanvas.after(mark);
   const tip = document.createElement("div");
   tip.className = "ec-tip";
   tip.setAttribute("role", "tooltip");
@@ -715,7 +866,7 @@ export function mount(root, buffer, options = {}) {
       key = `e${j}`;
     }
     if (tips === undefined) {
-      reading ??= readTips(root).then((t) => {
+      reading ??= readPacked(root, "tips").then((t) => {
         tips = t;
         hover();
       });
@@ -966,6 +1117,19 @@ export function mount(root, buffer, options = {}) {
         { name: "curved_edges", tab: "Edges", label: "Curved", kind: "check", start: style.curved, code: (v) => (v ? "True" : null) },
       );
     }
+    // The labels: whether they're shown, and the most of them, by steps up to the nodes' count
+    const info = header.labels;
+    if (info) {
+      list.push({ name: "show_labels", tab: "Labels", label: "Labels", kind: "check", start: info.show, code: (v) => (v ? null : "False") });
+      const most = given.has("max_labels") ? Number(given.get("max_labels")) : null;
+      const steps = [5, 10, 20, 30, 50];
+      for (let k = 100; steps[steps.length - 1] < n; k *= 10) steps.push(k, 2 * k, 5 * k);
+      while (steps.length > 1 && steps[steps.length - 2] >= n) steps.pop();
+      if (most !== null && !steps.includes(most)) steps.push(most);
+      steps.sort((a, b) => a - b);
+      list.push({ name: "max_labels", tab: "Labels", label: "At most", kind: "steps", start: most, steps: [null, ...steps],
+        text: (v) => (v === null ? `Auto (${info.auto === null ? "all" : info.auto})` : String(v)), code: (v) => (v === null ? null : String(v)) });
+    }
     list.push({ name: "theme", tab: "View", label: "Theme", kind: "choice", start: startTheme,
       choices: [["auto", "Auto"], ["light", "Light"], ["dark", "Dark"]], code: (v) => (v === "auto" ? null : JSON.stringify(v)) });
     if (legend) list.push({ name: "legend", tab: "View", more: true, label: "Legend", kind: "check", start: true, code: (v) => (v ? null : "False") });
@@ -985,6 +1149,8 @@ export function mount(root, buffer, options = {}) {
       };
       const k = v("edge_width") / style.edge_width, o = v("edge_opacity");
       const { level, base_width: base } = data;
+      // The labels' font follows the node size, as `plot()`'s does
+      if (info) words.state.size = v("node_size") === style.node_size ? info.font_size : Math.max(8, Math.min(13, 0.7 * v("node_size")));
       set("r", v("node_size") === style.node_size ? orig.r : times(orig.r, n, v("node_size") / style.node_size));
       if (level === null) {
         set("width", k === 1 ? orig.width : times(orig.width, m, k));
@@ -1014,6 +1180,10 @@ export function mount(root, buffer, options = {}) {
         recolor();
       } else if (c.name === "legend") {
         root.classList.toggle("ec-legend-off", !c.value);
+      } else if (c.name === "show_labels" || c.name === "max_labels") {
+        const most = byName.max_labels.value;
+        Object.assign(words.state, { show: byName.show_labels.value, limit: most === null ? info.auto : most });
+        redraw();
       } else {
         restyle();
       }
@@ -1132,6 +1302,10 @@ export function mount(root, buffer, options = {}) {
           Object.assign(input, { min: String(Math.min(lo, 0)), max: "12", step: "1" });
           toValue = (k) => (k === 0 ? c.start : Math.max(c.low, Math.round(c.start * 2 ** (k / 4) * 100) / 100));
           toInput = (v) => String(Math.round(4 * Math.log2(v / c.start)));
+        } else if (c.kind === "steps") {
+          Object.assign(input, { min: "0", max: String(c.steps.length - 1), step: "1" });
+          toValue = (i) => c.steps[i];
+          toInput = (v) => String(c.steps.indexOf(v));
         } else {
           Object.assign(input, { min: "0.01", max: "1", step: "0.01" });
           toValue = (x) => (Math.abs(x - c.start) < 0.005 ? c.start : Math.round(x * 100) / 100);
@@ -1140,10 +1314,11 @@ export function mount(root, buffer, options = {}) {
         input.addEventListener("input", () => setValue(c, toValue(Number(input.value)), true));
         top.append(name, out, reset);
         box.append(input);
+        const say = c.text ?? show;
         sync = (typing) => {
           if (!typing) input.value = toInput(c.value);
-          out.textContent = show(c.value);
-          input.setAttribute("aria-valuetext", show(c.value));
+          out.textContent = say(c.value);
+          input.setAttribute("aria-valuetext", say(c.value));
         };
       }
       const note = c.note ? el("p", "ec-note", c.note) : null;
@@ -1247,7 +1422,7 @@ export function mount(root, buffer, options = {}) {
     return { setOpen, isOpen: () => shownOpen, panelControls };
   }
 
-  return { camera: cam, redraw, reset, renderer: r, data, controls: { ...panelControls, open: setOpen } };
+  return { camera: cam, redraw, reset, renderer: r, data, labels: words, controls: { ...panelControls, open: setOpen } };
 }
 
 // A value as it reads in Python
@@ -1435,10 +1610,11 @@ function picker(data, segments) {
   };
 }
 
-// The tooltips' tables, `{ nodes, edges }`, from the plot's gzipped script of them, or null
-// where there is none or the browser can't read it
-async function readTips(root) {
-  const script = root.querySelector("script.ec-tips");
+// What the plot's gzipped script `ec-<name>` holds: the tooltips' tables (`tips`) or the labels'
+// texts (`labels`), each as `{ nodes, edges }`, or null where there is none or the browser can't
+// read it
+async function readPacked(root, name) {
+  const script = root.querySelector(`script.ec-${name}`);
   if (!script || typeof DecompressionStream === "undefined") return null;
   try {
     const text = script.textContent.trim();
