@@ -7,7 +7,7 @@ use super::color::{darken, mix, Pair, Scale, Stop};
 use super::geometry::{fit_viewbox, py_max, py_min};
 use super::labels;
 use super::tips::{Cell, Tips};
-use super::{Controls, Edges, Labels, Nodes, Scene};
+use super::{Base, Controls, Edges, Labels, Nodes, Scene, Selection};
 use crate::graph::Graph;
 use crate::layout::routing::route_edges;
 use pyo3::exceptions::{PyKeyError, PyTypeError, PyValueError};
@@ -230,12 +230,24 @@ fn py_float(v: &Bound<PyAny>) -> PyResult<f64> {
     v.py().get_type::<PyFloat>().call1((v,))?.extract()
 }
 
+/// What a swatch of the legend stands for, which the viewer's legend can hide: the nodes of a
+/// group of `color_by=` (None for those without a value), the edges of a color that
+/// `edge_color_by=` gives an edge attribute's group, the edges within a group of a node
+/// attribute's, or those between groups
+#[derive(Clone, Copy)]
+enum Key {
+    Nodes(Option<usize>),
+    EdgeColor(usize),
+    Within(usize),
+    Cross,
+}
+
 /// A block of the legend
 enum Block {
-    /// `(shape, color, text)` items
+    /// `(shape, color, text, key)` items
     Swatches {
         title: PyObject,
-        items: Vec<(&'static str, usize, PyObject)>,
+        items: Vec<(&'static str, usize, PyObject, Key)>,
     },
     /// A numeric scale, labelled with the values its `ends` (low, high, midpoint) stand for
     Ramp {
@@ -272,6 +284,8 @@ struct Encoded {
     radii: Vec<f64>,
     node_size: f64,
     edge_width: f64,
+    // What the legend's swatches stand for, in the order it draws them
+    keys: Vec<Key>,
 }
 
 /// How the edges are colored by `edge_color_by=`
@@ -316,6 +330,17 @@ pub struct SceneBuilder {
     enc: Option<Encoded>,
     // The highlight level of each node and edge: 0 muted, 1 soft, 2 accent
     levels: Option<(Vec<u8>, Vec<u8>)>,
+}
+
+/// The border of a node of color `c`, the color darkened, made once for each color
+fn darker(pairs: &mut Pairs, made: &mut FxHashMap<usize, usize>, c: usize) -> PyResult<usize> {
+    if let Some(&dk) = made.get(&c) {
+        return Ok(dk);
+    }
+    let (l, d) = pairs.list[c].clone();
+    let dk = pairs.id((darken(&l, 0.3)?, darken(&d, 0.3)?));
+    made.insert(c, dk);
+    Ok(dk)
 }
 
 fn non_empty(py: Python<'_>, attrs: Option<&Py<PyDict>>) -> Option<Py<PyDict>> {
@@ -530,6 +555,53 @@ impl SceneBuilder {
                 }
             }
         }
+    }
+
+    /// Which of the legend's swatches (`keys`, as it draws them) each node and edge falls under:
+    /// 0 for none, else the swatch's place plus 1
+    fn legend_keys(&self, keys: &[Key]) -> (Vec<u32>, Vec<u32>) {
+        let enc = self.enc.as_ref().expect("encoded");
+        let mut node_key = vec![0u32; self.ids.len()];
+        let mut edge_key = vec![0u32; self.src.len()];
+        for (place, key) in keys.iter().enumerate() {
+            let place = place as u32 + 1;
+            match (*key, &enc.edge_colors) {
+                (Key::Nodes(g), _) => {
+                    let Some(groups) = &enc.node_groups else {
+                        continue;
+                    };
+                    for (k, &of) in groups.of.iter().enumerate() {
+                        if of == g && node_key[k] == 0 {
+                            node_key[k] = place;
+                        }
+                    }
+                }
+                (Key::EdgeColor(c), EdgeColors::Each(colors)) => {
+                    for (i, &own) in colors.iter().enumerate() {
+                        if own == Some(c) && edge_key[i] == 0 {
+                            edge_key[i] = place;
+                        }
+                    }
+                }
+                (Key::Within(_) | Key::Cross, EdgeColors::Groups { groups, .. }) => {
+                    for i in 0..self.src.len() {
+                        let (a, b) = (self.src[i], self.tgt[i]);
+                        let falls = match *key {
+                            Key::Within(g) => groups.same(a, b) && groups.of[a] == Some(g),
+                            _ => {
+                                !groups.same(a, b)
+                                    && (groups.of[a].is_some() || groups.of[b].is_some())
+                            }
+                        };
+                        if falls && edge_key[i] == 0 {
+                            edge_key[i] = place;
+                        }
+                    }
+                }
+                _ => {}
+            }
+        }
+        (node_key, edge_key)
     }
 
     fn push_edge(
@@ -810,10 +882,15 @@ impl SceneBuilder {
                     .collect();
                 let mut items = Vec::new();
                 for g in groups.sorted(&ranks) {
-                    items.push(("node", colors[g], text(&groups.firsts[g])?));
+                    items.push((
+                        "node",
+                        colors[g],
+                        text(&groups.firsts[g])?,
+                        Key::Nodes(Some(g)),
+                    ));
                 }
                 if groups.of.iter().any(Option::is_none) {
-                    items.push(("node", missing, no_value()));
+                    items.push(("node", missing, no_value(), Key::Nodes(None)));
                 }
                 blocks.push(Block::Swatches {
                     title: title(&self.color_by),
@@ -861,7 +938,8 @@ impl SceneBuilder {
                         .collect();
                     let mut items = Vec::new();
                     for g in groups.sorted(&ranks) {
-                        items.push(("edge", colors[g], text(&groups.firsts[g])?));
+                        let key = Key::EdgeColor(colors[g]);
+                        items.push(("edge", colors[g], text(&groups.firsts[g])?, key));
                     }
                     blocks.push(Block::Swatches {
                         title: title(&self.edge_color_by),
@@ -906,6 +984,7 @@ impl SceneBuilder {
                         "edge",
                         cross,
                         PyString::new(py, "between groups").into_any().unbind(),
+                        Key::Cross,
                     )
                 };
                 let same_key = match (&self.edge_color_by, &self.color_by) {
@@ -917,7 +996,12 @@ impl SceneBuilder {
                     _ => {
                         let mut items = Vec::new();
                         for g in groups.sorted(&ranks) {
-                            items.push(("edge", colors[g], text(&groups.firsts[g])?));
+                            items.push((
+                                "edge",
+                                colors[g],
+                                text(&groups.firsts[g])?,
+                                Key::Within(g),
+                            ));
                         }
                         items.push(cross_item());
                         blocks.push(Block::Swatches {
@@ -990,6 +1074,7 @@ impl SceneBuilder {
         // Legends are shown only for what they can tell apart: a palette's colors repeat after
         // its length, so a categorical block with more values than that is left out
         let out = PyList::empty(py);
+        let mut keys = Vec::new();
         if let Some(max) = legend_max {
             let n_colors = if color_by_on || edge_color_by_on {
                 palette.len()
@@ -1002,7 +1087,9 @@ impl SceneBuilder {
                     Block::Swatches { title, items } => {
                         let count = items
                             .iter()
-                            .filter(|(_, _, t)| !t.bind(py).eq("between groups").unwrap_or(false))
+                            .filter(|(_, _, t, _)| {
+                                !t.bind(py).eq("between groups").unwrap_or(false)
+                            })
                             .count();
                         if count > n_colors.min(max) {
                             continue;
@@ -1010,7 +1097,8 @@ impl SceneBuilder {
                         dict.set_item("title", title)?;
                         dict.set_item("kind", "swatches")?;
                         let list = PyList::empty(py);
-                        for (shape, color, text) in items {
+                        for (shape, color, text, key) in items {
+                            keys.push(*key);
                             let pair = &pairs.list[*color];
                             list.append(PyTuple::new(
                                 py,
@@ -1054,6 +1142,7 @@ impl SceneBuilder {
             radii,
             node_size,
             edge_width,
+            keys,
         });
         Ok(out)
     }
@@ -1265,6 +1354,8 @@ impl SceneBuilder {
         let mut edge_color = Vec::with_capacity(m);
         let mut edge_width = Vec::with_capacity(m);
         let mut edge_opacity = Vec::with_capacity(m);
+        // For the viewer, each edge's color before highlighting changed it
+        let mut edge_base = Vec::new();
         for i in 0..m {
             let (a, b) = (self.src[i], self.tgt[i]);
             let mut c = edge_default;
@@ -1293,6 +1384,9 @@ impl SceneBuilder {
             }
             let mut w = enc.widths[i];
             let mut opacity = enc.opacity;
+            if viewer && levels.is_some() {
+                edge_base.push(c);
+            }
             if let Some((_, edge_level)) = levels {
                 match edge_level[i] {
                     0 => {
@@ -1365,15 +1459,7 @@ impl SceneBuilder {
             fill.push(table.index(&pairs, c));
             let edge = match ring {
                 Some(r) => r,
-                None => match darkened.get(&c) {
-                    Some(&dk) => dk,
-                    None => {
-                        let (l, d) = pairs.list[c].clone();
-                        let dk = pairs.id((darken(&l, 0.3)?, darken(&d, 0.3)?));
-                        darkened.insert(c, dk);
-                        dk
-                    }
-                },
+                None => darker(&mut pairs, &mut darkened, c)?,
             };
             border.push(table.index(&pairs, edge));
             border_width.push(bw);
@@ -1388,6 +1474,49 @@ impl SceneBuilder {
             let muted = levels.is_some_and(|(node_level, _)| node_level[k] == 0);
             label_colors.push(table.index(&pairs, if muted { muted_label } else { label }));
         }
+
+        // For the viewer's selection, the colors it draws with, after those the scene uses
+        let main = table.colors.len();
+        let selection = if viewer {
+            let accent_border = darker(&mut pairs, &mut darkened, accent)?;
+            let muted_border = darker(&mut pairs, &mut darkened, muted_node)?;
+            let base = match levels {
+                Some(_) => {
+                    let mut base_fill = Vec::with_capacity(n);
+                    let mut base_border = Vec::with_capacity(n);
+                    for &c in &enc.node_color {
+                        base_fill.push(table.index(&pairs, c));
+                        let dk = darker(&mut pairs, &mut darkened, c)?;
+                        base_border.push(table.index(&pairs, dk));
+                    }
+                    Some(Base {
+                        fill: base_fill,
+                        border: base_border,
+                        color: edge_base.iter().map(|&c| table.index(&pairs, c)).collect(),
+                        label_order: labels::priority(None, &enc.radii, &degree),
+                    })
+                }
+                None => None,
+            };
+            let keys =
+                (legend.is_truthy()? && !enc.keys.is_empty()).then(|| self.legend_keys(&enc.keys));
+            Some(Selection {
+                accent: table.index(&pairs, accent),
+                accent_border: table.index(&pairs, accent_border),
+                muted: table.index(&pairs, muted_node),
+                muted_border: table.index(&pairs, muted_border),
+                label: table.index(&pairs, label),
+                muted_label: table.index(&pairs, muted_label),
+                edge: table.index(&pairs, edge_default),
+                node_colors: color_by_on,
+                edge_colors: edge_color_by_on,
+                extra: table.colors.split_off(main),
+                base,
+                keys,
+            })
+        } else {
+            None
+        };
 
         // Tooltips: a node's ID, and its label as well when it differs from the ID, since
         // either may be drawn under the node, then its attributes; an edge's ID, ends (named as
@@ -1434,11 +1563,12 @@ impl SceneBuilder {
         } else {
             None
         };
-        let controls = viewer.then(|| Controls {
+        let controls = selection.map(|selection| Controls {
             node_size: enc.node_size,
             edge_width: enc.edge_width,
             edge_opacity: enc.opacity,
             highlight: levels.map(|(_, edge_level)| (edge_level.clone(), enc.widths.clone())),
+            selection,
         });
 
         Ok(Scene {
