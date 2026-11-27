@@ -1694,6 +1694,99 @@ def _legend_layout(blocks: List[Dict[str, Any]]) -> Tuple[List[Tuple[Any, ...]],
     return marks, widest + 2 * _LEGEND_PAD, y
 
 
+def _legend_row(
+    blocks: List[Dict[str, Any]], width: float
+) -> Tuple[List[Tuple[Any, ...]], float, float]:
+    """The legend for `blocks`, as `_legend_layout()` has it, but laid across, as the viewer
+    draws it along the bottom: each block's title and then its items, one after another, in rows
+    that wrap before `width` pixels (the legend's padding included). A ramp's bar runs from its
+    low value at the left to its high value at the right, split by the midpoint of a diverging
+    scale.
+
+    The marks are `_legend_layout()`'s, with each swatch's x after its y, as `("node", y,
+    (light, dark), x)`, and with `("bar", x0, x1, y, scale, start, end)` for the ramp's bar from
+    `x0` to `x1`, a part of the whole ramp from `start` to `end`.
+    """
+    # Each block's title's width and its pieces, which a row doesn't split: its title with its
+    # first item, and then the others, as (width, marks placed from x 0 and y 0)
+    pieces: List[Tuple[float, List[Tuple[float, List[Tuple[Any, ...]]]]]] = []
+    text_x = 22.0
+    for block in blocks:
+        title = _legend_text(str(block["title"]))
+        lead = _text_width(title) * 1.05 + 8
+        items: List[Tuple[float, List[Tuple[Any, ...]]]] = []
+        if block["kind"] == "swatches":
+            for shape, pair, label in block["items"]:
+                label = _legend_text(label)
+                marks = [(shape, 0.0, pair, 0.0), ("text", text_x, 0.0, label, "")]
+                items.append((text_x + _text_width(label), marks))
+        else:
+            lo, hi, mid = (None if v is None else _fmt_num(v) for v in block["ends"])
+            marks, x = [("text", 0.0, 0.0, lo, "")], _text_width(lo) + 6
+            start = x
+            halves = [_LEGEND_RAMP] if mid is None else [_LEGEND_RAMP / 2, _LEGEND_RAMP / 2]
+            end = start + _LEGEND_RAMP + (0 if mid is None else _text_width(mid) + 8)
+            for k, half in enumerate(halves):
+                marks.append(("bar", x, x + half, 0.0, block["scale"], start, end))
+                x += half
+                if k == 0 and mid is not None:
+                    marks.append(("text", x + 4, 0.0, mid, ""))
+                    x += _text_width(mid) + 8
+            marks.append(("text", x + 6, 0.0, hi, ""))
+            items.append((x + 6 + _text_width(hi), marks))
+            if block.get("missing"):
+                marks = [("dot", 0.0, MISSING_COLOR, 0.0), ("text", text_x, 0.0, "no value", "")]
+                items.append((text_x + _text_width("no value"), marks))
+        first_w, first = items[0]
+        head = [("text", 0.0, 0.0, title, "600")] + [_moved(m, lead, 0.0) for m in first]
+        pieces.append((lead, [(lead + first_w, head)] + items[1:]))
+
+    marks_out: List[Tuple[Any, ...]] = []
+    room = width - 2 * _LEGEND_PAD
+    x, y, widest, start = 0.0, _LEGEND_PAD, 0.0, 0.0
+    for lead, block_pieces in pieces:
+        for k, (w, marks) in enumerate(block_pieces):
+            gap = 0.0 if x == 0 else (20.0 if k == 0 else 12.0)
+            if x > 0 and x + gap + w > room:
+                # A block's items go on under its first one where they fit
+                indent = start + lead if k > 0 and start + lead + w <= room else 0.0
+                x, y, gap = indent, y + _LEGEND_ROW, 0.0
+            if k == 0:
+                start = x + gap
+            marks_out.extend(_moved(m, x + gap, y) for m in marks)
+            x += gap + w
+            widest = max(widest, x)
+    return marks_out, widest + 2 * _LEGEND_PAD, y + _LEGEND_PAD
+
+
+def _moved(mark: Tuple[Any, ...], dx: float, dy: float) -> Tuple[Any, ...]:
+    """A mark of `_legend_row()`'s moved by `dx` and `dy`."""
+    kind = mark[0]
+    if kind == "text":
+        return ("text", mark[1] + dx, mark[2] + dy, *mark[3:])
+    if kind == "bar":
+        _, x0, x1, y, scale, start, end = mark
+        return ("bar", x0 + dx, x1 + dx, y + dy, scale, start + dx, end + dx)
+    return (kind, mark[1] + dy, mark[2], mark[3] + dx)
+
+
+def _ramp_gradient(scale: str, colors: "_Colors", across: str = "") -> Tuple[str, str]:
+    """The gradient of a ramp of `scale`, in the colors of `colors`'s theme: its id and its
+    `<defs>`. It runs up its box from the low end, or with `across` (its attributes x1, y1, x2
+    and y2, in the user's space), along that. It is named after its colors, and its place, so
+    that equal ramps on one page can share the name."""
+    stops = DIVERGING_STOPS if scale == "diverging" else SEQUENTIAL_STOPS
+    first = stops[0][0]
+    stop_marks = []
+    for k in range(11):
+        light, dark = _scale_color(stops, first + (stops[-1][0] - first) * k / 10)
+        stop_marks.append(f'<stop offset="{k / 10:g}" stop-color="{colors.pick(light, dark)}"/>')
+    body = "".join(stop_marks)
+    grad = "ec-ramp-" + hashlib.sha1((across + body).encode()).hexdigest()[:8]
+    where = f'gradientUnits="userSpaceOnUse" {across}' if across else 'x1="0" y1="1" x2="0" y2="0"'
+    return grad, f'<defs><linearGradient id="{grad}" {where}>{body}</linearGradient></defs>'
+
+
 def _svg_legend(
     marks: List[Tuple[Any, ...]], colors: "_Colors", th: Theme, keys: bool = False
 ) -> str:
@@ -1706,6 +1799,8 @@ def _svg_legend(
     parts = []
     font = f'font-family="{FONT_FAMILY}" font-size="{_LEGEND_FONT:g}"'
     key = block = -1
+    # The gradients drawn so far, which a diverging ramp's two halves share
+    defined: List[str] = []
     for i, (kind, *mark) in enumerate(marks):
         if kind == "text" and mark[3] == "600":
             block += 1
@@ -1713,10 +1808,11 @@ def _svg_legend(
             key += 1
             label = marks[i + 1][3]
             width = 22 + _text_width(label) + 4
+            x = mark[2] if len(mark) > 2 else 0.0
             parts.append(
                 f'<g class="ec-key" data-key="{key}" data-block="{block}" role="checkbox" '
                 f'aria-checked="true" tabindex="0" aria-label="{html_mod.escape(label)}">'
-                f'<rect x="-4" y="{mark[0] - _LEGEND_ROW / 2:.1f}" width="{width:.1f}" '
+                f'<rect x="{x - 4:g}" y="{mark[0] - _LEGEND_ROW / 2:.1f}" width="{width:.1f}" '
                 f'height="{_LEGEND_ROW:g}" fill="transparent"/>'
             )
         if kind == "text":
@@ -1728,39 +1824,37 @@ def _svg_legend(
             )
             if keys and i > 0 and marks[i - 1][0] in ("node", "edge"):
                 parts.append("</g>")
-        elif kind == "node":
-            y, pair = mark
-            border = colors.pick(_darken(pair[0], 0.3), _darken(pair[1], 0.3))
+        elif kind in ("node", "dot", "edge"):
+            y, pair, *at = mark
+            x = at[0] if at else 0.0
+            if kind == "edge":
+                parts.append(
+                    f'<line x1="{x:g}" y1="{y:.1f}" x2="{x + 14:g}" y2="{y:.1f}" '
+                    f'stroke="{colors.pick(*pair)}" stroke-width="3" stroke-linecap="round"/>'
+                )
+                continue
+            ring = ""
+            if kind == "node":
+                border = colors.pick(_darken(pair[0], 0.3), _darken(pair[1], 0.3))
+                ring = f' stroke="{border}" stroke-width="1" stroke-opacity="0.4"'
             parts.append(
-                f'<circle cx="7" cy="{y:.1f}" r="5" fill="{colors.pick(*pair)}" '
-                f'stroke="{border}" stroke-width="1" stroke-opacity="0.4"/>'
+                f'<circle cx="{x + 7:g}" cy="{y:.1f}" r="5" fill="{colors.pick(*pair)}"{ring}/>'
             )
-        elif kind == "dot":
-            y, pair = mark
-            parts.append(f'<circle cx="7" cy="{y:.1f}" r="5" fill="{colors.pick(*pair)}"/>')
-        elif kind == "edge":
-            y, pair = mark
+        elif kind == "bar":
+            x0, x1, y, scale, start, end = mark
+            across = f'x1="{start:g}" y1="0" x2="{end:g}" y2="0"'
+            grad, defs = _ramp_gradient(scale, colors, across)
+            defs = "" if grad in defined else defs
+            defined.append(grad)
             parts.append(
-                f'<line x1="0" y1="{y:.1f}" x2="14" y2="{y:.1f}" stroke="{colors.pick(*pair)}" '
-                f'stroke-width="3" stroke-linecap="round"/>'
+                f'{defs}<rect x="{x0:g}" y="{y - 5:.1f}" width="{x1 - x0:g}" height="10" '
+                f'rx="2" fill="url(#{grad})"/>'
             )
         else:
             top, scale = mark
-            stops = DIVERGING_STOPS if scale == "diverging" else SEQUENTIAL_STOPS
-            first = stops[0][0]
-            stop_marks = []
-            for k in range(11):
-                light, dark = _scale_color(stops, first + (stops[-1][0] - first) * k / 10)
-                stop_marks.append(
-                    f'<stop offset="{k / 10:g}" stop-color="{colors.pick(light, dark)}"/>'
-                )
-            # Named after its colors, so that equal ramps on one page can share the name
-            grad = "ec-ramp-" + hashlib.sha1("".join(stop_marks).encode()).hexdigest()[:8]
+            grad, defs = _ramp_gradient(scale, colors)
             parts.append(
-                f'<defs><linearGradient id="{grad}" x1="0" y1="1" x2="0" y2="0">'
-                + "".join(stop_marks)
-                + "</linearGradient></defs>"
-                f'<rect x="2" y="{top:.1f}" width="10" height="{_LEGEND_RAMP:g}" rx="2" '
+                f'{defs}<rect x="2" y="{top:.1f}" width="10" height="{_LEGEND_RAMP:g}" rx="2" '
                 f'fill="url(#{grad})"/>'
             )
     return "".join(parts)
@@ -2223,10 +2317,13 @@ def build_scene(
             radii = dict(zip(str_ids, builder.radii))
             placed = _remove_overlaps(positions, radii, padding=overlap_pad, seed=seed)
 
-        # The legend gets a column of its own at the right, so that it never covers the drawing
+        # The legend gets a column of its own at the right, so that it never covers the drawing,
+        # or in the viewer, a band along the bottom
         legend_marks: List[Tuple[Any, ...]] = []
-        legend_w = 0.0
-        if legend_blocks:
+        legend_w = legend_h = 0.0
+        if legend_blocks and backend == "viewer":
+            legend_marks, legend_w, legend_h = _legend_row(legend_blocks, width)
+        elif legend_blocks:
             legend_marks, legend_w, _ = _legend_layout(legend_blocks)
 
         # Non-curved edges are routed around the nodes in their way, except in the viewer, which
@@ -2249,6 +2346,7 @@ def build_scene(
             max_labels=max_labels,
             lean_min=LEAN_MIN,
             viewer=backend == "viewer",
+            legend_h=legend_h,
         )
 
     if backend != "auto":
@@ -2305,28 +2403,21 @@ def _shade_gradients(scene: Scene, colors: "_Colors") -> List[Tuple[str, str, st
 
 
 def _legend_markup(scene: Scene, colors: "_Colors") -> Optional[str]:
-    """`scene`'s legend in the colors of `colors`'s theme, placed at the right of its viewBox."""
+    """`scene`'s legend in the colors of `colors`'s theme, placed at the right of its viewBox, or
+    at the bottom left, as the viewer has it."""
     if not scene.legend:
         return None
     vb = scene.viewbox
     # Viewbox units per pixel
     unit = vb[3] / scene.height
+    if scene.legend_h:
+        x, y = vb[0] + _LEGEND_PAD * unit, vb[1] + vb[3] - scene.legend_h * unit
+    else:
+        x, y = vb[0] + vb[2] - (scene.legend_w - _LEGEND_PAD) * unit, vb[1]
     return (
-        f'<g class="ec-legend" transform="translate('
-        f"{vb[0] + vb[2] - (scene.legend_w - _LEGEND_PAD) * unit:.1f} "
-        f'{vb[1]:.1f}) scale({unit:.4f})">{_svg_legend(scene.legend, colors, colors.theme)}</g>'
+        f'<g class="ec-legend" transform="translate({x:.1f} {y:.1f}) scale({unit:.4f})">'
+        f"{_svg_legend(scene.legend, colors, colors.theme)}</g>"
     )
-
-
-def _legend_height(marks: List[Tuple[Any, ...]]) -> float:
-    """The height of the legend of `marks` (from `_legend_layout()`), with as much room below
-    its last row as above its first."""
-    bottom = 0.0
-    for kind, *mark in marks:
-        bottom = max(bottom, mark[1] if kind == "text" else mark[0])
-        if kind == "ramp":
-            bottom = max(bottom, mark[0] + _LEGEND_RAMP)
-    return bottom + _LEGEND_PAD
 
 
 _viewer_counter = 0
@@ -2503,8 +2594,8 @@ def emit_viewer(
     `StepPlayer.as_raw_html()`).
 
     The viewer is `scene`'s size, or `css_width` wide (a CSS length) and `scene`'s height. Its
-    legend keeps its size in pixels, at the top right, and the viewer folds it into a button
-    when the box is too small for it.
+    legend keeps its size in pixels, laid across the bottom left (see `_legend_row()`), and the
+    viewer folds it into a button when the box is too small for it.
 
     Its panel of controls writes the `plot()` call that draws what they show, from `call` (see
     `plot_call()`), and `moves` says that the layout depends on the node size, as overlap
@@ -2529,15 +2620,15 @@ def emit_viewer(
     else:
         size = f"width:{css_width};height:{scene.height:g}px"
     box = (
-        f"display:block;position:relative;{size};max-width:100%;margin:1em auto;"
+        f"display:block;position:relative;{size};max-width:100%;margin:1em auto;--ec-bg:{th.bg};"
         f"background:{th.bg};color:{th.label_color};color-scheme:{chrome.scheme()}"
     )
     # The legend, over the drawing and fixed as it pans and zooms
     legend = ""
     if scene.legend:
-        lw, lh = math.ceil(scene.legend_w), math.ceil(_legend_height(scene.legend))
+        lw, lh = math.ceil(scene.legend_w), math.ceil(scene.legend_h)
         legend = (
-            '<div class="ec-legend-layer" style="position:absolute;top:0;right:0;'
+            '<div class="ec-legend-layer" style="position:absolute;left:0;bottom:0;'
             'pointer-events:none">'
             f'<svg xmlns="http://www.w3.org/2000/svg" width="{lw}" height="{lh}" '
             f'viewBox="0 0 {lw} {lh}" style="display:block">'
