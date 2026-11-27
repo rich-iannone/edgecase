@@ -72,6 +72,16 @@ struct Edges {
     order: Vec<usize>,
     // The tooltips as for the nodes, or none in lean SVG, which holds them in one table
     tips: Vec<String>,
+    // The width that each arrowhead is drawn for, where it isn't its edge's: zoomed in, as the
+    // viewer draws them, they grow with the nodes. Empty for none
+    head: Vec<f64>,
+}
+
+impl Edges {
+    /// The width that edge `i`'s arrowhead is drawn for
+    fn head_width(&self, i: usize) -> f64 {
+        self.head.get(i).copied().unwrap_or(self.width[i])
+    }
 }
 
 /// For the viewer's controls, which redraw the scene as `plot()` would with other values: the
@@ -194,6 +204,13 @@ pub struct Scene {
     /// JSON tables
     #[pyo3(get)]
     tip_tables: Option<(String, String)>,
+    /// The legend's swatches that `plot(filters=...)` turned off, by their places among them,
+    /// which the legend draws faint
+    #[pyo3(get)]
+    legend_off: Vec<usize>,
+    /// For the viewer, the legend's swatches as `filters=` names them (see
+    /// `SceneBuilder.legend_entries`)
+    entries: Vec<(PyObject, &'static str, PyObject)>,
     controls: Option<Controls>,
     nodes: Nodes,
     labels: Option<Labels>,
@@ -247,12 +264,24 @@ impl Scene {
             legend_h,
             edge_tip_table,
             tip_tables,
+            legend_off: Vec::new(),
+            entries: Vec::new(),
             controls: None,
             nodes: Nodes::default(),
             labels: None,
             edges: Edges::default(),
             edge_labels: None,
         }
+    }
+
+    /// For the viewer, the legend's swatches in the order it draws them: each one's attribute,
+    /// `"nodes"` or `"edges"`, and its group's value (see `SceneBuilder.legend_entries`)
+    #[getter]
+    fn legend_entries(&self, py: Python<'_>) -> Vec<(PyObject, &'static str, PyObject)> {
+        self.entries
+            .iter()
+            .map(|(title, of, value)| (title.clone_ref(py), *of, value.clone_ref(py)))
+            .collect()
     }
 
     /// The nodes, in the order of their IDs.
@@ -380,6 +409,7 @@ impl Scene {
             route,
             order,
             tips,
+            head: Vec::new(),
         };
         Ok(())
     }
