@@ -334,6 +334,25 @@ that the whole view runs together:
 ec.wiki_vote().plot(show_labels=False, seed=1, backend="viewer")
 ```
 
+The last button in the corner, or the `F` key, shows the plot full screen, where the wheel zooms
+without a click; `Esc` or `F` again leaves it. Where a page doesn't allow full screen, as in some
+notebooks, the plot fills the window instead.
+
+A column of text, such as this page's, is narrow for a large graph. With the viewer, `width=` can
+also be a CSS length, such as `"100%"`, for a plot as wide as its container, at the height of
+`height=`. In a Quarto document, a cell option such as `#| column: page` widens the container
+beyond the text column:
+
+```{python}
+#| eval: false
+#| column: page
+ec.wiki_vote().plot(show_labels=False, seed=1, backend="viewer", width="100%", height=600)
+```
+
+The layout then keeps the default canvas's shape at that height, and the viewer fits it to the
+box. The legend keeps its size, at the top right, and where the plot is too small for it, it folds
+into a button that shows it.
+
 The viewer draws less than the SVG does, for now: no labels or tooltips, no arrowheads or
 self-loops, and no routing of edges around nodes. The legend is drawn over it as SVG. The HTML holds
 the viewer's code and the drawing's data, about 2 MB for the wiki-vote network, and the viewer
@@ -358,14 +377,14 @@ For graphs the size of the jazz network and larger, several strategies help:
 |---|---|---|
 | `layout=` | node placement: `"force"`, `"circular"`, `"random"`, or a position attribute | `"force"` |
 | `seed=` | the random start of the force and random layouts | `None` |
-| `width=`, `height=` | canvas size in pixels | `600`, `400` |
+| `width=`, `height=` | canvas size in pixels, or for the viewer a CSS width such as `"100%"` | `700`, `500` |
 | `node_size=`, `edge_width=` | node radius and edge width, automatic at their defaults | `16`, `1.2` |
 | `edge_opacity=` | edge transparency, from 0 to 1 | `0.4` |
 | `label_by=`, `show_labels=` | the node text | `None`, `True` |
 | `edge_label_by=` | an edge attribute to write along the edges | `None` |
 | `curved_edges=` | curved rather than straight edges | `False` |
 | `node_overlap=`, `edge_routing=` | overlap removal and routing around nodes | `"remove"`, `"auto"` |
-| `theme=` | `"light"` or `"dark"` | `"light"` |
+| `theme=` | `"auto"`, `"light"` or `"dark"` | `None` (automatic on screen, light in files) |
 | `backend=` | SVG elements (`"svg"`), images (`"png"`) or the viewer (`"viewer"`) for the edges and nodes | `"auto"` |
 | `output=` | a path to save to, as `.svg`, `.html` or `.png` | `None` |
 
