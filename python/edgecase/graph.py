@@ -4496,7 +4496,7 @@ class Graph:
         curved_edges: bool = False,
         theme: Optional[str] = None,
         palette: str = "tableau",
-        width: int = 700,
+        width: Union[int, str] = 700,
         height: int = 500,
         node_size: float = 16.0,
         edge_width: float = 1.2,
@@ -4623,7 +4623,11 @@ class Graph:
             `color_by=` or `edge_color_by=` is set.
         width
             SVG canvas width in pixels. Default is `700`. Together with `height=`, it also
-            influences the automatic node size.
+            influences the automatic node size. With `backend="viewer"`, it can also be a CSS
+            length, such as `"100%"` or `"40em"`, for a viewer that fills its container, or a
+            part of it, at the height of `height=`: the layout then has the default canvas's
+            shape at that height, and the viewer fits it to its box. `ValueError` is raised for
+            a string with the other backends, or one that isn't such a length.
         height
             SVG canvas height in pixels. Default is `500`.
         node_size
@@ -4721,9 +4725,10 @@ class Graph:
             200 MB can only be plotted as images or by the viewer. `"viewer"` draws the edges
             and nodes with WebGL in the browser, with the edges by their density, to pan (drag)
             and zoom (the buttons, the keys `+`, `-` and `0`, a double click, or the wheel once
-            the plot has been clicked), with hundreds of thousands of edges. The legend stays
-            SVG, over it; there are no labels, tooltips, arrowheads or self-loops yet, and edges
-            aren't routed. The HTML holds the viewer's code (about 30 kB) and the drawing's
+            the plot has been clicked), with hundreds of thousands of edges, and to show full
+            screen (its button, or the key `F`). The legend stays SVG, over it, and folds into
+            a button when the plot is too small for it; there are no labels, tooltips,
+            arrowheads or self-loops yet, and edges aren't routed. The HTML holds the viewer's code (about 30 kB) and the drawing's
             data, about 11 MB for 600,000 edges, and the browser needs WebGL 2. Any other value
             raises `ValueError`.
 
@@ -4747,6 +4752,7 @@ class Graph:
             values that aren't numbers, `palette=` is unknown while `color_by=` or
             `edge_color_by=` is set, `highlight=` or `highlight_edges=` names a node, edge or
             attribute the graph doesn't have, `edge_routing=` or `backend=` is unknown,
+            `width=` is a string other than a CSS length or without `backend="viewer"`,
             `output=` has an extension other than `.html`, `.svg` or `.png`, or the graph is so
             large that its SVG would pass 200 MB (with `backend="svg"`, or for the `.svg` of a
             plot that `backend="auto"` drew as images or that the viewer draws).
