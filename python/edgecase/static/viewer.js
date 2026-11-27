@@ -1096,6 +1096,11 @@ function themeOf(root, theme) {
 //   the nodes out for their size
 // - tone, the edges' tone that `plot()` was given (`value`: "auto", "over" or "log") and what
 //   "auto" is for this plot (`auto`), and shade, true for nodes shaded as spheres
+// - keys, the legend's swatches in the order of their places, as `filters=` names them: each
+//   one's `attr`, `of` ("nodes" or "edges"), its group's `value` (as JSON has it) and that value
+//   as Python `source`
+// - state, the view and the filters that `plot()` was given to start with, as the host has them
+//   (see `state` below)
 // The plot's background is `root`'s
 export function mount(root, buffer, options = {}) {
   const data = parse(buffer);
@@ -2021,7 +2026,7 @@ export function mount(root, buffer, options = {}) {
     }
   }
 
-  const { setOpen, isOpen, panelControls, restyle, syncNote, syncFilters, syncRun, filterControls } = controlPanel();
+  const { setOpen, isOpen, panelControls, restyle, syncFilters, syncRun, filterControls } = controlPanel();
 
   // The simulation (see `simulation()`), in a worker where the page allows one (see `engine()`),
   // from where the payload has the nodes, and warm (`WARM`), as their layout is most of the way
@@ -2152,13 +2157,43 @@ export function mount(root, buffer, options = {}) {
     } else {
       off.add(key);
     }
+    syncKeys();
+    relook();
+  }
+  function syncKeys() {
     for (const k of keys) {
       const on = !off.has(place(k));
       k.setAttribute("aria-checked", String(on));
       k.classList.toggle("ec-off", !on);
     }
-    syncNote();
-    relook();
+  }
+  // The swatches as filters of values: for each attribute with a swatch off, the values of those
+  // on, as `plot(filters=...)` takes them, and as Python source
+  const keyInfo = keys.length ? options.keys ?? [] : [];
+  function keyFilters() {
+    const out = [];
+    keyInfo.forEach((info, i) => {
+      let f = out.find((g) => g.attr === info.attr && g.of === info.of);
+      if (!f) out.push((f = { attr: info.attr, of: info.of, values: [], sources: [], hides: false }));
+      if (off.has(i + 1)) f.hides = true;
+      else {
+        f.values.push(info.value);
+        f.sources.push(info.source);
+      }
+    });
+    return out.filter((f) => f.hides);
+  }
+  // The swatches off that filters of values turn off, in place of those off (`of` may be left
+  // out, for the nodes' swatches of the attribute before the edges')
+  function setKeyFilters(list) {
+    off.clear();
+    for (const f of list) {
+      const of = f.of ?? (keyInfo.some((info) => info.attr === f.attr && info.of === "nodes") ? "nodes" : "edges");
+      keyInfo.forEach((info, i) => {
+        if (info.attr === f.attr && info.of === of && !(f.values ?? []).some((v) => sameValue(v, info.value))) off.add(i + 1);
+      });
+    }
+    syncKeys();
   }
   for (const g of keys) {
     g.addEventListener("click", (e) => toggleKey(place(g), e.altKey));
@@ -2714,7 +2749,6 @@ export function mount(root, buffer, options = {}) {
       // The filters change here, and the drawing follows, by the frame while brushing
       let pending = 0;
       function changed(brushing) {
-        syncNote();
         tab.classList.toggle("ec-changed", filters.some(narrowed));
         if (!brushing) {
           cancelAnimationFrame(pending);
@@ -2815,12 +2849,19 @@ export function mount(root, buffer, options = {}) {
       return { sync, controls };
     }
 
-    // "Copy as code": the call, with the changed controls' arguments and the selection, in the
-    // parameters' order, on one line where it fits in 88 characters. The legend's filters, the
-    // simulation's forces and where it moved the nodes are the view's, which no argument of
-    // `plot()` has yet
+    // "Copy as code": the call, with the changed controls' arguments, the selection and the
+    // filters (the Filter tab's and the legend's), in the parameters' order, on one line where it
+    // fits in 88 characters. The camera is left out, as it moves all the time. The simulation's
+    // forces and where it moved the nodes are the view's, which no argument of `plot()` has yet
     function code() {
       const args = new Map(given);
+      args.delete("view");
+      const fs = [
+        ...filters.filter(narrowed).map((q) => `{"attr": ${JSON.stringify(q.col.name)}, "of": "${q.col.of}", "range": (${q.lo}, ${q.hi})}`),
+        ...keyFilters().map((f) => `{"attr": ${JSON.stringify(f.attr)}, "of": "${f.of}", "values": [${f.sources.join(", ")}]}`),
+      ];
+      if (fs.length) args.set("filters", `[${fs.join(", ")}]`);
+      else args.delete("filters");
       for (const c of list) {
         if (c.value === c.start || c.view) continue;
         const source = c.code ? c.code(c.value) : pyNumber(c.value);
@@ -2869,16 +2910,8 @@ export function mount(root, buffer, options = {}) {
       clearTimeout(said);
       said = setTimeout(() => { status.textContent = ""; }, 2500);
     });
-    const filtered = el("p", "ec-note");
-    filtered.hidden = true;
-    const syncNote = () => {
-      const own = filters.some(narrowed);
-      filtered.hidden = !own && off.size === 0;
-      filtered.textContent = own && off.size ? "The filters and the legend's aren't in the code"
-        : own ? "The filters aren't in the code" : "The legend's filters aren't in the code";
-    };
     const movedNote = el("p", "ec-note", "The simulation's positions aren't in the code");
-    foot.append(copy, status, filtered, movedNote, text);
+    foot.append(copy, status, movedNote, text);
     panel.append(foot);
     root.append(panel);
     syncRun();
@@ -2912,7 +2945,7 @@ export function mount(root, buffer, options = {}) {
       code,
     };
     const syncFilters = () => filterPage?.sync();
-    return { setOpen, isOpen: () => shownOpen, panelControls, restyle, syncNote, syncFilters, syncRun, filterControls: filterPage?.controls ?? null };
+    return { setOpen, isOpen: () => shownOpen, panelControls, restyle, syncFilters, syncRun, filterControls: filterPage?.controls ?? null };
   }
 
   // The state that a host follows and sets (see `GraphElement`): the selection, as the nodes'
@@ -2928,7 +2961,10 @@ export function mount(root, buffer, options = {}) {
       return { nodes: ids.map(asId), edges: pairs.map((p) => p.map(asId)) };
     },
     view: () => ({ x: cam.cx, y: cam.cy, zoom: cam.zoom }),
-    filters: () => filters.filter(narrowed).map((q) => ({ attr: q.col.name, of: q.col.of, range: [q.lo, q.hi] })),
+    filters: () => [
+      ...filters.filter(narrowed).map((q) => ({ attr: q.col.name, of: q.col.of, range: [q.lo, q.hi] })),
+      ...keyFilters().map((f) => ({ attr: f.attr, of: f.of, values: f.values })),
+    ],
   };
   let indexOf = null;
   const put = {
@@ -2957,7 +2993,13 @@ export function mount(root, buffer, options = {}) {
       else Object.assign(cam, { cx: num(v.x, cam.cx), cy: num(v.y, cam.cy), zoom: Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, num(v.zoom, cam.zoom))) });
       redraw();
     },
-    filters(v) { filterControls?.replace(v ?? []); },
+    // The Filter tab's ranges and the legend's values
+    filters(v) {
+      const list = Array.isArray(v) ? v : [];
+      filterControls?.replace(list.filter((f) => f && f.values === undefined));
+      setKeyFilters(list.filter((f) => f && Array.isArray(f.values)));
+      relook();
+    },
   };
   function report(name, later) {
     clearTimeout(settling[name]);
@@ -2970,6 +3012,9 @@ export function mount(root, buffer, options = {}) {
     told[name] = text;
     root.dispatchEvent(new CustomEvent("ec-change", { bubbles: true, detail: { name, value } }));
   }
+  // The view and the filters that `plot()` was given
+  if (options.state?.view) put.view(options.state.view);
+  if (options.state?.filters?.length) put.filters(options.state.filters);
   for (const name in state) told[name] = JSON.stringify(state[name]());
   const known = (name) => {
     if (!Object.hasOwn(state, name)) throw new Error(`No state ${name}; there are ${Object.keys(state).join(", ")}`);
@@ -3000,6 +3045,8 @@ export function mount(root, buffer, options = {}) {
   };
 }
 
+// Whether two values of the legend's groups are one, as Python's groups take them, 1 and true alike
+const sameValue = (a, b) => a === b || (a !== null && b !== null && typeof a !== "string" && typeof b !== "string" && Number(a) === Number(b));
 // A value as it reads in Python
 const show = (v) => String(Math.round(v * 100) / 100);
 const pyNumber = (v) => (/[.e]/.test(String(v)) ? String(v) : `${v}.0`);
