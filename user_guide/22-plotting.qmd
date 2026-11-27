@@ -367,7 +367,8 @@ notebooks, the plot fills the window instead.
 The button below it, Settings, opens a panel of controls in the terms of `plot()`'s arguments: the
 node size and shading under Nodes, the edges' opacity, width and curve (and, under More, their
 tone) under Edges, whether the labels are
-shown and how many under Labels, and the theme (and, under More, the legend) under View. A changed control is marked, with a button that resets it. In a wide
+shown and how many under Labels, and the theme and the camera (and, under More, the legend) under
+View. A changed control is marked, with a button that resets it. In a wide
 plot, or full screen, the panel docks at the side; in a smaller one it slides over the graph, and a
 click outside it or `Esc` closes it. "Copy as code" copies the `plot()` call that draws what the
 viewer shows, with the changed arguments, to paste back into the notebook. The plot is framed for
@@ -446,6 +447,14 @@ g.plot(
     filters=[{"attr": "degree", "range": (2, 10)}],
 )
 ```
+
+"Copy as code" leaves the camera out, as it moves all the time. "Capture view", the camera button
+below the zoom buttons (or the `C` key), copies the call with `view=` too, at the camera of the
+moment, so that a part of the graph found by exploring can be pasted back and drawn as a figure:
+the same call with `backend="svg"` or `backend="png"` draws that view. The panel's View tab shows
+the camera, as `view=` writes it, with a "Capture view" button of its own. The figure's box is the
+plot's `width=` and `height=`, so a view captured full screen, or beside the docked panel, shows a
+little more or less at the sides of the figure than it did on screen.
 
 The labels stay the same size as the view zooms, and the viewer chooses them again, by the same
 rule as the SVG, for the part of the graph in view: zooming in on a crowded region shows the
