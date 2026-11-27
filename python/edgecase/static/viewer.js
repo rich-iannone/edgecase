@@ -27,7 +27,8 @@ const BUDGET = 150000; // the edges that a frame of a moving view draws
 const ZOOM_MIN = 0.25;
 const ZOOM_MAX = 1000;
 const CANVAS_MAX = 4096; // the canvas's longer side, in pixels
-// The legend folds into a button when it would take more of the box than this
+// The legend folds into a button when it would take more of the box's height than this, or be
+// wider than the box
 const LEGEND_SHARE = 0.35;
 // A node or an edge is under the pointer when it is drawn within this many pixels of it
 const HIT = 4;
@@ -106,6 +107,7 @@ float inside(vec2 p, vec2 a, vec2 b, vec2 c) {
 }
 // sin(0.45) and cos(0.45), where a self-loop meets its node
 const float LOOP_SIN = 0.43496553, LOOP_COS = 0.90044710;
+const float HEAD_GROW = 3.0, HEAD_GAIN = 0.85;
 const vec4 HIDDEN = vec4(2.0, 2.0, 2.0, 1.0);
 void main() {
   vec4 sn = texel(u_nodes, a_src), tn = texel(u_nodes, a_tgt);
@@ -120,9 +122,15 @@ void main() {
   v_gain = gain * min(line, 1.0);
   line = max(line, 1.0);
   float w = line + u_fringe;
-  // The arrowhead grows with the edge's width, as the SVG's does
-  float grow = max(a_width / 1.2, 0.6) * u_unit;
+  // The arrowhead grows with the edge's width, as the SVG's does, and zoomed in, with the nodes
+  // (by the square root of the zoom), up to HEAD_GROW times, though no longer than its node is
+  // across, and comes forward from the edge's faintness to HEAD_GAIN as it grows, so that the
+  // direction reads where there's room for it
+  float base = max(a_width / 1.2, 0.6) * u_unit;
+  float zoomed = clamp(min(u_radius / u_unit, rb / (4.0 * base)), 1.0, HEAD_GROW);
+  float grow = base * zoomed;
   float head_len = 8.0 * grow, head_wid = 5.0 * grow;
+  float head_gain = mix(gain, max(gain, HEAD_GAIN), (zoomed - 1.0) / (HEAD_GROW - 1.0));
   // The path, as the SVG has it: a self-loop's two cubic curves above its node, p[0] to p[6],
   // or the quadratic curve p[0], p[1], p[2] between the nodes' borders
   bool loop = a_src == a_tgt;
@@ -188,7 +196,7 @@ void main() {
     vec2 pt = center + (q - center) * (inner + 1.0) / inner;
     v_side = vec3(inside(pt, q0, q1, q2), inside(pt, q1, q2, q0), inside(pt, q2, q0, q1));
     v_head = vec3(-1e4);
-    v_gain = gain;
+    v_gain = head_gain;
     gl_Position = vec4(pt / half_vp, 0.0, 1.0);
     return;
   }
@@ -263,7 +271,9 @@ void main() {
   float r = nd.z * u_unit;
   v_fill_gain = fill.a * (r < 0.5 ? pow(r / 0.5, 2.0) : 1.0);
   v_r = max(r, 0.5);
-  float bw = st.y * u_unit / 2.0;
+  // A border is at most half as wide as its node's radius, so that a small node zoomed in is a
+  // node, not a ring around the arrowheads that come to it
+  float bw = min(st.y, 0.5 * nd.z) * u_unit / 2.0;
   v_border_gain = bw <= 0.0 ? 0.0 : st.z * border.a * (bw < 0.5 ? bw / 0.5 : 1.0);
   v_bw = max(bw, 0.5);
   v_fill = fill.rgb;
@@ -922,9 +932,15 @@ function cssRgb(color) {
   return v.map((c) => c / 255);
 }
 
-// `--ec-side` is the width that the docked panel takes from the drawing
+// `--ec-side` is the width that the docked panel takes from the drawing, `--ec-legend-h` the
+// height of the legend shown along the bottom, and `--ec-bg` the plot's background. The buttons
+// over the drawing are glass, which blurs what's under them, until the plot is pointed at or
+// focused, and then solid
 const STYLE = `
-.ec-viewer { position: relative; overflow: hidden; user-select: none; -webkit-user-select: none; }
+.ec-viewer { position: relative; overflow: hidden; border-radius: 8px; user-select: none; -webkit-user-select: none; --ec-glass: color-mix(in srgb, var(--ec-bg, Canvas) 55%, transparent); --ec-solid: color-mix(in srgb, currentColor 12%, var(--ec-bg, Canvas)); }
+.ec-viewer::after { content: ""; position: absolute; inset: 0; border-radius: inherit; box-shadow: inset 0 0 0 1px color-mix(in srgb, currentColor 14%, transparent); pointer-events: none; }
+.ec-viewer:fullscreen, .ec-viewer.ec-expanded { border-radius: 0; }
+.ec-viewer:fullscreen::after, .ec-viewer.ec-expanded::after { display: none; }
 .ec-viewer.ec-docked.ec-panel-open { --ec-side: ${PANEL_W}px; }
 .ec-viewer [hidden] { display: none !important; }
 .ec-viewer canvas { position: absolute; inset: 0; width: calc(100% - var(--ec-side, 0px)); height: 100%; display: block; touch-action: pan-x pan-y; outline: none; }
@@ -932,17 +948,19 @@ const STYLE = `
 .ec-viewer .ec-still { position: absolute; inset: 0; width: calc(100% - var(--ec-side, 0px)); height: 100%; display: block; }
 .ec-viewer canvas.ec-grab { cursor: grab; }
 .ec-viewer canvas.ec-grabbing { cursor: grabbing; }
-.ec-viewer .ec-legend-layer { position: absolute; top: 0; right: var(--ec-side, 0px) !important; pointer-events: none; }
+.ec-viewer .ec-legend-layer { position: absolute; left: 6px !important; bottom: 6px !important; pointer-events: none; border-radius: 8px; background: var(--ec-glass); -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px); }
 .ec-viewer button { display: flex; align-items: center; justify-content: center; width: 26px; height: 26px; padding: 0; border: 0; border-radius: 6px; color: inherit; background: color-mix(in srgb, currentColor 14%, transparent); cursor: pointer; opacity: 0.75; }
 .ec-viewer button:hover, .ec-viewer button:focus-visible { opacity: 1; }
 .ec-viewer button svg { display: block; }
 .ec-viewer .ec-controls { position: absolute; left: 8px; top: 8px; display: flex; flex-direction: column; gap: 4px; }
 .ec-viewer .ec-controls .ec-apart { margin-top: 6px; }
-.ec-viewer .ec-controls [aria-expanded=true], .ec-viewer .ec-controls [aria-pressed=true] { opacity: 1; background: color-mix(in srgb, currentColor 26%, transparent); }
-.ec-viewer .ec-legend-toggle { position: absolute; right: calc(var(--ec-side, 0px) + 8px); top: 8px; display: none; }
+.ec-viewer .ec-controls button, .ec-viewer .ec-legend-toggle, .ec-viewer .ec-search { background: var(--ec-glass); -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px); box-shadow: inset 0 0 0 1px color-mix(in srgb, currentColor 12%, transparent); transition: background-color 0.15s, opacity 0.15s; }
+.ec-viewer:is(:hover, :focus-within) .ec-controls button, .ec-viewer:is(:hover, :focus-within) .ec-legend-toggle, .ec-viewer:is(:hover, :focus-within) .ec-search { background: var(--ec-solid); }
+.ec-viewer .ec-controls [aria-expanded=true], .ec-viewer .ec-controls [aria-pressed=true], .ec-viewer:is(:hover, :focus-within) .ec-controls :is([aria-expanded=true], [aria-pressed=true]) { opacity: 1; background: color-mix(in srgb, currentColor 26%, var(--ec-bg, Canvas)); }
+.ec-viewer .ec-legend-toggle { position: absolute; left: 8px; bottom: 8px; display: none; }
 .ec-viewer.ec-legend-folded .ec-legend-toggle { display: flex; }
 .ec-viewer.ec-legend-folded .ec-legend-layer, .ec-viewer.ec-legend-off .ec-legend-layer, .ec-viewer.ec-legend-off .ec-legend-toggle { display: none; }
-.ec-viewer.ec-legend-folded.ec-legend-open:not(.ec-legend-off) .ec-legend-layer { display: block; top: 40px !important; right: calc(var(--ec-side, 0px) + 8px) !important; pointer-events: auto !important; max-width: calc(100% - var(--ec-side, 0px) - 48px); max-height: calc(100% - 48px); overflow: auto; background: inherit; border-radius: 8px; box-shadow: 0 0 0 1px color-mix(in srgb, currentColor 15%, transparent), 0 4px 12px rgba(0, 0, 0, 0.15); }
+.ec-viewer.ec-legend-folded.ec-legend-open:not(.ec-legend-off) .ec-legend-layer { display: block; left: 8px !important; bottom: 40px !important; pointer-events: auto !important; max-width: calc(100% - var(--ec-side, 0px) - 16px); max-height: calc(100% - 48px); overflow: auto; background: var(--ec-bg, Canvas); -webkit-backdrop-filter: none; backdrop-filter: none; box-shadow: 0 0 0 1px color-mix(in srgb, currentColor 15%, transparent), 0 4px 12px rgba(0, 0, 0, 0.15); }
 .ec-viewer.ec-legend-folded.ec-legend-open .ec-legend-toggle { opacity: 1; }
 .ec-viewer:fullscreen, .ec-viewer.ec-expanded { width: 100vw !important; height: 100vh !important; max-width: none !important; aspect-ratio: auto !important; margin: 0 !important; }
 .ec-viewer.ec-expanded { position: fixed !important; inset: 0; z-index: 2147483000; }
@@ -950,9 +968,9 @@ html.ec-expanded-page, html.ec-expanded-page body { overflow: hidden !important;
 .ec-viewer .ec-mark { position: absolute; inset: 0; width: calc(100% - var(--ec-side, 0px)); height: 100%; pointer-events: none; overflow: visible; }
 .ec-viewer .ec-mark path { fill: none; stroke: currentColor; stroke-linecap: round; }
 .ec-viewer .ec-mark path.ec-lasso { stroke-width: 1.5; stroke-dasharray: 4 3; stroke-linejoin: round; fill: color-mix(in srgb, currentColor 6%, transparent); }
-.ec-viewer .ec-search { position: absolute; left: 38px; top: 8px; width: 26px; height: 26px; border-radius: 6px; background: color-mix(in srgb, currentColor 14%, transparent); opacity: 0.75; overflow: hidden; transition: width 0.15s ease; }
+.ec-viewer .ec-search { position: absolute; left: 38px; top: 8px; width: 26px; height: 26px; border-radius: 6px; opacity: 0.75; overflow: hidden; transition: width 0.15s ease, background-color 0.15s, opacity 0.15s; }
 .ec-viewer .ec-search:hover { opacity: 1; }
-.ec-viewer .ec-search:focus-within { width: min(200px, calc(100% - var(--ec-side, 0px) - 46px)); opacity: 1; background: inherit; box-shadow: 0 0 0 1.5px color-mix(in srgb, currentColor 60%, transparent); }
+.ec-viewer .ec-search:focus-within { width: min(200px, calc(100% - var(--ec-side, 0px) - 46px)); opacity: 1; background: var(--ec-bg, Canvas); box-shadow: 0 0 0 1.5px color-mix(in srgb, currentColor 60%, transparent); }
 .ec-viewer .ec-search svg { position: absolute; left: 5px; top: 5px; pointer-events: none; }
 .ec-viewer .ec-search input { position: absolute; inset: 0; width: 100%; height: 100%; box-sizing: border-box; margin: 0; padding: 0 8px 0 26px; border: 0; outline: none; background: transparent; color: inherit; font-size: 12px; cursor: pointer; }
 .ec-viewer .ec-search:focus-within input { cursor: text; }
@@ -968,8 +986,9 @@ html.ec-expanded-page, html.ec-expanded-page body { overflow: hidden !important;
 .ec-viewer .ec-legend-layer .ec-key:focus-visible rect { stroke: currentColor; stroke-width: 1.5; }
 .ec-viewer .ec-tip { position: absolute; left: 0; top: 0; display: none; padding: 6px 10px; border-radius: 6px; font-size: 12px; line-height: 1.4; pointer-events: none; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.18); max-width: min(260px, 100%); box-sizing: border-box; overflow-wrap: anywhere; }
 .ec-viewer .ec-tip.ec-on { display: block; }
-.ec-viewer .ec-hint { position: absolute; left: calc((100% - var(--ec-side, 0px)) / 2); bottom: 10px; transform: translateX(-50%); padding: 4px 10px; border-radius: 6px; font: 12px system-ui, sans-serif; color: inherit; background: color-mix(in srgb, currentColor 14%, transparent); pointer-events: none; opacity: 0; transition: opacity 0.3s; white-space: nowrap; }
+.ec-viewer .ec-hint { position: absolute; left: calc((100% - var(--ec-side, 0px)) / 2); bottom: calc(var(--ec-legend-h, 0px) + 10px); transform: translateX(-50%); padding: 4px 10px; border-radius: 6px; font: 12px system-ui, sans-serif; color: inherit; background: color-mix(in srgb, currentColor 14%, transparent); pointer-events: none; opacity: 0; transition: opacity 0.3s; white-space: nowrap; }
 .ec-viewer .ec-hint.ec-on { opacity: 1; }
+.ec-viewer.ec-legend-off .ec-hint { bottom: 10px; }
 .ec-viewer .ec-message { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font: 13px system-ui, sans-serif; }
 .ec-viewer .ec-panel { position: absolute; top: 0; right: 0; bottom: 0; width: min(${PANEL_W}px, calc(100% - 40px)); box-sizing: border-box; display: flex; flex-direction: column; background: inherit; color: inherit; font-size: 12px; line-height: 1.4; text-align: left; user-select: text; -webkit-user-select: text; box-shadow: -6px 0 18px rgba(0, 0, 0, 0.18), 0 0 0 1px color-mix(in srgb, currentColor 15%, transparent); transform: translateX(calc(100% + 24px)); visibility: hidden; transition: transform 0.2s ease, visibility 0s linear 0.2s; }
 .ec-viewer.ec-panel-open .ec-panel { transform: none; visibility: visible; transition: transform 0.2s ease, visibility 0s; }
@@ -979,9 +998,9 @@ html.ec-expanded-page, html.ec-expanded-page body { overflow: hidden !important;
 .ec-viewer .ec-panel :focus-visible { outline: 2px solid currentColor; outline-offset: 1px; }
 .ec-viewer .ec-panel-head { display: flex; align-items: flex-end; gap: 4px; padding: 6px 6px 0 8px; border-bottom: 1px solid color-mix(in srgb, currentColor 15%, transparent); }
 .ec-viewer .ec-tabs { display: flex; flex: 1; gap: 1px; min-width: 0; overflow-x: auto; }
-.ec-viewer .ec-panel [role=tab] { padding: 6px 5px; border-radius: 6px 6px 0 0; border-bottom: 2px solid transparent; opacity: 0.7; white-space: nowrap; }
+.ec-viewer .ec-panel [role=tab] { position: relative; padding: 6px 5px; border-radius: 6px 6px 0 0; border-bottom: 2px solid transparent; opacity: 0.7; white-space: nowrap; }
 .ec-viewer .ec-panel [role=tab][aria-selected=true] { opacity: 1; font-weight: 600; border-bottom-color: currentColor; }
-.ec-viewer .ec-panel [role=tab].ec-changed::after { content: ""; display: inline-block; width: 5px; height: 5px; margin-left: 4px; border-radius: 50%; background: currentColor; vertical-align: 2px; }
+.ec-viewer .ec-panel [role=tab].ec-changed::after { content: ""; position: absolute; top: 4px; right: 0; width: 5px; height: 5px; border-radius: 50%; background: currentColor; }
 .ec-viewer .ec-panel .ec-close { align-self: center; width: 26px; height: 26px; padding: 0; opacity: 0.75; }
 .ec-viewer .ec-tabpanel { flex: 1; min-height: 0; overflow-y: auto; padding: 12px; display: flex; flex-direction: column; gap: 14px; }
 .ec-viewer .ec-field { display: flex; flex-direction: column; gap: 4px; }
@@ -1860,8 +1879,8 @@ export function mount(root, buffer, options = {}) {
     if (e.key === "Escape" && root.classList.contains("ec-expanded")) expand(false);
   });
 
-  // The legend keeps its size, at the top right, and folds into a button where it would take
-  // too much of the box
+  // The legend keeps its size, laid across the bottom left, and folds into a button there where
+  // it would take too much of the box
   const legend = root.querySelector(".ec-legend-layer");
   let legendButton = null;
   if (legend) {
@@ -1877,8 +1896,10 @@ export function mount(root, buffer, options = {}) {
     if (!legend) return;
     const svg = legend.querySelector("svg");
     const [lw, lh] = [svg.width.baseVal.value, svg.height.baseVal.value];
-    const folded = lw > LEGEND_SHARE * canvas.clientWidth || lh > canvas.clientHeight - 16;
+    const folded = lw > canvas.clientWidth - 12 || lh > LEGEND_SHARE * canvas.clientHeight;
     root.classList.toggle("ec-legend-folded", folded);
+    // The hint goes above it
+    root.style.setProperty("--ec-legend-h", folded ? "36px" : `${lh + 6}px`);
     if (!folded) {
       root.classList.remove("ec-legend-open");
       legendButton.setAttribute("aria-expanded", "false");
