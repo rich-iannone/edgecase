@@ -6,7 +6,7 @@
 use super::color::{darken, mix, Pair, Scale, Stop};
 use super::geometry::{fit_viewbox, py_max, py_min};
 use super::tips::{Cell, Tips};
-use super::{Edges, Labels, Nodes, Scene};
+use super::{Controls, Edges, Labels, Nodes, Scene};
 use crate::graph::Graph;
 use crate::layout::routing::route_edges;
 use pyo3::exceptions::{PyKeyError, PyTypeError, PyValueError};
@@ -270,6 +270,7 @@ struct Encoded {
     opacity: f64,
     radii: Vec<f64>,
     node_size: f64,
+    edge_width: f64,
 }
 
 /// How the edges are colored by `edge_color_by=`
@@ -1051,6 +1052,7 @@ impl SceneBuilder {
             opacity: edge_opacity,
             radii,
             node_size,
+            edge_width,
         });
         Ok(out)
     }
@@ -1087,8 +1089,8 @@ impl SceneBuilder {
     /// The scene, with the nodes at `positions` (`{node ID as text: (x, y)}`) in a frame of
     /// `width` by `height` pixels. `legend` holds the legend's marks, `legend_w` pixels wide,
     /// and `route` the margin and greatest number of waypoints for routing edges around nodes,
-    /// None for straight edges. More than `lean_min` nodes or edges make it lean, and
-    /// `tip_tables` keeps the tooltips as tables for the viewer
+    /// None for straight edges. More than `lean_min` nodes or edges make it lean, and `viewer`
+    /// keeps what the viewer needs: the tooltips as tables, and what its controls change
     #[pyo3(signature = (
         positions,
         width,
@@ -1099,7 +1101,7 @@ impl SceneBuilder {
         legend_w,
         route=None,
         lean_min=2000,
-        tip_tables=false,
+        viewer=false,
     ))]
     #[allow(clippy::too_many_arguments)]
     fn scene(
@@ -1114,7 +1116,7 @@ impl SceneBuilder {
         legend_w: f64,
         route: Option<(f64, Option<usize>)>,
         lean_min: usize,
-        tip_tables: bool,
+        viewer: bool,
     ) -> PyResult<Scene> {
         let Some(enc) = &self.enc else {
             return Err(PyValueError::new_err("encode() comes before scene()"));
@@ -1394,11 +1396,17 @@ impl SceneBuilder {
         } else {
             (None, edge_tips.attrs_json()?)
         };
-        let tip_tables = if tip_tables {
+        let tip_tables = if viewer {
             Some((node_tips.table(None)?, edge_tips.table(Some(&edge_order))?))
         } else {
             None
         };
+        let controls = viewer.then(|| Controls {
+            node_size: enc.node_size,
+            edge_width: enc.edge_width,
+            edge_opacity: enc.opacity,
+            highlight: levels.map(|(_, edge_level)| (edge_level.clone(), enc.widths.clone())),
+        });
 
         Ok(Scene {
             width,
@@ -1412,6 +1420,7 @@ impl SceneBuilder {
             legend_w,
             edge_tip_table,
             tip_tables,
+            controls,
             nodes: Nodes {
                 ids: self.names.clone(),
                 x: xs,
