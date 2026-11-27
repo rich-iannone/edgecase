@@ -634,6 +634,9 @@ fn draw_labels(scene: &Scene, style: &Style<'_>, out: &mut Parts) {
     let nodes = &scene.nodes;
     let size = labels.font_size;
     for (k, text) in labels.texts.iter().enumerate() {
+        if !labels.shown[k] {
+            continue;
+        }
         // Under the node
         let ly = nodes.y[k] + nodes.r[k] + size + 2.0;
         let _ = write!(
