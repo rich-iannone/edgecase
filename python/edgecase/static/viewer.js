@@ -1413,6 +1413,37 @@ export function mount(root, buffer, options = {}) {
   // picker has them where they were
   const sim = { status: "off", engine: null, busy: false, frame: 0, drag: null, moved: false, start: null, stale: false, picked: 0, ticks: 0, alpha: 0 };
   const PICK_EVERY = 250;
+  // Where the nodes are, for `view=` and the view's state, once the simulation has moved them or
+  // where `plot()` placed them as its view had them (the state's "placed"): their positions by their
+  // IDs, and the frame that zoom 1 fits, to a tenth of a pixel at the camera, as its center is
+  // written (`viewDigits()`). The state has them as they were when the simulation last paused or
+  // settled (`kept`), and not as they move, and `keptAs` as it last wrote them
+  const placedGiven = options.state?.placed === true;
+  const placedNow = () => sim.moved || placedGiven;
+  let kept = null, keptAs = null, nodeIds = null;
+  function keepNodes(tell = true) {
+    const n = header.nodes, col = (c) => Float64Array.from({ length: n }, (_, i) => at(c, i));
+    kept = placedNow() ? { x: col(data.x), y: col(data.y) } : null;
+    keptAs = null;
+    if (tell) report("view");
+  }
+  function viewDigits() {
+    const px = cam.zoom * Math.max(fit(canvas.clientWidth, canvas.clientHeight), fit(header.width, header.height));
+    return Math.max(0, Math.min(10, Math.ceil(Math.log10(10 * px))));
+  }
+  // As the state has them, or with `source`, as Python source
+  function nodePlaces(x, y, d, source = false) {
+    nodeIds ??= Array.from({ length: header.nodes }, (_, i) => idOf(i));
+    const round = (v) => Number(v.toFixed(d));
+    const frame = header.viewbox.map(round);
+    if (source) {
+      const parts = nodeIds.map((id, i) => `${id}: [${round(at(x, i))}, ${round(at(y, i))}]`);
+      return { positions: `{${parts.join(", ")}}`, frame: `[${frame.join(", ")}]` };
+    }
+    const positions = {};
+    nodeIds.forEach((id, i) => { positions[id] = [round(at(x, i)), round(at(y, i))]; });
+    return { positions, frame };
+  }
   function repick() {
     let frame = header.viewbox;
     if (sim.moved) {
@@ -2073,6 +2104,7 @@ export function mount(root, buffer, options = {}) {
     sim.frame = 0;
     setStatus("paused");
     if (sim.stale) repick();
+    keepNodes();
   }
   // The nodes where the payload has them, and the simulation off
   function restoreSim() {
@@ -2087,6 +2119,7 @@ export function mount(root, buffer, options = {}) {
     }
     repick();
     setStatus("off");
+    keepNodes();
     redraw();
   }
   function took(out) {
@@ -2105,6 +2138,7 @@ export function mount(root, buffer, options = {}) {
     if (out.settled && sim.status === "running" && !sim.drag) {
       setStatus("settled");
       repick();
+      keepNodes();
     }
     redraw();
   }
@@ -2401,7 +2435,7 @@ export function mount(root, buffer, options = {}) {
       return bar;
     }
     function syncRun() {
-      movedNote.hidden = !sim.moved;
+      movedNote.hidden = !placedNow();
       if (!run.button) return;
       const on = sim.status === "running";
       run.button.innerHTML = `${icon(on ? ICONS.pause : ICONS.play)}<span>${on ? "Pause" : "Run"}</span>`;
@@ -2414,14 +2448,17 @@ export function mount(root, buffer, options = {}) {
     // figure that `plot()` draws at it, and the zoom to 4 digits, which keeps the figure's edges
     // within a pixel of where they are; and the View tab's camera, with "Capture view"
     function viewParts() {
-      const px = cam.zoom * Math.max(fit(canvas.clientWidth, canvas.clientHeight), fit(header.width, header.height));
-      const d = Math.max(0, Math.min(10, Math.ceil(Math.log10(10 * px))));
-      const round = (v) => Number(v.toFixed(d));
-      return { x: round(cam.cx), y: round(cam.cy), zoom: Number(cam.zoom.toPrecision(4)), hx: round(home.cx), hy: round(home.cy) };
+      const d = viewDigits(), round = (v) => Number(v.toFixed(d));
+      return { x: round(cam.cx), y: round(cam.cy), zoom: Number(cam.zoom.toPrecision(4)), hx: round(home.cx), hy: round(home.cy), d };
     }
-    // Leaving out the center where it is the frame's, as `plot()` takes it then
+    // Leaving out the center where it is the frame's, as `plot()` takes it then, and with the
+    // nodes where they are (see `nodePlaces()`), once they aren't where the layout puts them
     function viewSource() {
       const v = viewParts();
+      if (placedNow()) {
+        const { positions, frame } = nodePlaces(data.x, data.y, v.d, true);
+        return `{"x": ${v.x}, "y": ${v.y}, "zoom": ${v.zoom}, "positions": ${positions}, "frame": ${frame}}`;
+      }
       const keys = [v.x === v.hx ? null : `"x": ${v.x}`, v.y === v.hy ? null : `"y": ${v.y}`, `"zoom": ${v.zoom}`];
       return `{${keys.filter(Boolean).join(", ")}}`;
     }
@@ -2911,8 +2948,8 @@ export function mount(root, buffer, options = {}) {
     // "Copy as code": the call, with the changed controls' arguments, the selection and the
     // filters (the Filter tab's and the legend's), in the parameters' order, on one line where it
     // fits in 88 characters. The camera is left out, as it moves all the time, but for "Capture
-    // view" (`withView`). The simulation's forces and where it moved the nodes are the view's,
-    // which no argument of `plot()` has yet
+    // view" (`withView`), and with it where the simulation moved the nodes, whose forces no
+    // argument of `plot()` has
     function code(withView = false) {
       const args = new Map(given);
       args.delete("view");
@@ -2987,7 +3024,7 @@ export function mount(root, buffer, options = {}) {
       const done = await copyOut(code(true), inTab ? camera.status : null);
       if (done && !inTab) flash("Copied the code with this view");
     }
-    const movedNote = el("p", "ec-note", "The simulation's positions aren't in the code");
+    const movedNote = el("p", "ec-note", "Capture view's code keeps the nodes where they are");
     foot.append(copy, status, movedNote, text);
     panel.append(foot);
     root.append(panel);
@@ -3032,7 +3069,8 @@ export function mount(root, buffer, options = {}) {
 
   // The state that a host follows and sets (see `GraphElement`): the selection, as the nodes'
   // IDs and the edges' ends (numbers, or strings past 2^53); the view, the camera's center (in
-  // the scene's units, the SVG's viewBox's) and its zoom; and the filters narrowed. A change is
+  // the scene's units, the SVG's viewBox's) and its zoom, and where the nodes are once they
+  // aren't where the layout put them (see `kept`); and the filters narrowed. A change is
   // told as an "ec-change" event of `{ name, value }`, the view's and the filters' once they
   // have kept still for `SETTLE` ms, as a drag moves them by the frame. One set from outside is
   // told only where the viewer can't take it as given, as it holds what it holds then
@@ -3042,7 +3080,13 @@ export function mount(root, buffer, options = {}) {
       const { ids, pairs } = chosenIds();
       return { nodes: ids.map(asId), edges: pairs.map((p) => p.map(asId)) };
     },
-    view: () => ({ x: cam.cx, y: cam.cy, zoom: cam.zoom }),
+    view() {
+      const camera = { x: cam.cx, y: cam.cy, zoom: cam.zoom };
+      if (!kept) return camera;
+      const d = viewDigits();
+      if (keptAs?.d !== d) keptAs = { d, ...nodePlaces(kept.x, kept.y, d) };
+      return { ...camera, positions: keptAs.positions, frame: keptAs.frame };
+    },
     filters: () => [
       ...filters.filter(narrowed).map((q) => ({ attr: q.col.name, of: q.col.of, range: [q.lo, q.hi] })),
       ...keyFilters().map((f) => ({ attr: f.attr, of: f.of, values: f.values })),
@@ -3067,12 +3111,18 @@ export function mount(root, buffer, options = {}) {
       if (want.size) for (let j = 0; j < header.edges; j++) if (want.has(`${at(data.src, j)} ${at(data.tgt, j)}`)) edges.push(j);
       choose(nodes, edges);
     },
-    // Without a value, the view that fits the graph
+    // Without a value, the view that fits the graph. A zoom is of the view's frame, where it
+    // has one, as the nodes' positions are in it
     view(v) {
       cancelAnimationFrame(flight);
       const num = (x, was) => (Number.isFinite(Number(x)) && x !== null ? Number(x) : was);
+      if (v?.positions && typeof v.positions === "object") placeNodes(v.positions);
+      const u = (w, h) => Math.max(w / header.width, h / header.height);
+      const f = Array.isArray(v?.frame) && v.frame.length === 4 ? v.frame.map(Number) : null;
+      let scale = f && f.every(Number.isFinite) && f[2] > 0 && f[3] > 0 ? u(vw, vh) / u(f[2], f[3]) : 1;
+      if (Math.abs(scale - 1) < 1e-6) scale = 1;
       if (!v) Object.assign(cam, homeView());
-      else Object.assign(cam, { cx: num(v.x, cam.cx), cy: num(v.y, cam.cy), zoom: Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, num(v.zoom, cam.zoom))) });
+      else Object.assign(cam, { cx: num(v.x, cam.cx), cy: num(v.y, cam.cy), zoom: Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, num(v.zoom, cam.zoom / scale) * scale)) });
       redraw();
     },
     // The Filter tab's ranges and the legend's values
@@ -3083,6 +3133,35 @@ export function mount(root, buffer, options = {}) {
       relook();
     },
   };
+  // The nodes at `positions` (by their IDs, as the view has them), unless they are where the
+  // state has them, to the tenth of a pixel it writes them to; the simulation stopped, to start
+  // from there when it runs again, and "Restore positions" puts them where the payload has them
+  function placeNodes(positions) {
+    indexOf ??= new Map(Array.from({ length: header.nodes }, (_, i) => [idOf(i), i]));
+    const n = header.nodes, col = (c) => Float32Array.from({ length: n }, (_, i) => at(c, i));
+    const now = kept ?? { x: data.x, y: data.y };
+    const near = (keptAs && kept ? 0.5 * 10 ** -keptAs.d : 0) + 1e-5 * Math.max(Math.abs(vx), Math.abs(vy), vw, vh);
+    const given = [];
+    for (const [id, p] of Object.entries(positions)) {
+      const i = indexOf.get(String(id));
+      if (i === undefined || !Array.isArray(p) || p.length !== 2) continue;
+      const [px, py] = p.map(Number);
+      if (Number.isFinite(px) && Number.isFinite(py)) given.push([i, px, py]);
+    }
+    if (given.every(([i, px, py]) => Math.abs(px - at(now.x, i)) <= near && Math.abs(py - at(now.y, i)) <= near)) return;
+    const x = col(data.x), y = col(data.y);
+    for (const [i, px, py] of given) [x[i], y[i]] = [px, py];
+    sim.engine?.stop();
+    cancelAnimationFrame(sim.frame);
+    sim.start ??= { x: data.x, y: data.y };
+    Object.assign(sim, { engine: null, frame: 0, busy: false, drag: null, moved: true, ticks: 0, alpha: 0 });
+    data.x = x;
+    data.y = y;
+    r.update(["x", "y"]);
+    repick();
+    setStatus("off");
+    keepNodes(false);
+  }
   function report(name, later) {
     clearTimeout(settling[name]);
     if (later) {
@@ -3094,7 +3173,8 @@ export function mount(root, buffer, options = {}) {
     told[name] = text;
     root.dispatchEvent(new CustomEvent("ec-change", { bubbles: true, detail: { name, value } }));
   }
-  // The view and the filters that `plot()` was given
+  // The view and the filters that `plot()` was given, and the nodes where it placed them
+  if (placedGiven) keepNodes(false);
   if (options.state?.view) put.view(options.state.view);
   if (options.state?.filters?.length) put.filters(options.state.filters);
   for (const name in state) told[name] = JSON.stringify(state[name]());
