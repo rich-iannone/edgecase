@@ -4732,10 +4732,16 @@ class Graph:
             size in pixels, with the labels chosen again for the nodes in sight. The plot is then
             framed as the viewer frames it, its legend along the bottom, its node size (see
             `node_size=`) and its edges unrouted, so that what it draws is what the viewer shows.
-            The viewer's "Capture view" button (the camera by the zoom buttons, or `C`) copies
-            the call with `view=` at its camera. A dict of other keys, or a zoom of 0 or less,
-            raises `ValueError`, and a value that isn't a finite number `TypeError`. Default is
-            `None`, for the graph fitted to the box, framed as usual.
+            The view can also have `"positions"`, a dict of node IDs to `(x, y)` in the same
+            units, to draw the nodes there instead of laying them out, with no overlap removal,
+            and `"frame"`, the box `(x, y, width, height)` that zoom 1 fits, which is otherwise
+            fitted to them. The viewer's "Capture view" button (the camera by the zoom buttons,
+            or `C`) copies the call with `view=` at its camera, and once its simulation has moved
+            the nodes, with their positions and frame. A dict of other keys, a zoom of 0 or
+            less, a frame without positions or positions without a node of the graph raise
+            `ValueError` (IDs not in the graph are left out), and a value that isn't a finite
+            number `TypeError`. Default is `None`, for the graph fitted to the box, framed as
+            usual.
         filters
             What to leave out of the plot, as the viewer's filters do (see
             `StepPlayer.filters`): a list of dicts, each with `"attr"`, an attribute's name,
