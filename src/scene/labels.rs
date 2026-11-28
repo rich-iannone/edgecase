@@ -1,7 +1,7 @@
 // Which node labels a plot draws: up to a limit, in order of priority (highlighted nodes, then
 // larger ones, then those of higher degree), leaving out any that would overlap one drawn before
 // it, so that the labels of a large graph can be read. The viewer chooses again, by the same
-// rule, for what is in view (see `drawLabels()` in `static/viewer.js`)
+// rule, for what is in view (see `labelLayer()` in `static/viewer.js`)
 use rustc_hash::FxHashMap;
 
 /// With no more nodes than this, a plot draws every label, and otherwise `AUTO_MAX` of them
