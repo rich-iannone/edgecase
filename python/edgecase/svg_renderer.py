@@ -19,6 +19,7 @@ import random
 import re
 import struct
 import sys
+import urllib.parse
 import warnings
 from dataclasses import dataclass
 from pathlib import Path
@@ -200,19 +201,18 @@ class _Colors:
         graph: Any = None,
         home: Optional[Dict[str, float]] = None,
         state: Optional[Dict[str, Any]] = None,
+        explore: Optional[Tuple[Path, str]] = None,
     ) -> "StepPlayer":
         """The `StepPlayer` for the rendering, saved to `output=` when that is given. `png` makes
         its PNG image, if it has one, and `svg` the SVG that it holds, when that isn't the one
         that the HTML shows. `viewer` says that the HTML is the viewer's, without its runtime,
         of `graph` (whose selection the viewer's sets), `home` is the view that fits the graph,
-        and `state` has the view and the filters that the viewer starts with."""
+        and `state` has the view and the filters that the viewer starts with. `explore` is the
+        file that a figure's Explore button opens, and the link to it in the HTML."""
         for_files = None
         if self.save_light:
             for_files = (self._for_file(svg_str), self._for_file(html_str))
-        if self.auto and self._vars:
-            html_str = (
-                f'<div class="ec-theme" style="display:contents">{self._style()}{html_str}</div>'
-            )
+        html_str = self._themed(html_str)
         own_svg = None
         if svg is not None:
 
@@ -220,8 +220,9 @@ class _Colors:
                 drawn = svg()
                 return self._own(drawn), self._for_file(drawn) if self.save_light else None
 
+        own = self._own(svg_str)
         result = StepPlayer(
-            self._own(svg_str), html_str, for_files, png, own_svg, viewer, graph, home, state
+            own, html_str, for_files, png, own_svg, viewer, graph, home, state, explore
         )
         if output:
             result.save(output)
@@ -229,6 +230,12 @@ class _Colors:
 
     def _style(self) -> str:
         return f'<style class="ec-theme-vars">{self._css()}</style>'
+
+    def _themed(self, html_str: str) -> str:
+        """`html_str` with the definitions of its variables, for a page."""
+        if not (self.auto and self._vars):
+            return html_str
+        return f'<div class="ec-theme" style="display:contents">{self._style()}{html_str}</div>'
 
     def _own(self, svg_str: str) -> str:
         """`svg_str` carrying the definitions of its variables, so that it works on its own."""
@@ -516,6 +523,7 @@ class StepPlayer:
         graph: Any = None,
         home: Optional[Dict[str, float]] = None,
         state: Optional[Dict[str, Any]] = None,
+        explore: Optional[Tuple[Path, str]] = None,
     ) -> None:
         self._svg = svg_str
         # Without the viewer's runtime, for a plot of the viewer's
@@ -543,6 +551,8 @@ class StepPlayer:
         }
         self._widget: Any = None
         self._callbacks: List[Callable[[str, Any], Any]] = []
+        # For a figure with an Explore button: the viewer's file, and the link to it in the HTML
+        self._explore = explore
 
     @property
     def svg(self) -> str:
@@ -860,6 +870,11 @@ class StepPlayer:
             self._draw_svg()
         svg_str, html_str = self._for_files or (self._svg, self._html)
         if suffix in (".html", ".htm"):
+            if self._explore is not None:
+                # The Explore button's link, from where the file is
+                file, href = self._explore
+                old = f'class="ec-explore" href="{href}"'
+                html_str = html_str.replace(old, f'class="ec-explore" href="{_href(file, p)}"', 1)
             p.write_text(self._with_runtime(html_str, "inline"), encoding="utf-8")
         elif suffix == ".svg":
             p.write_text(svg_str, encoding="utf-8")
@@ -2097,6 +2112,7 @@ def render_plot(
     output: Optional[str] = None,
     backend: str = "auto",
     call: Optional[Dict[str, Any]] = None,
+    explore: Union[bool, str] = False,
     **options,
 ) -> "StepPlayer":
     """Render a graph as a static SVG wrapped in a StepPlayer: the scene that `build_scene()`
@@ -2106,12 +2122,15 @@ def render_plot(
     SVG is then drawn when it is first wanted. `edge_tone` is how the edges' density shows (see
     `EDGE_TONES`), and `shade` shades the nodes as spheres. With `backend="viewer"`, the HTML is
     the viewer's (see `emit_viewer()`), and the SVG is drawn when it is first wanted too; `call`
-    is the `plot()` call, for the viewer's "Copy as code" (see `plot_call()`)."""
+    is the `plot()` call, for the viewer's "Copy as code" (see `plot_call()`). With `explore`,
+    the figure has an Explore button, which opens the viewer of it from a file of its own (see
+    `_explore_file()`)."""
     _check_style(options.get("layout", "force"), theme, stored_ok=True)
     if backend not in BACKENDS:
         raise ValueError(
             f"Unknown backend {backend!r}; use one of {', '.join(map(repr, BACKENDS))}"
         )
+    explore = _check_explore(explore, backend)
     # A CSS width has the viewer fill its container, or a part of it. The layout is then drawn
     # in the default canvas's shape at the plot's height, and the viewer fits it to its box
     css_width = options.get("width")
@@ -2151,9 +2170,11 @@ def render_plot(
         fitting.append((svg_str, html_str))
         return True
 
-    # The log of the density needs the edges as images
+    # The log of the density needs the edges as images. An Explore button's viewer keeps the
+    # figure's layout
     built = "png" if backend == "auto" and edge_tone == "log" else backend
-    scene = build_scene(graph, backend=built, fits=fits, **options)
+    kept: Optional[Dict[str, Any]] = {} if explore else None
+    scene = build_scene(graph, backend=built, fits=fits, keep=kept, **options)
 
     def vector() -> str:
         # The SVG that the images or the viewer stand in for
@@ -2173,31 +2194,12 @@ def render_plot(
         return svg_str
 
     if backend == "viewer" and scene.node_count:
-        # Overlap removal lays the nodes out for their size, but not those the view places
-        view = options.get("view")
-        placed = view is not None and view.get("positions") is not None
-        moves = (
-            options.get("node_overlap") != "allow"
-            and options.get("layout") != "circular"
-            and not placed
-        )
         # "auto" is the tone of the plot that backend="auto" would draw
         auto_tone = "log" if _draws_images(scene, colors) else "over"
         tone = auto_tone if edge_tone == "auto" else edge_tone
-        look = {"tone": {"value": edge_tone, "auto": auto_tone}, "shade": shade}
-        # The view that fits the graph, and the view and the filters that the viewer starts with,
-        # with the positions given and their frame, which the viewer's HTML has as its nodes'
-        vb = scene.viewbox
-        home = {"x": vb[0] + vb[2] / 2, "y": vb[1] + vb[3] / 2, "zoom": 1.0}
-        state = {
-            "view": None if view is None else _norm_view(view, home),
-            "filters": _norm_filters(options.get("filters")),
-        }
-        if placed:
-            state["view"]["frame"] = list(vb)
-        camera = state["view"] and {k: state["view"][k] for k in ("x", "y", "zoom")}
-        shown = {**state, "view": camera, "placed": placed}
-        html_str = emit_viewer(scene, colors, css_width, call, moves, look, shown)
+        html_str, home, state = _viewer_html(
+            scene, colors, options, css_width, call, edge_tone, auto_tone, shade
+        )
         # With the runtime, as a notebook has it
         total = len(html_str) + len(_runtime_js())
         if total > NOTEBOOK_BYTES_MAX:
@@ -2244,13 +2246,241 @@ def render_plot(
             f"{smaller}, such as what k_core() or ego_graph() returns",
             stacklevel=3,
         )
+    file = None
+    if kept is not None and scene.node_count:
+        # The viewer of the figure, at the figure's positions and frame and in its tone
+        file = _explore_file(
+            graph, scene, kept, explore, theme, options, call, edge_tone, tone, shade
+        )
+        html_str = _with_explore(html_str, file[1], colors.theme)
     return colors.finish(
         svg_str,
         html_str,
         output,
         png=lambda: plot_png(scene, theme, tone, shade),
         svg=vector if backend == "auto" and picked == "png" and scene.node_count else None,
+        explore=file,
     )
+
+
+def _viewer_html(
+    scene: Scene,
+    colors: "_Colors",
+    options: Dict[str, Any],
+    css_width: Optional[str],
+    call: Optional[Dict[str, Any]],
+    edge_tone: str,
+    auto_tone: str,
+    shade: bool,
+    stable: bool = False,
+) -> Tuple[str, Dict[str, float], Dict[str, Any]]:
+    """The viewer's HTML for `scene`, built from the `plot()` arguments `options` (see
+    `emit_viewer()`), with `auto_tone` the tone that `edge_tone="auto"` is; the view that fits
+    the graph; and the state that it starts with, as `StepPlayer` keeps it, the view (with the
+    positions that `plot()` was given, and their frame) and the filters. `stable` gives it an
+    ID that is the same on each run."""
+    # Overlap removal lays the nodes out for their size, but not those the view places
+    view = options.get("view")
+    placed = view is not None and view.get("positions") is not None
+    moves = (
+        options.get("node_overlap") != "allow"
+        and options.get("layout") != "circular"
+        and not placed
+    )
+    look = {"tone": {"value": edge_tone, "auto": auto_tone}, "shade": shade}
+    # The view that fits the graph, and the view and the filters that the viewer starts with,
+    # with the positions given and their frame, which the viewer's HTML has as its nodes'
+    vb = scene.viewbox
+    home = {"x": vb[0] + vb[2] / 2, "y": vb[1] + vb[3] / 2, "zoom": 1.0}
+    state = {
+        "view": None if view is None else _norm_view(view, home),
+        "filters": _norm_filters(options.get("filters")),
+    }
+    if placed:
+        state["view"]["frame"] = list(vb)
+    camera = state["view"] and {k: state["view"][k] for k in ("x", "y", "zoom")}
+    shown = {**state, "view": camera, "placed": placed}
+    html_str = emit_viewer(scene, colors, css_width, call, moves, look, shown, stable)
+    return html_str, home, state
+
+
+def _check_explore(explore: Any, backend: str) -> Union[bool, Path]:
+    """`plot(explore=)` checked: False, True, or the file to write, as a `Path`."""
+    if explore is False or explore is None:
+        return False
+    if backend == "viewer":
+        raise ValueError(
+            "explore= gives a figure, drawn as SVG or PNG, a button that opens it in the viewer; "
+            "a plot with backend='viewer' is in the viewer already"
+        )
+    if explore is True:
+        return True
+    if isinstance(explore, (str, os.PathLike)):
+        path = Path(explore)
+        if path.suffix.lower() not in (".html", ".htm"):
+            raise ValueError(
+                f"explore={str(explore)!r} names the viewer's page, which has to be an .html file"
+            )
+        return path
+    raise TypeError(f"explore= is True, False or the path of an .html file, not {explore!r}")
+
+
+def _explore_file(
+    graph,
+    scene: Scene,
+    kept: Dict[str, Any],
+    explore: Union[bool, Path],
+    theme: Optional[str],
+    options: Dict[str, Any],
+    call: Optional[Dict[str, Any]],
+    edge_tone: str,
+    tone: str,
+    shade: bool,
+) -> Tuple[Path, str]:
+    """Write the viewer of a figure, `scene`, that its Explore button opens: a page of its own,
+    with the runtime (see `_explore_page()`), of the plot of `options` with `backend="viewer"`,
+    its nodes at the figure's positions and size (`kept`, from `build_scene()`) and in its frame,
+    so that zoom 1 shows what the figure shows, and the edges in the figure's `tone` while
+    `edge_tone` is "auto". `explore` is the file, or True for one in the working directory named
+    after what it holds, so that the same plot writes the same file. A file that holds it
+    already isn't written again.
+
+    Returns the file, resolved, and the link to it from the working directory, which is the
+    page's folder for a notebook or a Quarto page (see `_href()`)."""
+    view = {**(options.get("view") or {}), "positions": kept["positions"]}
+    given = {**options, "view": {**view, "frame": list(scene.viewbox)}}
+    given["node_size"] = kept["node_size"]
+    viewer = build_scene(graph, backend="viewer", **given)
+    colors = _Colors(theme)
+    html_str = _viewer_html(viewer, colors, given, None, call, edge_tone, tone, shade, True)[0]
+    page = _explore_page(colors._themed(html_str), colors).encode("utf-8")
+    if explore is True:
+        explore = Path(f"ec-explore-{hashlib.sha1(page).hexdigest()[:12]}.html")
+    try:
+        same = explore.read_bytes() == page
+    except OSError:
+        same = False
+    if not same:
+        explore.parent.mkdir(parents=True, exist_ok=True)
+        explore.write_bytes(page)
+    return explore.resolve(), _href(explore)
+
+
+def _href(file: Path, page: Optional[Path] = None) -> str:
+    """The link to `file` from the page `page`, or from the working directory, as a relative URL
+    escaped for an attribute (or the file's URL, where no relative path reaches it)."""
+    start = Path.cwd() if page is None else Path(page).resolve().parent
+    try:
+        url = urllib.parse.quote(Path(os.path.relpath(Path(file).resolve(), start)).as_posix())
+    except ValueError:
+        # On another drive
+        url = Path(file).resolve().as_uri()
+    return html_mod.escape(url)
+
+
+def _explore_page(html_str: str, colors: "_Colors") -> str:
+    """The page that a figure's Explore button opens, of the viewer's HTML `html_str` in the
+    colors of `colors`'s theme, with the runtime. It works by itself, as a file or from a site,
+    and the button, where it can, fetches it and puts what its `.ec-explored` holds in the
+    figure's place, running the runtime if the page hasn't (see `_EXPLORE_JS`)."""
+    scheme = "light dark" if colors.auto else colors.scheme()
+    return f"""<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="{scheme}">
+<title>Plot</title>
+</head>
+<body style="margin:0;padding:8px">
+<div class="ec-explored">
+{html_str}
+</div>
+{runtime_tags()}
+</body>
+</html>
+"""
+
+
+# The Explore button's icon: arrows to pan in each direction
+_EXPLORE_ICON = (
+    '<svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true" style="display:block">'
+    '<path d="M8 2.5v11M2.5 8h11M6.5 4 8 2.5 9.5 4M6.5 12 8 13.5 9.5 12M4 6.5 2.5 8 4 9.5'
+    'M12 6.5 13.5 8 12 9.5" fill="none" stroke="currentColor" stroke-width="1.5" '
+    'stroke-linecap="round" stroke-linejoin="round"/></svg>'
+)
+
+# What a click on the Explore button does: fetch the viewer's page and put the viewer in the
+# figure's place, with the runtime from the page, once on a page. A page opened from the disk
+# can't fetch it, and the link then opens it in a tab, as it does for a click that asks for one
+# (or where the fetch fails)
+_EXPLORE_JS = """(function(){
+  var me=document.currentScript,link=me.previousElementSibling,nonce=me.nonce;
+  link.addEventListener('click',function(ev){
+    if(location.protocol==='file:'||ev.button||ev.ctrlKey||ev.metaKey||ev.shiftKey||ev.altKey) return;
+    ev.preventDefault();
+    if(link.hasAttribute('aria-busy')) return;
+    link.setAttribute('aria-busy','true');
+    fetch(link.href).then(function(r){
+      if(!r.ok) throw new Error(r.status);
+      return r.text();
+    }).then(function(text){
+      var page=new DOMParser().parseFromString(text,'text/html');
+      var box=page.querySelector('.ec-explored'),plot=box&&box.querySelector('ec-graph');
+      if(!plot) throw new Error('No plot in '+link.href);
+      var code=page.querySelector('script[type=module]');
+      if(code&&!customElements.get('ec-graph')&&!document.querySelector('script[data-ec-runtime]')){
+        var s=document.createElement('script');
+        s.type='module';
+        s.setAttribute('data-ec-runtime','');
+        if(nonce) s.nonce=nonce;
+        s.textContent=code.textContent;
+        document.head.appendChild(s);
+      }
+      // With an ID of its own, should the page show the plot twice
+      var id=plot.id+'-'+Math.random().toString(36).slice(2,8),t=document.createElement('template');
+      t.innerHTML=box.innerHTML.split(plot.id).join(id);
+      var focused=document.activeElement===link;
+      link.parentElement.replaceWith(document.importNode(t.content,true));
+      // Focus, where the button had it, goes to the plot once it is drawn
+      var tries=0;
+      (function focus(){
+        var c=focused&&document.getElementById(id);
+        c=c&&c.querySelector('canvas');
+        if(c) c.focus({preventScroll:true});
+        else if(focused&&tries++<300) requestAnimationFrame(focus);
+      })();
+    }).catch(function(){
+      link.removeAttribute('aria-busy');
+      location.assign(link.href);
+    });
+  });
+})();"""
+
+
+def _with_explore(html_str: str, href: str, th: Theme) -> str:
+    """A figure's HTML (see `_generate_html_wrapper()`) with its Explore button, in the colors of
+    `th`: a link to the viewer's page `href`, which a click opens in the figure's place (see
+    `_EXPLORE_JS`). It sits at the top left, where the viewer's tools then are, clear of the
+    legend at the top right."""
+    look = (
+        "position:absolute;top:8px;left:8px;display:flex;align-items:center;gap:5px;"
+        "padding:4px 9px 4px 7px;border-radius:6px;font:600 12px/16px " + FONT_FAMILY + ";"
+        f"text-decoration:none;color:{th.label_color};"
+        f"background:color-mix(in srgb,{th.label_color} 10%,{th.bg});"
+        f"box-shadow:inset 0 0 0 1px color-mix(in srgb,{th.label_color} 14%,transparent)"
+    )
+    button = (
+        "<style>.ec-plot > .ec-explore{opacity:.8}"
+        ".ec-plot > .ec-explore:is(:hover,:focus-visible){opacity:1}"
+        ".ec-plot > .ec-explore[aria-busy]{cursor:progress}"
+        "@media print{.ec-plot > .ec-explore{display:none}}</style>\n"
+        f'<a class="ec-explore" href="{href}" target="_blank" rel="noopener" '
+        f'title="Open in the viewer, to pan, zoom, filter and capture a view" style="{look}">'
+        f"{_EXPLORE_ICON}Explore</a>\n<script>{_EXPLORE_JS}</script>\n"
+    )
+    end = html_str.rindex("</div>")
+    return html_str[:end] + button + html_str[end:]
 
 
 def _fits(svg_str: str, html_str: str) -> bool:
@@ -2300,6 +2530,7 @@ def build_scene(
     filters: Optional[List[Dict[str, Any]]] = None,
     backend: str = "svg",
     fits: Optional[Callable[[Scene], bool]] = None,
+    keep: Optional[Dict[str, Any]] = None,
 ) -> Scene:
     """The scene for `plot()` of `graph`, which takes the same arguments: the layout, and the
     colors, sizes, highlighting, shapes, labels, tooltips and legend that the arguments give.
@@ -2316,6 +2547,10 @@ def build_scene(
     place of the layout, as they are, in its frame, or one fitted to them. `filters` (see `StepPlayer.filters`) leave out what
     they hide, as the viewer does, and the legend draws the swatches that they turn off faint;
     the viewer starts with them.
+
+    `keep`, a dict, is given the scene's `"positions"`, the nodes' `(x, y)` by their IDs, after
+    the overlap removal, and its `"node_size"`, the base radius, for the viewer of a figure to
+    draw the nodes where and as the figure does.
 
     `edgecase._core.SceneBuilder` reads the graph and works these out, and makes the scene
     (`edgecase._core.Scene`), which holds them as columns, an entry for each node (in the order
@@ -2452,6 +2687,9 @@ def build_scene(
             overlap_pad = float(node_overlap) if isinstance(node_overlap, (int, float)) else 2.0
             radii = dict(zip(str_ids, builder.radii))
             placed = _remove_overlaps(positions, radii, padding=overlap_pad, seed=seed)
+        if keep is not None:
+            keep["positions"] = {i: placed[name] for i, name in zip(node_ids, str_ids)}
+            keep["node_size"] = size
 
         # The legend gets a column of its own at the right, so that it never covers the drawing,
         # or in the viewer, a band along the bottom
@@ -2727,14 +2965,14 @@ def set_runtime(runtime: str) -> None:
 def plot_call(method: Callable[..., Any], given: Dict[str, Any]) -> Dict[str, Any]:
     """A call of `method`, for the viewer to write out as code: `"params"`, the names of its
     parameters in order, and `"args"`, `[name, source]` for those of `given` (its arguments)
-    that differ from their defaults. `output=` is left out, so that running the code doesn't
-    write over a file, and `view=`, which the viewer writes from its camera."""
+    that differ from their defaults. `output=` and `explore=` are left out, so that running the
+    code doesn't write a file, and `view=`, which the viewer writes from its camera."""
     import inspect
 
     params = [name for name in inspect.signature(method).parameters if name != "self"]
     args = []
     for name, param in inspect.signature(method).parameters.items():
-        if name in ("self", "output", "view") or name not in given:
+        if name in ("self", "output", "explore", "view") or name not in given:
             continue
         value = given[name]
         if type(value) is type(param.default) and value == param.default:
@@ -2764,6 +3002,7 @@ def emit_viewer(
     moves: bool = False,
     look: Optional[Dict[str, Any]] = None,
     state: Optional[Dict[str, Any]] = None,
+    stable: bool = False,
 ) -> str:
     """The HTML that shows `scene` in the viewer (`static/viewer.js`), in the colors of
     `colors`'s theme: an `<ec-graph>` element, in which WebGL draws its edges and nodes, from
@@ -2785,7 +3024,8 @@ def emit_viewer(
     `StepPlayer.filters` have them, but for the view's positions, and `"placed"`, true where
     the scene's nodes are at those of the view that `plot()` was given, for its code to keep
     them; the legend's swatches are in its options as filters of values name them, to turn them
-    off and to write them out.
+    off and to write them out. With `stable`, its ID is made from the payload alone, so that a
+    file of it is the same on each run, and whatever puts it on a page makes it unique there.
 
     In the automatic theme, the viewer reads its theme from a variable of `colors` (one that
     holds "light" or "dark"), so that it follows the page by the same rules as the legend's
@@ -2796,6 +3036,8 @@ def emit_viewer(
     _viewer_counter += 1
     # Unique on the page, even among the outputs of notebooks run in other sessions
     root_id = f"ec-viewer-{_viewer_counter}-{hashlib.sha1(payload).hexdigest()[:8]}"
+    if stable:
+        root_id = f"ec-viewer-{hashlib.sha1(payload).hexdigest()[:12]}"
     chrome = _Colors("auto", prefix="--ecv-")
     th = chrome.theme
     # Centered and scaled down, keeping its shape, where the page is narrower, as the SVG is.
