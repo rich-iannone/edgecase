@@ -463,6 +463,26 @@ fits, and the plot draws the nodes there instead of laying them out, whatever `l
 plot's `view` property has them too, from when the simulation last paused or settled, so
 `g.plot(view=p.view, backend="png")` draws what the viewer shows without pasting anything.
 
+A figure can keep the viewer to hand. With `explore=True`, an SVG or PNG figure gets an Explore
+button at its top left, and the viewer of the same plot is written as a page of its own, with the
+viewer's code, next to the page the figure is on (in the working directory, which is the page's
+folder for a notebook or a Quarto page). On a page from a server, a click fetches it and puts the
+viewer in the figure's place, its nodes where the figure has them, so nothing jumps but the legend,
+which moves to the bottom; from the disk, or with a modifier key, the page opens in a tab. The
+file is named after what it holds, so a plot with a `seed=` writes the same file each time, and
+`explore="figs/karate.html"` names it instead. Its "Capture view" writes the nodes' positions, so
+the figure can be drawn again at a view found by exploring:
+
+```{python}
+#| eval: false
+g = ec.karate_club()
+g.plot(color_by="faction", seed=1, explore=True)  # writes ec-explore-<hash>.html
+```
+
+Quarto copies the file to the site with the page. A page under `freeze:` keeps only its output,
+though, so the file has to stay in the source folder, with `_freeze`, for the button to work
+in a site that is rendered again without running the page.
+
 The labels stay the same size as the view zooms, and the viewer chooses them again, by the same
 rule as the SVG, for the part of the graph in view: zooming in on a crowded region shows the
 labels that had no room in the whole view. An edge's label is written along it, where it is long
