@@ -818,6 +818,12 @@ def test_the_viewer_captures_the_view():
     assert 'args.delete("view");\n      if (withView) args.set("view", viewSource());' in js
     # Where the buttons would reach the legend, the camera leaves them
     assert "function fitButtons(" in js
+    # With the nodes' positions and their frame once the simulation has moved them or plot()
+    # placed them; the state has them as they were when it last paused or settled, and takes
+    # them unless they are where it has them
+    assert '"positions": ${positions}, "frame": ${frame}' in js and "function nodePlaces(" in js
+    assert "const placedNow = () => sim.moved || placedGiven;" in js
+    assert js.count("keepNodes();") == 3 and "function placeNodes(positions)" in js
     # The call's parameters have view=, for the code's order
     html = ec.karate_club().plot(backend="viewer", seed=1)._repr_html_()
     params = _options(html)["call"]["params"]
@@ -865,7 +871,7 @@ def test_the_viewer_has_a_layout_tab():
         assert f'force("{name}"' in js
     assert 'name: "cluster_by"' in js and 'force("cluster_strength"' in js
     assert "if (c.value === c.start || c.view) continue;" in js
-    assert "The simulation's positions aren't in the code" in js
+    assert "Capture view's code keeps the nodes where they are" in js
     # Run, pause and restore; a node dragged while it runs; a worker, or the page where none
     assert "function runBar(" in js and "Restore positions" in js and "function grab(" in js
     assert "function simulation(init)" in js and "function engine(init, got)" in js
@@ -1271,6 +1277,62 @@ def test_plot_view_draws_what_the_viewer_shows_there():
     g.plot(seed=1, backend="png", view={"x": 300, "y": 200, "zoom": 3})._png_bytes()
 
 
+def test_plot_view_places_the_nodes_at_its_positions():
+    g = ec.karate_club()
+    ids = g.get_node_ids(limit=None)
+    # Two nodes on one spot stay there, as overlap removal leaves them; IDs not in the graph
+    # are left out
+    places = {i: [40.0 + 18 * (k % 8), 60.0 + 30 * (k // 8)] for k, i in enumerate(sorted(ids))}
+    places[2] = list(places[1])
+    frame = [0.0, 0.0, 700.0, 500.0]
+    view = {"positions": {**places, 999: [1.0, 2.0]}, "frame": frame}
+    p = g.plot(backend="svg", view=view)
+    assert re.search(r'viewBox="([^"]+)"', p.svg).group(1) == "0.0 0.0 700.0 500.0"
+    drawn = _drawn(p.svg)
+    assert len(drawn) == 34
+    for i, (x, y, _) in drawn.items():
+        assert (x, y) == pytest.approx(tuple(places[i]), abs=0.05)
+    # At a camera, about the frame's middle
+    zoomed = _drawn(g.plot(backend="svg", view={**view, "x": 100, "y": 100, "zoom": 2}).svg)
+    for i, (x, y, _) in zoomed.items():
+        assert x == pytest.approx(350 + (places[i][0] - 100) * 2, abs=0.05)
+        assert y == pytest.approx(250 + (places[i][1] - 100) * 2, abs=0.05)
+    # Without a frame, one fitted to them, and the same drawing for any layout or seed
+    fitted = g.plot(backend="svg", view={"positions": places}, seed=3)
+    assert 'viewBox="0.0 0.0 700.0 500.0"' not in fitted.svg
+    assert fitted.svg == g.plot(backend="svg", layout="circular", view={"positions": places}).svg
+    g.plot(backend="png", view=view)._png_bytes()
+    with pytest.raises(ValueError, match="no \\(x, y\\) for 1 of the graph's nodes, as for node 5"):
+        g.plot(backend="svg", view={"positions": {i: xy for i, xy in places.items() if i != 5}})
+
+
+def test_the_viewer_starts_with_the_nodes_at_the_views_positions():
+    g = ec.karate_club()
+    places = {i: [10.0 * i, 5.0 * (i % 7)] for i in g.get_node_ids(limit=None)}
+    p = g.plot(backend="viewer", view={"zoom": 2, "positions": places})
+    html = p._repr_html_()
+    header, columns = _html_payload(html)
+    ids = [int(i) for i in g.get_node_ids(limit=None)]
+    assert [round(x, 3) for x in columns["x"]] == [places[i][0] for i in ids]
+    assert [round(y, 3) for y in columns["y"]] == [places[i][1] for i in ids]
+    # The view has them, with the frame that zoom 1 fits; the options leave them to the
+    # payload, and its code to the viewer's camera
+    vb = header["viewbox"]
+    assert p.view["positions"] == places and p.view["frame"] == pytest.approx(vb)
+    options = _options(html)
+    assert set(options["state"]["view"]) == {"x", "y", "zoom"} and options["state"]["placed"]
+    assert options["moves"] is False
+    assert "view" not in dict(options["call"]["args"])
+    # What the view leaves out stays as it is, and the drawing as the viewer shows it
+    p.view = {"zoom": 4}
+    assert p.view["positions"] == places and p.view["zoom"] == 4
+    again = g.plot(backend="svg", view=p.view)
+    assert re.search(r'viewBox="([^"]+)"', again.svg).group(1) == " ".join(f"{v:.1f}" for v in vb)
+    # From the viewer, as JSON has them
+    p.view = {"positions": {str(i): xy for i, xy in places.items()}}
+    assert p.view["positions"] == places
+
+
 @pytest.mark.parametrize(
     "view, error",
     [
@@ -1278,6 +1340,13 @@ def test_plot_view_draws_what_the_viewer_shows_there():
         ({"x": float("nan")}, TypeError),
         ({"z": 1}, ValueError),
         (2, TypeError),
+        ({"positions": [(0, 0)]}, TypeError),
+        ({"positions": {1: (0, 0, 0)}}, TypeError),
+        ({"positions": {1: (0, float("inf"))}}, TypeError),
+        ({"positions": {"one": (0, 0)}}, TypeError),
+        ({"frame": (0, 0, 700, 500)}, ValueError),
+        ({"positions": {1: (0, 0)}, "frame": (0, 0, 0, 500)}, ValueError),
+        ({"positions": {1: (0, 0)}, "frame": (0, 0, 700)}, TypeError),
     ],
 )
 def test_plot_view_is_checked(view, error):
@@ -1308,4 +1377,5 @@ def test_the_viewer_starts_at_the_view_and_the_filters_given():
     ]
     # Without them, none
     plain = _options(g.plot(seed=1, backend="viewer")._repr_html_())
-    assert plain["state"] == {"view": None, "filters": []} and plain["keys"] == []
+    assert plain["state"] == {"view": None, "filters": [], "placed": False}
+    assert plain["keys"] == []
