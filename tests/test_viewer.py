@@ -1379,3 +1379,101 @@ def test_the_viewer_starts_at_the_view_and_the_filters_given():
     plain = _options(g.plot(seed=1, backend="viewer")._repr_html_())
     assert plain["state"] == {"view": None, "filters": [], "placed": False}
     assert plain["keys"] == []
+
+
+def _explore_link(html):
+    return re.search(r'class="ec-explore" href="([^"]+)"', html).group(1)
+
+
+def test_explore_writes_the_viewer_that_the_figures_button_opens(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    g = ec.karate_club()
+    p = g.plot(seed=1, color_by="faction", explore=True)
+    html = p._repr_html_()
+    # The button links to the file, named after what it holds, beside the page
+    link = _explore_link(html)
+    (file,) = tmp_path.glob("ec-explore-*.html")
+    assert link == file.name
+    page = file.read_text(encoding="utf-8")
+    assert file.name == f"ec-explore-{hashlib.sha1(page.encode()).hexdigest()[:12]}.html"
+    assert html.count("<script>(function(){") == 1 and "Explore</a>" in html
+    # A page of its own, with the runtime, and the viewer in the box that the button takes it
+    # from, with an ID from what it draws
+    assert page.startswith("<!doctype html>") and svg_renderer._runtime_js() in page
+    assert '<div class="ec-explored">' in page and '<ec-graph id="ec-viewer-' in page
+    assert 'content="light dark"' in page and 'class="ec-theme"' in page
+    # The same plot writes the same file, leaving it as it is
+    before = file.stat().st_mtime_ns
+    again = ec.karate_club().plot(seed=1, color_by="faction", explore=True)
+    assert _explore_link(again._repr_html_()) == link
+    assert list(tmp_path.glob("ec-explore-*.html")) == [file]
+    assert file.stat().st_mtime_ns == before
+    # Without it, no button, and the call that the viewer copies leaves it out
+    assert "ec-explore" not in g.plot(seed=1)._repr_html_()
+    assert "explore" not in dict(_options(page)["call"]["args"])
+
+
+def test_the_explored_viewer_starts_where_the_figure_has_the_nodes(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    g = ec.karate_club()
+    for backend in ["svg", "png"]:
+        kept = {}
+        scene = svg_renderer.build_scene(g, backend=backend, keep=kept, seed=1, color_by="faction")
+        p = g.plot(seed=1, color_by="faction", backend=backend, explore=f"{backend}.html")
+        page = (tmp_path / f"{backend}.html").read_text(encoding="utf-8")
+        header, columns = _html_payload(page)
+        ids = [int(i) for i in g.get_node_ids(limit=None)]
+        assert columns["x"] == pytest.approx([kept["positions"][i][0] for i in ids], abs=1e-3)
+        assert columns["y"] == pytest.approx([kept["positions"][i][1] for i in ids], abs=1e-3)
+        # In the figure's frame, at its node size, and in its edges' tone
+        assert header["viewbox"] == pytest.approx(list(scene.viewbox), abs=1e-3)
+        assert header["constants"]["r"] == pytest.approx(kept["node_size"])
+        assert _options(page)["state"]["placed"]
+        assert _explore_link(p._repr_html_()) == f"{backend}.html"
+    # The SVG's nodes are where the viewer has them
+    drawn = _drawn(g.plot(seed=1, color_by="faction", backend="svg").svg)
+    header, columns = _html_payload((tmp_path / "svg.html").read_text(encoding="utf-8"))
+    for k, i in enumerate(int(i) for i in g.get_node_ids(limit=None)):
+        assert (columns["x"][k], columns["y"][k]) == pytest.approx(drawn[i][:2], abs=0.06)
+
+
+def test_explore_links_from_where_the_figure_is(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    g = ec.karate_club()
+    p = g.plot(seed=1, explore="figs/a b.html")
+    assert (tmp_path / "figs" / "a b.html").is_file()
+    assert _explore_link(p._repr_html_()) == "figs/a%20b.html"
+    # Saved elsewhere, the link is from there
+    (tmp_path / "out").mkdir()
+    p.save(tmp_path / "out" / "fig.html")
+    saved = (tmp_path / "out" / "fig.html").read_text(encoding="utf-8")
+    assert _explore_link(saved) == "../figs/a%20b.html"
+    g.plot(seed=1, explore="figs/a b.html", output=str(tmp_path / "figs" / "fig.html"))
+    saved = (tmp_path / "figs" / "fig.html").read_text(encoding="utf-8")
+    assert _explore_link(saved) == "a%20b.html"
+    # A dark figure's button, in its colors, opens a dark viewer
+    dark = g.plot(seed=1, theme="dark", explore="dark.html")._repr_html_()
+    assert f"color:{svg_renderer.DARK.label_color}" in dark
+    assert 'content="dark"' in (tmp_path / "dark.html").read_text(encoding="utf-8")
+
+
+@pytest.mark.parametrize(
+    "options, error",
+    [
+        ({"explore": True, "backend": "viewer"}, ValueError),
+        ({"explore": "figs/karate.png"}, ValueError),
+        ({"explore": 1}, TypeError),
+        ({"explore": ["a.html"]}, TypeError),
+    ],
+)
+def test_explore_is_checked(options, error, tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    with pytest.raises(error):
+        ec.karate_club().plot(**options)
+    assert not list(tmp_path.iterdir())
+
+
+def test_explore_writes_nothing_for_an_empty_graph(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    html = ec.Graph().plot(explore=True)._repr_html_()
+    assert "ec-explore" not in html and not list(tmp_path.iterdir())
