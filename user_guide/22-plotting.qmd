@@ -456,6 +456,13 @@ the camera, as `view=` writes it, with a "Capture view" button of its own. The f
 plot's `width=` and `height=`, so a view captured full screen, or beside the docked panel, shows a
 little more or less at the sides of the figure than it did on screen.
 
+Once the Layout tab's simulation has moved the nodes, "Capture view" writes where they are too:
+`view=` gets `"positions"`, each node's `[x, y]` by its ID, and `"frame"`, the box that zoom 1
+fits, and the plot draws the nodes there instead of laying them out, whatever `layout=` and
+`seed=` say. The code is long for a large graph, about 22 characters a node. In a notebook, the
+plot's `view` property has them too, from when the simulation last paused or settled, so
+`g.plot(view=p.view, backend="png")` draws what the viewer shows without pasting anything.
+
 The labels stay the same size as the view zooms, and the viewer chooses them again, by the same
 rule as the SVG, for the part of the graph in view: zooming in on a crowded region shows the
 labels that had no room in the whole view. An edge's label is written along it, where it is long
