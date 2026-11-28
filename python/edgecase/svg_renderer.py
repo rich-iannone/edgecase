@@ -342,12 +342,13 @@ def _norm_selection(value: Any, directed: bool) -> Dict[str, list]:
     return {"nodes": nodes, "edges": [list(e) for e in sorted(pairs)]}
 
 
-def _norm_view(value: Any, now: Dict[str, float]) -> Dict[str, float]:
+def _norm_view(value: Any, now: Dict[str, Any]) -> Dict[str, Any]:
     """`value` as the viewer has a view, with what it leaves out as in `now`, and left out
-    where `now` doesn't have it either."""
-    form = "a dict of 'x', 'y' and 'zoom'"
-    value = _keys(value, "view", ("x", "y", "zoom"), form)
-    out = {
+    where `now` doesn't have it either: the camera, and where the nodes are, by their IDs, with
+    the box that zoom 1 fits."""
+    form = "a dict of 'x', 'y', 'zoom', 'positions' and 'frame'"
+    value = _keys(value, "view", ("x", "y", "zoom", "positions", "frame"), form)
+    out: Dict[str, Any] = {
         k: _state_number(value.get(k, now.get(k)), f"view[{k!r}]")
         for k in ("x", "y", "zoom")
         if k in value or k in now
@@ -356,6 +357,30 @@ def _norm_view(value: Any, now: Dict[str, float]) -> Dict[str, float]:
         if out["zoom"] <= 0:
             raise ValueError(f"view['zoom'] must be more than 0, got {out['zoom']!r}")
         out["zoom"] = min(_ZOOM_MAX, max(_ZOOM_MIN, out["zoom"]))
+    positions = value.get("positions", now.get("positions"))
+    if positions is not None:
+        if not isinstance(positions, dict):
+            raise TypeError(
+                f"view['positions'] takes a dict of node IDs to (x, y), got {positions!r}"
+            )
+        placed = {}
+        for node, at in positions.items():
+            if isinstance(at, (str, bytes)) or not hasattr(at, "__len__") or len(at) != 2:
+                raise TypeError(f"view['positions'] takes (x, y) pairs, got {at!r}")
+            placed[_state_id(node, "view['positions']")] = [
+                _state_number(v, "view['positions']") for v in at
+            ]
+        out["positions"] = placed
+    frame = value.get("frame", now.get("frame"))
+    if frame is not None:
+        if "positions" not in out:
+            raise ValueError("view['frame'] is the box of view['positions'], and comes with them")
+        if isinstance(frame, (str, bytes)) or not hasattr(frame, "__len__") or len(frame) != 4:
+            raise TypeError(f"view['frame'] is (x, y, width, height), got {frame!r}")
+        box = [_state_number(v, "view['frame']") for v in frame]
+        if box[2] <= 0 or box[3] <= 0:
+            raise ValueError(f"view['frame'] has a width and height more than 0, got {frame!r}")
+        out["frame"] = box
     return out
 
 
@@ -701,11 +726,15 @@ class StepPlayer:
 
         It is a dict of `"x"` and `"y"`, the center, in the plot's own units (those of the SVG's
         viewBox, in which the layout places the nodes), and `"zoom"`, 1 where the graph fits the
-        box, from 0.25 to 1000. It follows the viewer once a pan or a zoom comes to a stop, and
-        setting it pans and zooms the viewer there, with any key left out kept as it is, and
-        `None` for the view that fits the graph. `plot(view=...)` takes the same dict, to start
-        there, and to draw as SVG or PNG what the viewer shows there. It is `None` for a plot
-        that isn't the viewer's.
+        box, from 0.25 to 1000. Once the viewer's simulation has moved the nodes, or where
+        `plot(view=...)` placed them, it also has `"positions"`, the nodes' `[x, y]` by their
+        IDs, as they were when the simulation last paused or settled, and `"frame"`, the box
+        `[x, y, width, height]` that zoom 1 fits. It follows the viewer once a pan or a zoom
+        comes to a stop, and setting it pans and zooms the viewer there, and puts the nodes at
+        the positions it has (stopping the simulation) unless they are there already, with any
+        key left out kept as it is, and `None` for the view that fits the graph.
+        `plot(view=...)` takes the same dict, to start there, and to draw as SVG or PNG what the
+        viewer shows there. It is `None` for a plot that isn't the viewer's.
 
         Examples
         --------
@@ -2144,21 +2173,31 @@ def render_plot(
         return svg_str
 
     if backend == "viewer" and scene.node_count:
-        # Overlap removal lays the nodes out for their size
-        moves = options.get("node_overlap") != "allow" and options.get("layout") != "circular"
+        # Overlap removal lays the nodes out for their size, but not those the view places
+        view = options.get("view")
+        placed = view is not None and view.get("positions") is not None
+        moves = (
+            options.get("node_overlap") != "allow"
+            and options.get("layout") != "circular"
+            and not placed
+        )
         # "auto" is the tone of the plot that backend="auto" would draw
         auto_tone = "log" if _draws_images(scene, colors) else "over"
         tone = auto_tone if edge_tone == "auto" else edge_tone
         look = {"tone": {"value": edge_tone, "auto": auto_tone}, "shade": shade}
-        # The view that fits the graph, and the view and the filters that the viewer starts with
+        # The view that fits the graph, and the view and the filters that the viewer starts with,
+        # with the positions given and their frame, which the viewer's HTML has as its nodes'
         vb = scene.viewbox
         home = {"x": vb[0] + vb[2] / 2, "y": vb[1] + vb[3] / 2, "zoom": 1.0}
-        view = options.get("view")
         state = {
             "view": None if view is None else _norm_view(view, home),
             "filters": _norm_filters(options.get("filters")),
         }
-        html_str = emit_viewer(scene, colors, css_width, call, moves, look, state)
+        if placed:
+            state["view"]["frame"] = list(vb)
+        camera = state["view"] and {k: state["view"][k] for k in ("x", "y", "zoom")}
+        shown = {**state, "view": camera, "placed": placed}
+        html_str = emit_viewer(scene, colors, css_width, call, moves, look, shown)
         # With the runtime, as a notebook has it
         total = len(html_str) + len(_runtime_js())
         if total > NOTEBOOK_BYTES_MAX:
@@ -2273,7 +2312,8 @@ def build_scene(
 
     With `view`, a camera as the viewer has it (see `StepPlayer.view`), the scene is drawn as
     the viewer shows it there, and framed as the viewer frames it: with its node size, its
-    legend along the bottom and no routing. `filters` (see `StepPlayer.filters`) leave out what
+    legend along the bottom and no routing. Its positions, if it has them, place the nodes in
+    place of the layout, as they are, in its frame, or one fitted to them. `filters` (see `StepPlayer.filters`) leave out what
     they hide, as the viewer does, and the legend draws the swatches that they turn off faint;
     the viewer starts with them.
 
@@ -2346,7 +2386,17 @@ def build_scene(
     edges = builder.edge_names
 
     # --- Layout ---
-    if layout == "circular":
+    # The view's positions where it has them, as the viewer's simulation leaves them, as they are
+    given = None if view is None else view.get("positions")
+    if given is not None:
+        missing = [i for i in node_ids if i not in given]
+        if missing:
+            raise ValueError(
+                f"view['positions'] has no (x, y) for {len(missing):,} of the graph's nodes, "
+                f"as for node {missing[0]!r}"
+            )
+        positions = {name: tuple(given[i]) for i, name in zip(node_ids, str_ids)}
+    elif layout == "circular":
         positions = _circular_layout(str_ids, float(width), float(height), edges=edges)
     elif layout == "random":
         positions = _random_layout(str_ids, float(width), float(height), seed=seed)
@@ -2396,9 +2446,9 @@ def build_scene(
         if highlight is not None or highlight_edges is not None:
             builder.highlight(_resolve_highlight(graph, highlight, highlight_edges))
 
-        # --- Overlap removal (force layout only) ---
+        # --- Overlap removal (force layout only), but for positions given ---
         placed = positions
-        if node_overlap != "allow" and layout not in ("circular",) and n >= 2:
+        if node_overlap != "allow" and layout not in ("circular",) and n >= 2 and given is None:
             overlap_pad = float(node_overlap) if isinstance(node_overlap, (int, float)) else 2.0
             radii = dict(zip(str_ids, builder.radii))
             placed = _remove_overlaps(positions, radii, padding=overlap_pad, seed=seed)
@@ -2436,6 +2486,7 @@ def build_scene(
             camera=camera,
             filters=ranges,
             off=off,
+            frame=None if view is None or "frame" not in view else tuple(view["frame"]),
         )
 
     if backend != "auto":
@@ -2677,13 +2728,13 @@ def plot_call(method: Callable[..., Any], given: Dict[str, Any]) -> Dict[str, An
     """A call of `method`, for the viewer to write out as code: `"params"`, the names of its
     parameters in order, and `"args"`, `[name, source]` for those of `given` (its arguments)
     that differ from their defaults. `output=` is left out, so that running the code doesn't
-    write over a file."""
+    write over a file, and `view=`, which the viewer writes from its camera."""
     import inspect
 
     params = [name for name in inspect.signature(method).parameters if name != "self"]
     args = []
     for name, param in inspect.signature(method).parameters.items():
-        if name in ("self", "output") or name not in given:
+        if name in ("self", "output", "view") or name not in given:
             continue
         value = given[name]
         if type(value) is type(param.default) and value == param.default:
@@ -2731,8 +2782,10 @@ def emit_viewer(
     "auto": the tone that "auto" is}, "shade": shade}`, by default "over" and flat. `state`
     has the view that it starts at (None for the one that fits the graph) and the filters that
     it starts with, `{"view": ..., "filters": [...]}`, as `StepPlayer.view` and
-    `StepPlayer.filters` have them; the legend's swatches are in its options as filters of
-    values name them, to turn them off and to write them out.
+    `StepPlayer.filters` have them, but for the view's positions, and `"placed"`, true where
+    the scene's nodes are at those of the view that `plot()` was given, for its code to keep
+    them; the legend's swatches are in its options as filters of values name them, to turn them
+    off and to write them out.
 
     In the automatic theme, the viewer reads its theme from a variable of `colors` (one that
     holds "light" or "dark"), so that it follows the page by the same rules as the legend's
