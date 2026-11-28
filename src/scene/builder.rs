@@ -1327,7 +1327,9 @@ impl SceneBuilder {
     /// None for straight edges. With `show_labels`, at most `max_labels` labels are drawn (see
     /// `labels.rs`), or with None, every one up to `labels::ALL_MAX` nodes and otherwise
     /// `labels::AUTO_MAX`. More than `lean_min` nodes or edges make it lean, and `viewer` keeps
-    /// what the viewer needs: the tooltips as tables, and what its controls change
+    /// what the viewer needs: the tooltips as tables, and what its controls change. A `frame`,
+    /// (min x, min y, width, height), legend included, is the viewbox, in place of the one
+    /// fitted to the nodes
     #[pyo3(signature = (
         positions,
         width,
@@ -1344,6 +1346,7 @@ impl SceneBuilder {
         camera=None,
         filters=Vec::new(),
         off=Vec::new(),
+        frame=None,
     ))]
     #[allow(clippy::too_many_arguments)]
     fn scene(
@@ -1364,6 +1367,7 @@ impl SceneBuilder {
         camera: Option<(Option<f64>, Option<f64>, f64)>,
         filters: Vec<(String, Option<bool>, f64, f64)>,
         off: Vec<usize>,
+        frame: Option<(f64, f64, f64, f64)>,
     ) -> PyResult<Scene> {
         let Some(enc) = &self.enc else {
             return Err(PyValueError::new_err("encode() comes before scene()"));
@@ -1453,7 +1457,15 @@ impl SceneBuilder {
             30.0,
             Some((width - column, height - band)),
         );
-        if legend.is_truthy()? {
+        if let Some((x, y, w, h)) = frame {
+            if !([x, y, w, h].iter().all(|v| v.is_finite()) && w > 0.0 && h > 0.0) {
+                return Err(PyValueError::new_err(format!(
+                    "the frame is a finite box of a width and height more than 0, not {:?}",
+                    (x, y, w, h)
+                )));
+            }
+            viewbox = (x, y, w, h);
+        } else if legend.is_truthy()? {
             // Viewbox units per pixel
             if legend_h > 0.0 {
                 let unit = viewbox.2 / width;
