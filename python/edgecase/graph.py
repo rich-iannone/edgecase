@@ -4519,6 +4519,7 @@ class Graph:
         edge_tone: str = "auto",
         shade: bool = False,
         backend: str = "auto",
+        explore: Union[bool, str] = False,
     ):
         """
         Render the graph as a static SVG image.
@@ -4804,6 +4805,26 @@ class Graph:
             and `set_runtime()`). A plot lets its WebGL context go while it is out of view, as a
             page keeps only about 16, and the browser needs WebGL 2. Any other value raises
             `ValueError`.
+        explore
+            Whether to give the figure (drawn as SVG or PNG) an Explore button, which opens it in
+            the viewer: the plot with `backend="viewer"`, its nodes where the figure has them and
+            in its frame, so that it shows what the figure shows, then to pan, zoom, filter and
+            capture a view (its "Capture view" writes the call with the positions). The viewer is
+            a page of its own, with the viewer's code, written as a file that the button links
+            to. On a page from a server, a click on the button fetches it and puts the viewer in
+            the figure's place; from the disk, or with a modifier key, it opens in a tab. `True`
+            writes it to the working directory, which is the page's folder for a notebook or a
+            Quarto page, named after what it holds (as `ec-explore-3f9a1c2b7d40.html`), so that
+            the same plot (with a `seed=`, say) writes the same file. A path, such as
+            `"figs/karate.html"`, names the file instead, from the working directory, and its
+            folder is made if need be. The link is from the working directory, and from where
+            the figure is saved for `output=` and `.save()`. A site keeps the file with the page
+            (Quarto copies it to the output), but a page under `freeze:` keeps only its output,
+            so the file has to stay in the source folder too. About 115 kB for 34 nodes, mostly
+            the viewer's code. With `backend="viewer"`, which is the viewer already, or a path
+            that isn't an `.html` file, it raises `ValueError`, and anything but `True`, `False`
+            or a path `TypeError`.
+            Default is `False`, for no button.
 
         Returns
         -------
@@ -4817,7 +4838,8 @@ class Graph:
             notebook's kernel (and in marimo), it shows as a widget, whose `.selection`, `.view`
             and `.filters` follow the viewer and move it when set, with `.on_change()` to call a
             function as they change; the selection is also the graph's, for
-            `highlight="selection"`.
+            `highlight="selection"`. With `explore=`, the HTML has the Explore button, and the
+            viewer's file is written.
 
         Raises
         ------
@@ -4831,9 +4853,12 @@ class Graph:
             attribute the graph doesn't have, `edge_routing=`, `edge_tone=` or `backend=` is
             unknown, `edge_tone="log"` is given with `backend="svg"`,
             `width=` is a string other than a CSS length or without `backend="viewer"`,
-            `output=` has an extension other than `.html`, `.svg` or `.png`, or the graph is so
+            `output=` has an extension other than `.html`, `.svg` or `.png`, `explore=` is given
+            with `backend="viewer"` or names a file other than an `.html` one, or the graph is so
             large that its SVG would pass 200 MB (with `backend="svg"`, or for the `.svg` of a
             plot that `backend="auto"` drew as images or that the viewer draws).
+        TypeError
+            If `explore=` is other than `True`, `False` or a path.
 
         Warns
         -----
@@ -4949,7 +4974,7 @@ class Graph:
         from edgecase.svg_renderer import plot_call, render_plot
 
         # The call, for the viewer to write out as code with what its controls change
-        call = plot_call(self.plot, locals()) if backend == "viewer" else None
+        call = plot_call(self.plot, locals()) if backend == "viewer" or explore else None
         return render_plot(
             self,
             call=call,
@@ -4985,6 +5010,7 @@ class Graph:
             edge_tone=edge_tone,
             shade=shade,
             backend=backend,
+            explore=explore,
         )
 
     def play(
