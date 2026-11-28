@@ -82,6 +82,11 @@ panel = [
 solara = [
     "solara>=1.66.3",
 ]
+# For the parity tests (`tests/test_parity.py`), which draw the viewer in headless Chromium; its
+# browser is installed apart, by `playwright install chromium`
+parity = [
+    "playwright>=1.49",
+]
 all = [
     "edgecase[dev,bio,networkx,docs]",
 ]
